@@ -1,0 +1,10 @@
+const express = require('express');
+const router  = express.Router();
+const { getHouses, createHouse, updateHouse, deleteHouse } = require('../controllers/houseController');
+const { protect, authorize } = require('../middleware/auth');
+router.use(protect);
+router.get('/',       getHouses);
+router.post('/',      authorize('admin', 'staff'), createHouse);
+router.put('/:id',    authorize('admin', 'staff'), updateHouse);
+router.delete('/:id', authorize('admin'),           deleteHouse);
+module.exports = router;
