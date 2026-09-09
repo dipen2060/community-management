@@ -18,7 +18,7 @@ const paymentUpload = require('../middleware/paymentUpload');
 router.use(protect);
 router.get('/', getDues);
 router.get('/stats', getDashboardStats);
-router.get('/clusters', authorize('admin', 'staff'), getPaymentClusters);
+router.get('/clusters', authorize('admin'), getPaymentClusters);
 router.get('/:id/proof', getPaymentProof);
 router.get('/:id', getDueById);
 router.post('/generate', authorize('admin'), generateMonthlyDues);

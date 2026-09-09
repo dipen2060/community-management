@@ -121,12 +121,14 @@ export default function Layout() {
           >
             🏠 Houses
           </NavLink>
-          <NavLink
-            to="/dues"
-            className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}
-          >
-            💰 Dues
-          </NavLink>
+          {!isStaff && (
+            <NavLink
+              to="/dues"
+              className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}
+            >
+              💰 Dues
+            </NavLink>
+          )}
           <NavLink
             to="/complaints"
             className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}
@@ -139,7 +141,7 @@ export default function Layout() {
           >
             📢 Notices
           </NavLink>
-          {isAdminOrStaff && (
+          {isAdmin && (
             <NavLink
               to="/clusters"
               className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}
