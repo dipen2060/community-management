@@ -1,4 +1,5 @@
 const House = require('../models/House');
+const { getPagination, applyPagination, buildMeta } = require('../utils/paginate'); 
 
 async function validateAssignment({ owner, tenant, currentId = null }) {
   if (owner && tenant && String(owner) === String(tenant)) {
@@ -23,8 +24,17 @@ async function validateAssignment({ owner, tenant, currentId = null }) {
 exports.getHouses = async (req, res, next) => {
   try {
     const filter = req.user.role === 'resident' ? { $or: [{ owner: req.user._id }, { tenant: req.user._id }] } : {};
-    const houses = await House.find(filter).populate('owner', 'name username phone email').populate('tenant', 'name username phone email').sort({ section: 1, houseNo: 1 });
-    res.json({ success: true, count: houses.length, data: houses });
+    const total = await House.countDocuments(filter);
+    const { page, limit } = getPagination(req);
+
+    let query = House.find(filter)
+      .populate('owner', 'name username phone email')
+      .populate('tenant', 'name username phone email')
+      .sort({ section: 1, houseNo: 1 });
+    query = applyPagination(query, page, limit);
+    const houses = await query;
+
+    res.json({ success: true, ...buildMeta(total, page, limit, houses.length), data: houses });
   } catch (err) { next(err); }
 };
 

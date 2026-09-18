@@ -3,6 +3,7 @@ const path = require('path');
 const Due = require('../models/Due');
 const House = require('../models/House');
 const { createNotification } = require('./notificationController');
+const { getPagination, applyPagination, buildMeta } = require('../utils/paginate');
 
 function calculateFine(dueDate, now = new Date()) {
   if (!dueDate || dueDate >= now) return 0;
@@ -30,7 +31,7 @@ function removeUploadedFile(url) {
   if (!url) return;
   const relative = url.replace(/^\/+/, '');
   const filePath = path.join(__dirname, '..', relative);
-  fs.unlink(filePath, () => {});
+  fs.unlink(filePath, () => { });
 }
 
 // K-Means clustering for payment behavior
@@ -68,8 +69,8 @@ exports.getDues = async (req, res) => {
   try {
     const filter = {};
     if (req.query.status) filter.status = req.query.status;
-    if (req.query.month)  filter.month = Number(req.query.month);
-    if (req.query.year)   filter.year = Number(req.query.year);
+    if (req.query.month) filter.month = Number(req.query.month);
+    if (req.query.year) filter.year = Number(req.query.year);
 
     // Residents can only see dues belonging to a house where they are owner/tenant.
     if (req.user.role === 'resident') {
@@ -77,22 +78,45 @@ exports.getDues = async (req, res) => {
       filter.house = { $in: houseIds };
     }
 
-    const dues = await Due.find(filter)
-      .populate({ path: 'house', select: 'houseNo floor section monthlyDue owner tenant', populate: [
-        { path: 'owner', select: 'name username email phone' },
-        { path: 'tenant', select: 'name username email phone' }
-      ]})
+    const total = await Due.countDocuments(filter);
+    const { page, limit } = getPagination(req);
+
+    let query = Due.find(filter)
+      .populate({
+        path: 'house', select: 'houseNo floor section monthlyDue owner tenant', populate: [
+          { path: 'owner', select: 'name username email phone' },
+          { path: 'tenant', select: 'name username email phone' }
+        ]
+      })
       .populate('paidBy', 'name username')
       .populate('submittedBy', 'name username')
       .populate('verifiedBy', 'name username')
       .sort({ dueDate: 1, createdAt: -1 });
+    query = applyPagination(query, page, limit);
+    const dues = await query;
 
-    res.json({ success: true, count: dues.length, data: dues });
+    // Summary is computed over the FULL filtered set (not just the current
+    // page), so the stat cards on the Dues page stay correct no matter which
+    // page the user is viewing. Mirrors the same fine calculation used above.
+    const now = new Date();
+    const summaryDocs = await Due.find(filter).select('amount fine dueDate status').lean();
+    const summary = summaryDocs.reduce((acc, d) => {
+      if (['pending', 'overdue'].includes(d.status)) {
+        const fine = Math.max(Number(d.fine || 0), calculateFine(d.dueDate, now));
+        acc.outstanding += Number(d.amount || 0) + fine;
+      } else if (d.status === 'verification_pending') {
+        acc.verification += 1;
+      } else if (d.status === 'paid') {
+        acc.paid += 1;
+      }
+      return acc;
+    }, { outstanding: 0, verification: 0, paid: 0 });
+
+    res.json({ success: true, ...buildMeta(total, page, limit, dues.length), data: dues, summary });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
 };
-
 // Submit proof; this does NOT mark the due paid. An admin must verify it first.
 exports.submitPaymentProof = async (req, res) => {
   let saved = false;
@@ -170,10 +194,10 @@ exports.submitPaymentProof = async (req, res) => {
 
     try {
       await createNotification({
-      user: req.user._id,
-      title: 'Payment Proof Submitted 🧾',
-      message: `Your payment proof for ${due.house.houseNo} (${due.month}/${due.year}) was submitted and is waiting for admin verification.`,
-      type: 'due',
+        user: req.user._id,
+        title: 'Payment Proof Submitted 🧾',
+        message: `Your payment proof for ${due.house.houseNo} (${due.month}/${due.year}) was submitted and is waiting for admin verification.`,
+        type: 'due',
         link: '/dues'
       });
     } catch (notificationError) {
@@ -404,7 +428,7 @@ exports.getPaymentProof = async (req, res) => {
     if (req.user.role === 'resident') {
       const allowed = [due.house?.owner, due.house?.tenant].filter(Boolean).some(id => id.toString() === req.user._id.toString());
       if (!allowed) return res.status(403).json({ success: false, message: 'Access denied' });
-    } else if (!['admin','staff'].includes(req.user.role)) {
+    } else if (!['admin', 'staff'].includes(req.user.role)) {
       return res.status(403).json({ success: false, message: 'Access denied' });
     }
     const fileName = due.paymentProof?.fileName;
@@ -418,10 +442,12 @@ exports.getPaymentProof = async (req, res) => {
 exports.getDueById = async (req, res) => {
   try {
     const due = await Due.findById(req.params.id)
-      .populate({ path: 'house', select: 'houseNo floor section owner tenant', populate: [
-        { path: 'owner', select: 'name username email phone' },
-        { path: 'tenant', select: 'name username email phone' }
-      ]})
+      .populate({
+        path: 'house', select: 'houseNo floor section owner tenant', populate: [
+          { path: 'owner', select: 'name username email phone' },
+          { path: 'tenant', select: 'name username email phone' }
+        ]
+      })
       .populate('submittedBy', 'name username email')
       .populate('verifiedBy', 'name username');
     if (!due) return res.status(404).json({ success: false, message: 'Due not found' });

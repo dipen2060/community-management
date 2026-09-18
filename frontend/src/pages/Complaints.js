@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
+import Pagination from '../components/Pagination';   // ← naya
 
 export default function Complaints() {
   const [complaints, setComplaints] = useState([]);
@@ -8,21 +9,28 @@ export default function Complaints() {
   const [similar,    setSimilar]    = useState([]);
   const [autoInfo,   setAutoInfo]   = useState(null);
   const [form,       setForm]       = useState({ title: '', description: '', priority: 'medium' });
-  const [resolveFor, setResolveFor] = useState(null); // complaint being resolved
+  const [resolveFor, setResolveFor] = useState(null);
   const [resolutionText, setResolutionText] = useState('');
   const [sectionFilter, setSectionFilter] = useState('');
   const [allSections, setAllSections] = useState([]);
   const [staffList, setStaffList] = useState([]);
+  const [page, setPage] = useState(1);        // ← naya
+  const [pages, setPages] = useState(1);      // ← naya
+  const [total, setTotal] = useState(0);      // ← naya
   const { user } = useAuth();
   const isAdminOrStaff = ['admin', 'staff'].includes(user?.role);
   const isAdmin = user?.role === 'admin';
 
-  const fetchComplaints = () => {
-    const params = sectionFilter ? `?section=${encodeURIComponent(sectionFilter)}` : '';
-    axios.get(`/api/complaints${params}`).then(r => setComplaints(r.data.data || []));
+  const fetchComplaints = (p = page) => {
+    const sectionParam = sectionFilter ? `&section=${encodeURIComponent(sectionFilter)}` : '';
+    axios.get(`/api/complaints?page=${p}&limit=20${sectionParam}`).then(r => {
+      setComplaints(r.data.data || []);
+      setPages(r.data.pages || 1);
+      setTotal(r.data.total ?? (r.data.data || []).length);
+    });
   };
 
-  useEffect(() => { fetchComplaints(); }, [sectionFilter]);
+  useEffect(() => { fetchComplaints(page); }, [page, sectionFilter]);
 
   useEffect(() => {
     if (isAdminOrStaff) {
@@ -128,7 +136,7 @@ export default function Complaints() {
         <button className="btn btn-primary" onClick={() => { setShowModal(true); setAutoInfo(null); }}>+ New Complaint</button>
         {isAdminOrStaff && (
           <>
-            <select value={sectionFilter} onChange={e => setSectionFilter(e.target.value)} style={{ padding: '8px 12px', border: '1px solid #d1d5db', borderRadius: '8px', fontSize: '0.875rem' }}>
+            <select value={sectionFilter} onChange={e => { setSectionFilter(e.target.value); setPage(1); }} style={{ padding: '8px 12px', border: '1px solid #d1d5db', borderRadius: '8px', fontSize: '0.875rem' }}>
               <option value="">All Sections</option>
               {allSections.map(s => <option key={s} value={s}>{s}</option>)}
             </select>
@@ -228,7 +236,7 @@ export default function Complaints() {
           </tbody>
         </table>
       </div>
-
+      <Pagination page={page} pages={pages} total={total} onChange={setPage} /> 
       {/* New Complaint Modal */}
       {showModal && (
         <div className="modal-overlay" onClick={() => setShowModal(false)}>

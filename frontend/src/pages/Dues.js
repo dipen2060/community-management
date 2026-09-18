@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';         // useMemo hataiyo (ab chaidaina)
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
+import Pagination from '../components/Pagination';    // ← naya
 
 const emptyPaymentForm = { paymentMethod: 'digital_wallet', paymentReference: '', declaredAmount: '', proof: null };
 
@@ -43,19 +44,28 @@ export default function Dues() {
   const [reviewDue, setReviewDue] = useState(null);
   const [rejectReason, setRejectReason] = useState('');
   const [reviewing, setReviewing] = useState(false);
+  const [page, setPage] = useState(1);
+  const [pages, setPages] = useState(1);
+  const [total, setTotal] = useState(0);
+  const [summary, setSummary] = useState({ outstanding: 0, verification: 0, paid: 0 });
 
   const isResident = user?.role === 'resident';
   const isAdmin = user?.role === 'admin';
   const isStaff = user?.role === 'staff';
   const isManagement = isAdmin || isStaff;
 
-  const fetchDues = async () => {
+  const fetchDues = async (p = page) => {
     setLoading(true);
     setError('');
     try {
-      const params = filter ? `?status=${encodeURIComponent(filter)}` : '';
-      const res = await axios.get(`/api/dues${params}`);
+      const statusParam = filter ? `&status=${encodeURIComponent(filter)}` : '';
+      const res = await axios.get(`/api/dues?page=${p}&limit=20${statusParam}`);
       setDues(res.data.data || []);
+      setPages(res.data.pages || 1);
+      setTotal(res.data.total ?? (res.data.data || []).length);
+      // Stat cards use the server-computed summary (covers ALL matching dues,
+      // not just the current page) so the numbers stay correct while paging.
+      if (res.data.summary) setSummary(res.data.summary);
     } catch (err) {
       setError(err.response?.data?.message || 'Could not load dues.');
     } finally {
@@ -63,13 +73,9 @@ export default function Dues() {
     }
   };
 
-  useEffect(() => { fetchDues(); }, [filter]);
+  useEffect(() => { fetchDues(page); }, [page, filter]);
 
-  const stats = useMemo(() => ({
-    outstanding: dues.filter(d => ['pending', 'overdue'].includes(d.status)).reduce((sum, d) => sum + totalOf(d), 0),
-    verification: dues.filter(d => d.status === 'verification_pending').length,
-    paid: dues.filter(d => d.status === 'paid').length
-  }), [dues]);
+  const stats = summary;
 
   const openPaymentModal = (due) => {
     setPaymentDue(due);
@@ -257,7 +263,7 @@ export default function Dues() {
       </div>
 
       <div className="filter-bar">
-        <select value={filter} onChange={e => setFilter(e.target.value)}>
+        <select value={sectionFilter} onChange={e => { setSectionFilter(e.target.value); setPage(1); }} style={{ padding: '8px 12px', border: '1px solid #d1d5db', borderRadius: '8px', fontSize: '0.875rem' }}>
           <option value="">All Status</option>
           <option value="pending">Pending</option>
           <option value="overdue">Overdue</option>
@@ -343,6 +349,7 @@ export default function Dues() {
             </tbody>
           </table>
         </div>
+         <Pagination page={page} pages={pages} total={total} onChange={setPage} />
         {isResident && (
           <div className="dues-security-note">
             🔐 You cannot mark a due paid directly. A payment proof is required and an admin verifies it before the receipt is issued.

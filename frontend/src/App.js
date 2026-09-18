@@ -17,6 +17,16 @@ const PrivateRoute = ({ children }) => {
   return user ? children : <Navigate to="/login" />;
 };
 
+// Role-aware guard. Wrap any route that the backend also restricts by role
+// (e.g. authorize('admin') on the matching API route) so unauthorized users
+// get redirected to the dashboard instead of seeing a broken/empty page.
+const RoleRoute = ({ roles, children }) => {
+  const { user } = useAuth();
+  if (!user) return <Navigate to="/login" />;
+  if (!roles.includes(user.role)) return <Navigate to="/" replace />;
+  return children;
+};
+
 export default function App() {
   return (
     <AuthProvider>
@@ -29,7 +39,10 @@ export default function App() {
             <Route path="dues"       element={<Dues />} />
             <Route path="complaints" element={<Complaints />} />
             <Route path="notices"    element={<Notices />} />
-            <Route path="clusters"   element={<Clusters />} />
+            <Route
+              path="clusters"
+              element={<RoleRoute roles={['admin']}><Clusters /></RoleRoute>}
+            />
             <Route path="staff"      element={<Staff />} />
             <Route path="polls"      element={<Polls />} />
             <Route path="profile"    element={<Profile />} />

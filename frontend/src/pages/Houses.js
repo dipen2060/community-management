@@ -1,20 +1,30 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
+import Pagination from '../components/Pagination';
 
 export function Houses() {
   const [houses, setHouses] = useState([]);
   const [residents, setResidents] = useState([]);
   const [showModal, setShowModal] = useState(false);
   const [form, setForm] = useState({ houseNo: '', section: 'Section 1', floor: 0, type: 'apartment', monthlyDue: 500, owner: '' });
+  const [page, setPage] = useState(1);
+  const [pages, setPages] = useState(1);
+  const [total, setTotal] = useState(0);
   const { user } = useAuth();
   const isAdmin = ['admin', 'staff'].includes(user?.role);
 
-  const fetchHouses = () => axios.get('/api/houses').then(r => setHouses(r.data.data || []));
+  const fetchHouses = (p = page) =>
+    axios.get(`/api/houses?page=${p}&limit=20`).then(r => {
+      setHouses(r.data.data || []);
+      setPages(r.data.pages || 1);
+      setTotal(r.data.total ?? (r.data.data || []).length);
+    });
+
   useEffect(() => {
-    fetchHouses();
+    fetchHouses(page);
     if (isAdmin) axios.get('/api/users?role=resident').then(r => setResidents(r.data.data || []));
-  }, []);
+  }, [page]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -23,7 +33,7 @@ export function Houses() {
       await axios.post('/api/houses', payload);
       setShowModal(false);
       setForm({ houseNo: '', section: 'Section 1', floor: 0, type: 'apartment', monthlyDue: 500, owner: '' });
-      fetchHouses();
+      fetchHouses(page);
     } catch (err) {
       alert(err.response?.data?.message || 'Could not add house');
     }
@@ -50,26 +60,27 @@ export function Houses() {
           </tbody>
         </table>
       </div>
+      <Pagination page={page} pages={pages} total={total} onChange={setPage} />
       {showModal && (
         <div className="modal-overlay" onClick={() => setShowModal(false)}>
           <div className="modal" onClick={e => e.stopPropagation()}>
             <h3>Add House</h3>
             <form onSubmit={handleSubmit}>
-              <div className="form-group"><label>House No</label><input value={form.houseNo} onChange={e => setForm({...form, houseNo: e.target.value})} required /></div>
+              <div className="form-group"><label>House No</label><input value={form.houseNo} onChange={e => setForm({ ...form, houseNo: e.target.value })} required /></div>
               <div className="form-group"><label>Section</label>
-                <select value={form.section} onChange={e => setForm({...form, section: e.target.value})}>
+                <select value={form.section} onChange={e => setForm({ ...form, section: e.target.value })}>
                   <option value="Section 1">Section 1</option>
                   <option value="Section 2">Section 2</option>
                   <option value="Section 3">Section 3</option>
                   <option value="Section 4">Section 4</option>
                 </select>
               </div>
-              <div className="form-group"><label>Floor</label><input type="number" value={form.floor} onChange={e => setForm({...form, floor: e.target.value})} /></div>
-              <div className="form-group"><label>Type</label><select value={form.type} onChange={e => setForm({...form, type: e.target.value})}><option value="apartment">Apartment</option><option value="house">House</option><option value="shop">Shop</option></select></div>
-              <div className="form-group"><label>Monthly Due (Rs.)</label><input type="number" value={form.monthlyDue} onChange={e => setForm({...form, monthlyDue: e.target.value})} /></div>
+              <div className="form-group"><label>Floor</label><input type="number" value={form.floor} onChange={e => setForm({ ...form, floor: e.target.value })} /></div>
+              <div className="form-group"><label>Type</label><select value={form.type} onChange={e => setForm({ ...form, type: e.target.value })}><option value="apartment">Apartment</option><option value="house">House</option><option value="shop">Shop</option></select></div>
+              <div className="form-group"><label>Monthly Due (Rs.)</label><input type="number" value={form.monthlyDue} onChange={e => setForm({ ...form, monthlyDue: e.target.value })} /></div>
               <div className="form-group">
                 <label>Owner (resident) — links them to this house & section</label>
-                <select value={form.owner} onChange={e => setForm({...form, owner: e.target.value})}>
+                <select value={form.owner} onChange={e => setForm({ ...form, owner: e.target.value })}>
                   <option value="">— Not linked yet —</option>
                   {residents.map(r => <option key={r._id} value={r._id}>{r.name} ({r.username})</option>)}
                 </select>

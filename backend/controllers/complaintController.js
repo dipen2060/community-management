@@ -1,6 +1,7 @@
 const Complaint = require('../models/Complaint');
 const User = require('../models/User');
 const House = require('../models/House');
+const { getPagination, applyPagination, buildMeta } = require('../utils/paginate');
 const { createNotification, createNotificationForMany } = require('./notificationController');
 const { detectCategory } = require('../utils/categoryClassifier');
 const { findBestStaffForCategory } = require('../utils/autoAssign');
@@ -11,7 +12,7 @@ function tokenize(text) {
 }
 
 function cosineSimilarity(a, b) {
-  const dot  = a.reduce((s, v, i) => s + v * b[i], 0);
+  const dot = a.reduce((s, v, i) => s + v * b[i], 0);
   const magA = Math.sqrt(a.reduce((s, v) => s + v * v, 0));
   const magB = Math.sqrt(b.reduce((s, v) => s + v * v, 0));
   return magA && magB ? dot / (magA * magB) : 0;
@@ -23,15 +24,15 @@ function tfidfVector(text, allDocs, vocab) {
   tokens.forEach(t => { tf[t] = (tf[t] || 0) + 1; });
   return vocab.map(word => {
     const tfVal = (tf[word] || 0) / (tokens.length || 1);
-    const df    = allDocs.filter(d => tokenize(d).includes(word)).length;
-    const idf   = Math.log((allDocs.length + 1) / (df + 1)) + 1;
+    const df = allDocs.filter(d => tokenize(d).includes(word)).length;
+    const idf = Math.log((allDocs.length + 1) / (df + 1)) + 1;
     return tfVal * idf;
   });
 }
 
 async function findSimilarComplaints(newText, pastComplaints) {
   const allTexts = pastComplaints.map(c => `${c.title} ${c.description}`);
-  const vocab    = [...new Set(allTexts.concat(newText).flatMap(tokenize))];
+  const vocab = [...new Set(allTexts.concat(newText).flatMap(tokenize))];
   const queryVec = tfidfVector(newText, allTexts, vocab);
   const ranked = pastComplaints
     .map((c, i) => ({ complaint: c, sim: cosineSimilarity(queryVec, tfidfVector(allTexts[i], allTexts, vocab)) }))
@@ -55,10 +56,10 @@ exports.getComplaints = async (req, res) => {
     const filter = {};
     if (req.user.role === 'resident') filter.submittedBy = req.user._id;
     if (req.user.role === 'staff' && req.query.mine === 'true') filter.assignedTo = req.user._id;
-    if (req.query.status)   filter.status   = req.query.status;
+    if (req.query.status) filter.status = req.query.status;
     if (req.query.category) filter.category = req.query.category;
-    if (req.query.section)  filter.section  = req.query.section;
-    
+    if (req.query.section) filter.section = req.query.section;
+
     // Search functionality - search in title and description
     if (req.query.search) {
       const searchRegex = new RegExp(req.query.search, 'i');
@@ -67,13 +68,19 @@ exports.getComplaints = async (req, res) => {
         { description: searchRegex }
       ];
     }
-    
-    const complaints = await Complaint.find(filter)
+
+    const total = await Complaint.countDocuments(filter);
+    const { page, limit } = getPagination(req);
+
+    let query = Complaint.find(filter)
       .populate('submittedBy', 'name phone')
       .populate('assignedTo', 'name phone specialization')
       .populate('resolvedBy', 'name phone')
       .sort({ createdAt: -1 });
-    res.json({ success: true, count: complaints.length, data: complaints });
+    query = applyPagination(query, page, limit);
+    const complaints = await query;
+
+    res.json({ success: true, ...buildMeta(total, page, limit, complaints.length), data: complaints });
   } catch (err) { res.status(500).json({ success: false, message: err.message }); }
 };
 
@@ -93,7 +100,7 @@ exports.createComplaint = async (req, res) => {
 
     // Find similar past complaints (only within resolved/closed of same category for better relevance)
     const resolved = await Complaint.find({ status: { $in: ['resolved', 'closed'] }, category });
-    const similar  = resolved.length ? await findSimilarComplaints(`${title} ${description}`, resolved) : [];
+    const similar = resolved.length ? await findSimilarComplaints(`${title} ${description}`, resolved) : [];
 
     // 🤖 ALGORITHM 2: Auto-assign to best-matching, least-busy staff
     const assignedStaff = await findBestStaffForCategory(category);
@@ -192,7 +199,7 @@ exports.updateComplaint = async (req, res) => {
     const wasResolved = complaint.status === 'resolved';
     const isReopening = wasResolved && status && status !== 'resolved' && status !== 'closed';
 
-    if (status)     complaint.status     = status;
+    if (status) complaint.status = status;
     if (assignedTo) complaint.assignedTo = assignedTo;
     if (resolution) complaint.resolution = resolution;
 
@@ -217,9 +224,9 @@ exports.updateComplaint = async (req, res) => {
     if (status) {
       const statusMessages = {
         inprogress: `Your complaint "${complaint.title}" is now being worked on by ${complaint.assignedTo?.name || 'staff'}.`,
-        resolved:   `Your complaint "${complaint.title}" has been resolved by ${req.user.name}! Solution: ${resolution}`,
-        pending:    `Your complaint "${complaint.title}" status was updated to pending.`,
-        closed:     `Your complaint "${complaint.title}" has been closed permanently after multiple resolve attempts.`
+        resolved: `Your complaint "${complaint.title}" has been resolved by ${req.user.name}! Solution: ${resolution}`,
+        pending: `Your complaint "${complaint.title}" status was updated to pending.`,
+        closed: `Your complaint "${complaint.title}" has been closed permanently after multiple resolve attempts.`
       };
       const finalStatus = complaint.status; // may have flipped to 'closed'
       if (statusMessages[finalStatus]) {
