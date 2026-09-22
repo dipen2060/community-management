@@ -53,6 +53,7 @@ export default function Dues() {
   const isAdmin = user?.role === 'admin';
   const isStaff = user?.role === 'staff';
   const isManagement = isAdmin || isStaff;
+  const canExportDues = isAdmin || user?.exportSection === 'all' || user?.exportSection === 'dues';
 
   const fetchDues = async (p = page) => {
     setLoading(true);
@@ -227,12 +228,16 @@ export default function Dues() {
             }}>
               🤖 Generate Monthly Dues
             </button>
-            <button type="button" className="btn btn-sm" style={{ background: '#10b981', color: 'white' }} onClick={() => handleExport('excel')}>
-              📊 Excel
-            </button>
-            <button type="button" className="btn btn-sm" style={{ background: '#ef4444', color: 'white' }} onClick={() => handleExport('pdf')}>
-              📄 PDF
-            </button>
+            {canExportDues && (
+              <>
+                <button type="button" className="btn btn-sm" style={{ background: '#10b981', color: 'white' }} onClick={() => handleExport('excel')}>
+                  📊 Excel
+                </button>
+                <button type="button" className="btn btn-sm" style={{ background: '#ef4444', color: 'white' }} onClick={() => handleExport('pdf')}>
+                  📄 PDF
+                </button>
+              </>
+            )}
           </div>
         )}
       </div>
@@ -263,7 +268,7 @@ export default function Dues() {
       </div>
 
       <div className="filter-bar">
-        <select value={sectionFilter} onChange={e => { setSectionFilter(e.target.value); setPage(1); }} style={{ padding: '8px 12px', border: '1px solid #d1d5db', borderRadius: '8px', fontSize: '0.875rem' }}>
+        <select value={filter} onChange={e => { setFilter(e.target.value); setPage(1); }} style={{ padding: '8px 12px', border: '1px solid #d1d5db', borderRadius: '8px', fontSize: '0.875rem' }}>
           <option value="">All Status</option>
           <option value="pending">Pending</option>
           <option value="overdue">Overdue</option>

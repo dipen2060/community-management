@@ -26,11 +26,11 @@ const seed = async () => {
   console.log('📦 Indexes recreated');
 
   // Create users — email = login, username = display (firstname.lastname), password = firstname@123
-  const admin       = await User.create({ name: 'Admin Sharma',       username: 'admin.sharma',       email: 'admin@tole.com',        password: 'admin@123',    role: 'admin' });
-  const staff       = await User.create({ name: 'General Staff',      username: 'general.staff',      email: 'staff@tole.com',        password: 'general@123',  role: 'staff', specialization: 'general' });
-  const electrician = await User.create({ name: 'Bishnu Electrician', username: 'bishnu.electrician', email: 'electrician@tole.com',  password: 'bishnu@123',   role: 'staff', specialization: 'electric', phone: '9811111111' });
-  const plumber     = await User.create({ name: 'Krishna Plumber',    username: 'krishna.plumber',    email: 'plumber@tole.com',      password: 'krishna@123',  role: 'staff', specialization: 'water',    phone: '9822222222' });
-  const guard       = await User.create({ name: 'Suresh Guard',       username: 'suresh.guard',       email: 'guard@tole.com',        password: 'suresh@123',   role: 'staff', specialization: 'security', phone: '9833333333' });
+  const admin       = await User.create({ name: 'Admin Sharma',       username: 'admin.sharma',       email: 'admin@tole.com',        password: 'admin@123',    role: 'admin', exportSection: 'all' });
+  const staff       = await User.create({ name: 'General Staff',      username: 'general.staff',      email: 'staff@tole.com',        password: 'general@123',  role: 'staff', specialization: 'general', exportSection: 'complaints' });
+  const electrician = await User.create({ name: 'Bishnu Electrician', username: 'bishnu.electrician', email: 'electrician@tole.com',  password: 'bishnu@123',    role: 'staff', specialization: 'electric', phone: '9811111111', exportSection: 'complaints' });
+  const plumber     = await User.create({ name: 'Krishna Plumber',    username: 'krishna.plumber',    email: 'plumber@tole.com',      password: 'krishna@123',  role: 'staff', specialization: 'water',    phone: '9822222222', exportSection: 'dues' });
+  const guard       = await User.create({ name: 'Suresh Guard',       username: 'suresh.guard',       email: 'guard@tole.com',        password: 'suresh@123',    role: 'staff', specialization: 'security', phone: '9833333333', exportSection: null });
   const r1          = await User.create({ name: 'Ram Bahadur',        username: 'ram.bahadur',        email: 'ram@tole.com',          password: 'ram@123',      role: 'resident' });
   const r2          = await User.create({ name: 'Sita Devi',          username: 'sita.devi',          email: 'sita@tole.com',         password: 'sita@123',     role: 'resident' });
   const r3          = await User.create({ name: 'Hari Prasad',        username: 'hari.prasad',        email: 'hari@tole.com',         password: 'hari@123',     role: 'resident' });

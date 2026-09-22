@@ -4,6 +4,8 @@ const Due = require('../models/Due');
 const House = require('../models/House');
 const { createNotification } = require('./notificationController');
 const { getPagination, applyPagination, buildMeta } = require('../utils/paginate');
+const { logAudit } = require('../utils/auditLogger');
+const { getResidentHouseIds, isResidentLinkedToHouse, getHouseResidentIds } = require('../utils/residentHouses');
 
 function calculateFine(dueDate, now = new Date()) {
   if (!dueDate || dueDate >= now) return 0;
@@ -11,21 +13,6 @@ function calculateFine(dueDate, now = new Date()) {
   return daysLate * 10;
 }
 
-
-async function getResidentHouseIds(userId) {
-  const houses = await House.find({
-    $or: [{ owner: userId }, { tenant: userId }]
-  }).select('_id');
-  return houses.map(h => h._id);
-}
-
-async function isResidentForHouse(userId, houseId) {
-  const house = await House.findOne({
-    _id: houseId,
-    $or: [{ owner: userId }, { tenant: userId }]
-  }).select('houseNo section owner tenant');
-  return house;
-}
 
 function removeUploadedFile(url) {
   if (!url) return;
@@ -76,6 +63,9 @@ exports.getDues = async (req, res) => {
     if (req.user.role === 'resident') {
       const houseIds = await getResidentHouseIds(req.user._id);
       filter.house = { $in: houseIds };
+      if (req.query.houseId) filter.house = { $in: houseIds.filter(id => String(id) === String(req.query.houseId)) };
+    } else if (req.query.houseId) {
+      filter.house = req.query.houseId;
     }
 
     const total = await Due.countDocuments(filter);
@@ -137,7 +127,7 @@ exports.submitPaymentProof = async (req, res) => {
       return res.status(409).json({ success: false, message: 'A payment proof is already awaiting admin verification.' });
     }
 
-    const house = await isResidentForHouse(req.user._id, due.house._id);
+    const house = await isResidentLinkedToHouse(req.user._id, due.house._id);
     if (!house) {
       removeUploadedFile(`/uploads/payment-proofs/${req.file.filename}`);
       return res.status(403).json({ success: false, message: 'You can only submit proof for your own house.' });
@@ -264,6 +254,12 @@ exports.approvePayment = async (req, res) => {
       }
     }
 
+    await logAudit(req.user._id, req.user.role, 'due_approved', 'due', due._id, {
+      oldStatus: 'verification_pending',
+      newStatus: due.status,
+      receiptNo
+    });
+
     res.json({ success: true, data: due, message: 'Payment approved and receipt generated.' });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
@@ -305,6 +301,12 @@ exports.rejectPayment = async (req, res) => {
         console.error('Payment rejection notification error:', notificationError.message);
       }
     }
+
+    await logAudit(req.user._id, req.user.role, 'due_rejected', 'due', due._id, {
+      oldStatus: 'verification_pending',
+      newStatus: due.status,
+      rejectionReason: reason
+    });
 
     res.json({ success: true, data: due, message: 'Payment proof rejected. Resident can submit a new proof.' });
   } catch (err) {
@@ -348,7 +350,7 @@ exports.generateMonthlyDues = async (req, res) => {
       });
       created++;
 
-      const recipients = [house.owner, house.tenant].filter(Boolean);
+      const recipients = await getHouseResidentIds(house);
       for (const userId of recipients) {
         await createNotification({
           user: userId,
@@ -426,7 +428,7 @@ exports.getPaymentProof = async (req, res) => {
     const due = await Due.findById(req.params.id).populate('house', 'owner tenant');
     if (!due) return res.status(404).json({ success: false, message: 'Due not found' });
     if (req.user.role === 'resident') {
-      const allowed = [due.house?.owner, due.house?.tenant].filter(Boolean).some(id => id.toString() === req.user._id.toString());
+      const allowed = await isResidentLinkedToHouse(req.user._id, due.house?._id);
       if (!allowed) return res.status(403).json({ success: false, message: 'Access denied' });
     } else if (!['admin', 'staff'].includes(req.user.role)) {
       return res.status(403).json({ success: false, message: 'Access denied' });
@@ -453,7 +455,7 @@ exports.getDueById = async (req, res) => {
     if (!due) return res.status(404).json({ success: false, message: 'Due not found' });
 
     if (req.user.role === 'resident') {
-      const allowed = await isResidentForHouse(req.user._id, due.house._id);
+      const allowed = await isResidentLinkedToHouse(req.user._id, due.house._id);
       if (!allowed) return res.status(403).json({ success: false, message: 'Access denied' });
     }
 

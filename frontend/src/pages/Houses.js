@@ -7,7 +7,7 @@ export function Houses() {
   const [houses, setHouses] = useState([]);
   const [residents, setResidents] = useState([]);
   const [showModal, setShowModal] = useState(false);
-  const [form, setForm] = useState({ houseNo: '', section: 'Section 1', floor: 0, type: 'apartment', monthlyDue: 500, owner: '' });
+  const [form, setForm] = useState({ houseNo: '', section: 'Section 1', floor: 0, type: 'apartment', monthlyDue: 500, owner: '', tenant: '' });
   const [page, setPage] = useState(1);
   const [pages, setPages] = useState(1);
   const [total, setTotal] = useState(0);
@@ -32,7 +32,7 @@ export function Houses() {
       const payload = { ...form, owner: form.owner || undefined };
       await axios.post('/api/houses', payload);
       setShowModal(false);
-      setForm({ houseNo: '', section: 'Section 1', floor: 0, type: 'apartment', monthlyDue: 500, owner: '' });
+      setForm({ houseNo: '', section: 'Section 1', floor: 0, type: 'apartment', monthlyDue: 500, owner: '', tenant: '' });
       fetchHouses(page);
     } catch (err) {
       alert(err.response?.data?.message || 'Could not add house');
@@ -45,7 +45,7 @@ export function Houses() {
       {isAdmin && <button className="btn btn-primary" style={{ marginBottom: 20 }} onClick={() => setShowModal(true)}>+ Add House</button>}
       <div className="card">
         <table>
-          <thead><tr><th>House No</th><th>Section</th><th>Floor</th><th>Type</th><th>Owner</th><th>Monthly Due</th></tr></thead>
+          <thead><tr><th>House No</th><th>Section</th><th>Floor</th><th>Type</th><th>Owner</th><th>Tenant</th><th>Monthly Due</th></tr></thead>
           <tbody>
             {houses.map(h => (
               <tr key={h._id}>
@@ -54,6 +54,7 @@ export function Houses() {
                 <td>Floor {h.floor}</td>
                 <td>{h.type}</td>
                 <td>{h.owner?.name || <span style={{ color: '#9ca3af' }}>Not linked</span>}</td>
+                <td>{h.tenant?.name || <span style={{ color: '#9ca3af' }}>Not linked</span>}</td>
                 <td>Rs. {h.monthlyDue}</td>
               </tr>
             ))}
@@ -87,6 +88,13 @@ export function Houses() {
                 <p style={{ fontSize: '0.75rem', color: '#9ca3af', marginTop: 4 }}>
                   Resident pahile "Staff/User Management" page bata create gara, ani yaha link gara.
                 </p>
+              </div>
+              <div className="form-group">
+                <label>Tenant (resident) — may be linked to multiple houses</label>
+                <select value={form.tenant} onChange={e => setForm({ ...form, tenant: e.target.value })}>
+                  <option value="">— Not linked yet —</option>
+                  {residents.map(r => <option key={r._id} value={r._id}>{r.name} ({r.username})</option>)}
+                </select>
               </div>
               <div className="modal-actions">
                 <button type="button" className="btn btn-cancel" onClick={() => setShowModal(false)}>Cancel</button>

@@ -1,5 +1,6 @@
 const House = require('../models/House');
 const { getPagination, applyPagination, buildMeta } = require('../utils/paginate'); 
+const { ResidentHouse, syncHouseRelationship } = require('../utils/residentHouses');
 
 async function validateAssignment({ owner, tenant, currentId = null }) {
   if (owner && tenant && String(owner) === String(tenant)) {
@@ -7,23 +8,17 @@ async function validateAssignment({ owner, tenant, currentId = null }) {
     err.statusCode = 400;
     throw err;
   }
-  for (const [field, label] of [['owner', 'Owner'], ['tenant', 'Tenant']]) {
-    const value = field === 'owner' ? owner : tenant;
-    if (!value) continue;
-    const query = { [field]: value, isOccupied: true };
-    if (currentId) query._id = { $ne: currentId };
-    const existing = await House.findOne(query).select('houseNo');
-    if (existing) {
-      const err = new Error(`${label} is already assigned to house ${existing.houseNo}`);
-      err.statusCode = 400;
-      throw err;
-    }
-  }
 }
 
 exports.getHouses = async (req, res, next) => {
   try {
-    const filter = req.user.role === 'resident' ? { $or: [{ owner: req.user._id }, { tenant: req.user._id }] } : {};
+    let filter = {};
+    if (req.user.role === 'resident') {
+      const links = await ResidentHouse.find({ resident_id: req.user._id }).select('house_id').lean();
+      filter = links.length
+        ? { _id: { $in: links.map(link => link.house_id) } }
+        : { $or: [{ owner: req.user._id }, { tenant: req.user._id }] };
+    }
     const total = await House.countDocuments(filter);
     const { page, limit } = getPagination(req);
 
@@ -47,6 +42,8 @@ exports.createHouse = async (req, res, next) => {
     if (Number(monthlyDue ?? 500) < 0) return res.status(400).json({ success: false, message: 'Monthly due cannot be negative' });
     await validateAssignment({ owner: owner || null, tenant: tenant || null });
     const house = await House.create({ houseNo: no, section, floor, type, owner: owner || undefined, tenant: tenant || undefined, monthlyDue: Number(monthlyDue ?? 500), isOccupied: isOccupied !== false, address: String(address || '').trim() });
+    await syncHouseRelationship(house._id, owner, 'owner', true);
+    await syncHouseRelationship(house._id, tenant, 'tenant', true);
     res.status(201).json({ success: true, data: await House.findById(house._id).populate('owner', 'name username phone email').populate('tenant', 'name username phone email') });
   } catch (err) { next(err); }
 };
@@ -74,6 +71,14 @@ exports.updateHouse = async (req, res, next) => {
     if (req.body.owner === '') update.owner = null;
     if (req.body.tenant === '') update.tenant = null;
     const house = await House.findByIdAndUpdate(req.params.id, { $set: update }, { new: true, runValidators: true }).populate('owner', 'name username phone email').populate('tenant', 'name username phone email');
+    if (req.body.owner !== undefined) {
+      await syncHouseRelationship(current._id, current.owner, 'owner', false);
+      await syncHouseRelationship(current._id, owner, 'owner', true);
+    }
+    if (req.body.tenant !== undefined) {
+      await syncHouseRelationship(current._id, current.tenant, 'tenant', false);
+      await syncHouseRelationship(current._id, tenant, 'tenant', true);
+    }
     res.json({ success: true, data: house });
   } catch (err) { next(err); }
 };
@@ -84,6 +89,7 @@ exports.deleteHouse = async (req, res, next) => {
     if (!house) return res.status(404).json({ success: false, message: 'House not found' });
     // Preserve dues, complaints, and payment history: archive instead of hard-delete.
     house.isOccupied = false; house.owner = null; house.tenant = null; await house.save();
+    await ResidentHouse.deleteMany({ house_id: house._id });
     res.json({ success: true, message: 'House archived successfully' });
   } catch (err) { next(err); }
 };

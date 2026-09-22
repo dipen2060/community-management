@@ -12,6 +12,13 @@ const specializationLabels = {
 };
 
 const roleLabels = { admin: '👑 Admin', staff: '👷 Staff', resident: '🏠 Resident' };
+const exportSectionLabels = {
+  '': 'No export access',
+  dues: 'Dues',
+  complaints: 'Complaints',
+  residents: 'Residents',
+  all: 'All exports'
+};
 
 export default function Staff() {
   const [users, setUsers]       = useState([]);
@@ -19,7 +26,7 @@ export default function Staff() {
   const [showModal, setShowModal] = useState(false);
   const [editUser, setEditUser]   = useState(null); // user being edited, null = creating new
   const [credentials, setCredentials] = useState(null); // show after creation
-  const [form, setForm] = useState({ name: '', email: '', phone: '', role: 'staff', specialization: 'water' });
+  const [form, setForm] = useState({ name: '', email: '', phone: '', role: 'staff', specialization: 'water', exportSection: 'complaints' });
   const { user } = useAuth();
   const isAdmin = user?.role === 'admin';
 
@@ -28,13 +35,13 @@ export default function Staff() {
 
   const openCreate = (role) => {
     setEditUser(null);
-    setForm({ name: '', email: '', phone: '', role, specialization: 'water' });
+    setForm({ name: '', email: '', phone: '', role, specialization: 'water', exportSection: role === 'staff' ? 'complaints' : '' });
     setShowModal(true);
   };
 
   const openEdit = (u) => {
     setEditUser(u);
-    setForm({ name: u.name, email: u.email || '', phone: u.phone || '', role: u.role, specialization: u.specialization || 'water' });
+    setForm({ name: u.name, email: u.email || '', phone: u.phone || '', role: u.role, specialization: u.specialization || 'water', exportSection: u.exportSection || '' });
     setShowModal(true);
   };
 
@@ -42,10 +49,10 @@ export default function Staff() {
     e.preventDefault();
     try {
       if (editUser) {
-        await axios.put(`/api/users/${editUser._id}`, form);
+        await axios.put(`/api/users/${editUser._id}`, { ...form, exportSection: form.role === 'staff' ? (form.exportSection || null) : undefined });
         setShowModal(false);
       } else {
-        const res = await axios.post('/api/users', form);
+        const res = await axios.post('/api/users', { ...form, exportSection: form.role === 'staff' ? (form.exportSection || null) : undefined });
         setShowModal(false);
         setCredentials(res.data.credentials);
       }
@@ -138,7 +145,7 @@ export default function Staff() {
           <thead>
             <tr>
               <th>Name</th><th>Email (Login)</th><th>Username</th>
-              {tab === 'staff' && <th>Specialization</th>}
+              {tab === 'staff' && <><th>Specialization</th><th>Export Scope</th></>}
               <th>Phone</th><th>Status</th><th>Action</th>
             </tr>
           </thead>
@@ -149,6 +156,7 @@ export default function Staff() {
                 <td style={{ fontSize: '0.82rem' }}>{s.email}</td>
                 <td><code style={{ fontSize: '0.8rem' }}>{s.username}</code></td>
                 {tab === 'staff' && <td><span className="status status-inprogress">{specializationLabels[s.specialization] || s.specialization}</span></td>}
+                {tab === 'staff' && <td>{exportSectionLabels[s.exportSection || ''] || s.exportSection}</td>}
                 <td>{s.phone || '—'}</td>
                 <td><span className={`status ${s.isActive ? 'status-paid' : 'status-overdue'}`}>{s.isActive ? 'Active' : 'Inactive'}</span></td>
                 <td style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
@@ -187,6 +195,16 @@ export default function Staff() {
                   <select value={form.specialization} onChange={e => setForm({...form, specialization: e.target.value})}>
                     {Object.entries(specializationLabels).map(([val, label]) => (
                       <option key={val} value={val}>{label}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+              {form.role === 'staff' && (
+                <div className="form-group">
+                  <label>Export Access</label>
+                  <select value={form.exportSection} onChange={e => setForm({ ...form, exportSection: e.target.value })}>
+                    {Object.entries(exportSectionLabels).map(([value, label]) => (
+                      <option key={value} value={value}>{label}</option>
                     ))}
                   </select>
                 </div>

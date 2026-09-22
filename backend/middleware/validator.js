@@ -58,6 +58,10 @@ const createUserValidation = [
     .withMessage('Specialization is required for staff')
     .isIn(['water', 'electric', 'lift', 'sanitation', 'security', 'general'])
     .withMessage('Invalid specialization'),
+  body('exportSection')
+    .optional({ values: 'null' })
+    .isIn(['dues', 'complaints', 'residents', 'all'])
+    .withMessage('Invalid export section'),
   body('phone')
     .optional({ values: 'falsy' })
     .isMobilePhone('any')

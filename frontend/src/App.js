@@ -10,10 +10,12 @@ import Clusters   from './pages/Clusters';
 import Staff      from './pages/Staff';
 import Polls      from './pages/Polls';
 import Profile    from './pages/Profile';
+import AdminAuditLogs from './pages/AdminAuditLogs';
 import Layout     from './components/Layout';
 
 const PrivateRoute = ({ children }) => {
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
+  if (loading) return <div>Loading...</div>;
   return user ? children : <Navigate to="/login" />;
 };
 
@@ -21,7 +23,8 @@ const PrivateRoute = ({ children }) => {
 // (e.g. authorize('admin') on the matching API route) so unauthorized users
 // get redirected to the dashboard instead of seeing a broken/empty page.
 const RoleRoute = ({ roles, children }) => {
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
+  if (loading) return <div>Loading...</div>;
   if (!user) return <Navigate to="/login" />;
   if (!roles.includes(user.role)) return <Navigate to="/" replace />;
   return children;
@@ -46,6 +49,7 @@ export default function App() {
             <Route path="staff"      element={<Staff />} />
             <Route path="polls"      element={<Polls />} />
             <Route path="profile"    element={<Profile />} />
+            <Route path="admin/audit-logs" element={<RoleRoute roles={['admin']}><AdminAuditLogs /></RoleRoute>} />
           </Route>
         </Routes>
       </BrowserRouter>

@@ -12,6 +12,7 @@ const connectDB = require('./config/db');
 const Due = require('./models/Due');
 const House = require('./models/House');
 const { createNotification } = require('./controllers/notificationController');
+const { getHouseResidentIds } = require('./utils/residentHouses');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -138,20 +139,35 @@ app.use(
  * Static uploads
  * --------------------------------------------------
  */
-app.use(
-    '/uploads',
-    (req, res, next) => {
-        if (req.path.startsWith('/payment-proofs/')) {
-            return res.status(403).json({
-                success: false,
-                message: 'Private file'
-            });
-        }
+app.get('/api/files/*', async (req, res, next) => {
+    try {
+        const { protect } = require('./middleware/auth');
+        await protect(req, res, () => {
+            const requested = req.params[0].replace(/\\/g, '/');
+            const safeRelative = requested.split('/').filter(Boolean).join('/');
+            const uploadsRoot = path.resolve(__dirname, 'uploads');
+            const absolute = path.resolve(uploadsRoot, safeRelative);
 
-        next();
-    },
-    express.static(path.join(__dirname, 'uploads'))
-);
+            if (!absolute.startsWith(uploadsRoot)) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Invalid file path'
+                });
+            }
+
+            if (!fs.existsSync(absolute)) {
+                return res.status(404).json({
+                    success: false,
+                    message: 'File not found'
+                });
+            }
+
+            return res.sendFile(absolute);
+        });
+    } catch (error) {
+        next(error);
+    }
+});
 
 // Routes
 
@@ -200,6 +216,16 @@ app.use(
 app.use(
     '/api/polls',
     require('./routes/polls')
+);
+
+app.use(
+    '/api/audit-logs',
+    require('./routes/auditLogs')
+);
+
+app.use(
+    '/api/resident-houses',
+    require('./routes/residentHouses')
 );
 
 
@@ -285,10 +311,7 @@ cron.schedule('0 8 1 * *', async () => {
 
             created++;
 
-            const recipients = [
-                house.owner,
-                house.tenant
-            ].filter(Boolean);
+            const recipients = await getHouseResidentIds(house);
 
             for (const userId of recipients) {
                 await createNotification({
@@ -352,10 +375,7 @@ cron.schedule('0 0 * * *', async () => {
                 continue;
             }
 
-            const recipients = [
-                house.owner,
-                house.tenant
-            ].filter(Boolean);
+            const recipients = await getHouseResidentIds(house);
 
             for (const userId of recipients) {
                 await createNotification({

@@ -2,6 +2,7 @@ const Poll = require('../models/Poll');
 const User = require('../models/User');
 const House = require('../models/House');
 const { createNotificationForMany } = require('./notificationController');
+const { getResidentHouseIds, ResidentHouse } = require('../utils/residentHouses');
 
 // Get all polls (with section filtering for residents)
 exports.getPolls = async (req, res) => {
@@ -15,9 +16,10 @@ exports.getPolls = async (req, res) => {
 
     // Residents only see polls targeted at their section (or sent to all = empty targetSections)
     if (req.user.role === 'resident') {
-      const myHouse = await House.findOne({ $or: [{ owner: req.user._id }, { tenant: req.user._id }] });
-      const mySection = myHouse?.section;
-      polls = polls.filter(p => p.targetSections.length === 0 || (mySection && p.targetSections.includes(mySection)));
+      const houseIds = await getResidentHouseIds(req.user._id);
+      const linkedHouses = await House.find({ _id: { $in: houseIds } }).select('section').lean();
+      const sections = new Set(linkedHouses.map(house => house.section).filter(Boolean));
+      polls = polls.filter(p => p.targetSections.length === 0 || p.targetSections.some(section => sections.has(section)));
     }
 
     // For each poll, check if current user has voted
@@ -44,9 +46,10 @@ exports.getPollById = async (req, res) => {
 
     // Check if user can view this poll (section-based)
     if (req.user.role === 'resident') {
-      const myHouse = await House.findOne({ $or: [{ owner: req.user._id }, { tenant: req.user._id }] });
-      const mySection = myHouse?.section;
-      if (poll.targetSections.length > 0 && !poll.targetSections.includes(mySection)) {
+      const houseIds = await getResidentHouseIds(req.user._id);
+      const linkedHouses = await House.find({ _id: { $in: houseIds } }).select('section').lean();
+      const sections = new Set(linkedHouses.map(house => house.section).filter(Boolean));
+      if (poll.targetSections.length > 0 && !poll.targetSections.some(section => sections.has(section))) {
         return res.status(403).json({ success: false, message: 'You are not authorized to view this poll' });
       }
     }
@@ -110,7 +113,9 @@ exports.createPoll = async (req, res) => {
     let recipientIds;
     if (sections.length > 0) {
       const housesInSections = await House.find({ section: { $in: sections } });
-      const userIds = new Set();
+      const houseIds = housesInSections.map(house => house._id);
+      const links = await ResidentHouse.find({ house_id: { $in: houseIds } }).select('resident_id').lean();
+      const userIds = new Set(links.map(link => link.resident_id.toString()));
       housesInSections.forEach(h => {
         if (h.owner) userIds.add(h.owner.toString());
         if (h.tenant) userIds.add(h.tenant.toString());
@@ -198,9 +203,10 @@ exports.votePoll = async (req, res) => {
 
     // Check if user can vote (section-based)
     if (req.user.role === 'resident') {
-      const myHouse = await House.findOne({ $or: [{ owner: req.user._id }, { tenant: req.user._id }] });
-      const mySection = myHouse?.section;
-      if (poll.targetSections.length > 0 && !poll.targetSections.includes(mySection)) {
+      const houseIds = await getResidentHouseIds(req.user._id);
+      const linkedHouses = await House.find({ _id: { $in: houseIds } }).select('section').lean();
+      const sections = new Set(linkedHouses.map(house => house.section).filter(Boolean));
+      if (poll.targetSections.length > 0 && !poll.targetSections.some(section => sections.has(section))) {
         return res.status(403).json({ success: false, message: 'You are not eligible to vote in this poll' });
       }
     }

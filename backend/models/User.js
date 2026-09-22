@@ -9,11 +9,17 @@ const userSchema = new mongoose.Schema({
   phone:    { type: String },
   address:  { type: String },
   role:     { type: String, enum: ['admin', 'staff', 'resident'], default: 'resident' },
+  exportSection: {
+    type: String,
+    enum: ['dues', 'complaints', 'residents', 'all', null],
+    default: null
+  },
   specialization: { type: String, enum: ['water', 'electric', 'lift', 'sanitation', 'security', 'general', null], default: null },
   isActive: { type: Boolean, default: true }
 }, { timestamps: true });
 
 userSchema.pre('save', async function (next) {
+  if (this.role === 'admin') this.exportSection = 'all';
   if (!this.isModified('password')) return next();
   this.password = await bcrypt.hash(this.password, 10);
   next();

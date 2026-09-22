@@ -22,7 +22,8 @@ exports.login = async (req, res) => {
         role: user.role,
         phone: user.phone,
         address: user.address,
-        specialization: user.specialization
+        specialization: user.specialization,
+        exportSection: user.exportSection || (user.role === 'admin' ? 'all' : null)
       }
     });
   } catch (err) {
@@ -42,7 +43,8 @@ exports.getMe = async (req, res) => {
       role: u.role,
       phone: u.phone,
       address: u.address,
-      specialization: u.specialization
+      specialization: u.specialization,
+      exportSection: u.exportSection || (u.role === 'admin' ? 'all' : null)
     }
   });
 };

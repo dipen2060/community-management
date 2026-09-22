@@ -5,6 +5,8 @@ const houseSchema = new mongoose.Schema({
   section:     { type: String, required: true, default: 'Section 1' },
   floor:       { type: Number, default: 0 },
   type:        { type: String, enum: ['apartment', 'house', 'shop'], default: 'apartment' },
+  // Legacy denormalized links retained during migration. New multi-house
+  // relationships are stored in resident_houses.
   owner:       { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   tenant:      { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   monthlyDue:  { type: Number, default: 500 },

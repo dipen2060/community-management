@@ -20,6 +20,7 @@ export default function Complaints() {
   const { user } = useAuth();
   const isAdminOrStaff = ['admin', 'staff'].includes(user?.role);
   const isAdmin = user?.role === 'admin';
+  const canExportComplaints = isAdmin || user?.exportSection === 'all' || user?.exportSection === 'complaints';
 
   const fetchComplaints = (p = page) => {
     const sectionParam = sectionFilter ? `&section=${encodeURIComponent(sectionFilter)}` : '';
@@ -140,12 +141,16 @@ export default function Complaints() {
               <option value="">All Sections</option>
               {allSections.map(s => <option key={s} value={s}>{s}</option>)}
             </select>
-            <button type="button" className="btn btn-sm" style={{ background: '#10b981', color: 'white' }} onClick={() => handleExport('excel')}>
-              📊 Excel
-            </button>
-            <button type="button" className="btn btn-sm" style={{ background: '#ef4444', color: 'white' }} onClick={() => handleExport('pdf')}>
-              📄 PDF
-            </button>
+            {canExportComplaints && (
+              <>
+                <button type="button" className="btn btn-sm" style={{ background: '#10b981', color: 'white' }} onClick={() => handleExport('excel')}>
+                  📊 Excel
+                </button>
+                <button type="button" className="btn btn-sm" style={{ background: '#ef4444', color: 'white' }} onClick={() => handleExport('pdf')}>
+                  📄 PDF
+                </button>
+              </>
+            )}
           </>
         )}
       </div>

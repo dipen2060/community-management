@@ -2,6 +2,7 @@ const Notice = require('../models/Notice');
 const User = require('../models/User');
 const House = require('../models/House');
 const { createNotificationForMany } = require('./notificationController');
+const { getResidentHouseIds, ResidentHouse } = require('../utils/residentHouses');
 
 exports.getNotices = async (req, res) => {
   try {
@@ -27,9 +28,10 @@ exports.getNotices = async (req, res) => {
 
     // Residents only see notices targeted at their section (or sent to all = empty targetSections)
     if (req.user.role === 'resident') {
-      const myHouse = await House.findOne({ $or: [{ owner: req.user._id }, { tenant: req.user._id }] });
-      const mySection = myHouse?.section;
-      notices = notices.filter(n => n.targetSections.length === 0 || (mySection && n.targetSections.includes(mySection)));
+      const houseIds = await getResidentHouseIds(req.user._id);
+      const linkedHouses = await House.find({ _id: { $in: houseIds } }).select('section').lean();
+      const sections = new Set(linkedHouses.map(house => house.section).filter(Boolean));
+      notices = notices.filter(n => n.targetSections.length === 0 || n.targetSections.some(section => sections.has(section)));
     }
 
     res.json({ success: true, data: notices });
@@ -47,7 +49,9 @@ exports.createNotice = async (req, res) => {
     let recipientIds;
     if (sections.length > 0) {
       const housesInSections = await House.find({ section: { $in: sections } });
-      const userIds = new Set();
+      const houseIds = housesInSections.map(house => house._id);
+      const links = await ResidentHouse.find({ house_id: { $in: houseIds } }).select('resident_id').lean();
+      const userIds = new Set(links.map(link => link.resident_id.toString()));
       housesInSections.forEach(h => {
         if (h.owner)  userIds.add(h.owner.toString());
         if (h.tenant) userIds.add(h.tenant.toString());

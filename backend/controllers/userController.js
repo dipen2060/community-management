@@ -1,6 +1,9 @@
 const User = require('../models/User');
 const House = require('../models/House');
 const { generateUsername, generateDefaultPassword } = require('../utils/userCredentials');
+const { logAudit } = require('../utils/auditLogger');
+const ResidentHouse = require('../models/ResidentHouse');
+const { allowedExportSections } = require('../middleware/exportPermissions');
 
 // GET /api/users?role=staff — list users, optionally filtered by role
 exports.getUsers = async (req, res) => {
@@ -31,7 +34,7 @@ exports.getUserById = async (req, res) => {
 // email = required (unique login identifier — avoids username collision with duplicate names)
 exports.createUser = async (req, res) => {
   try {
-    const { name, email, phone, role, specialization } = req.body;
+    const { name, email, phone, role, specialization, exportSection } = req.body;
     if (!name || !name.trim()) return res.status(400).json({ success: false, message: 'Name is required' });
     if (!email || !email.trim()) return res.status(400).json({ success: false, message: 'Email is required — used as login identifier' });
     if (role === 'staff' && !specialization) {
@@ -49,12 +52,24 @@ exports.createUser = async (req, res) => {
       email: email.trim().toLowerCase(),
       username, password, phone,
       role: role || 'resident',
-      specialization: role === 'staff' ? specialization : null
+      specialization: role === 'staff' ? specialization : null,
+      exportSection: role === 'admin' ? 'all' : role === 'staff' ? (exportSection || null) : null
+    });
+
+    await logAudit(req.user._id, req.user.role, 'user_created', 'user', user._id, {
+      newValues: {
+        name: user.name,
+        username: user.username,
+        email: user.email,
+        phone: user.phone,
+        role: user.role,
+        specialization: user.specialization
+      }
     });
 
     res.status(201).json({
       success: true,
-      data: { id: user._id, name: user.name, username: user.username, email: user.email, role: user.role, specialization: user.specialization },
+      data: { id: user._id, name: user.name, username: user.username, email: user.email, role: user.role, specialization: user.specialization, exportSection: user.exportSection },
       credentials: { email: user.email, password }, // shown once to admin
       message: `User created! Login — Email: ${user.email} | Password: ${password}`
     });
@@ -66,17 +81,29 @@ exports.createUser = async (req, res) => {
 // being used by residents/staff (frontend doesn't expose it to them).
 exports.updateUser = async (req, res) => {
   try {
-    const { name, phone, specialization, isActive, role } = req.body;
+    const { name, phone, specialization, isActive, role, exportSection } = req.body;
     const update = {};
     if (name)   update.name = name;
     if (phone !== undefined)  update.phone = phone;
     if (specialization !== undefined) update.specialization = specialization;
     if (isActive !== undefined) update.isActive = isActive;
     if (role) update.role = role;
+    const targetUser = await User.findById(req.params.id).select('-password');
+    if (!targetUser) return res.status(404).json({ success: false, message: 'User not found' });
+
+    if (exportSection !== undefined) {
+      if (exportSection !== null && !allowedExportSections.has(exportSection)) {
+        return res.status(400).json({ success: false, message: 'Invalid export section' });
+      }
+      update.exportSection = exportSection;
+    } else if (role === 'admin') {
+      update.exportSection = 'all';
+    } else if (role === 'staff' && targetUser?.role === 'admin') {
+      update.exportSection = null;
+    }
 
     // Prevent deactivating the last active admin
     if (isActive === false || role !== 'admin') {
-      const targetUser = await User.findById(req.params.id);
       if (targetUser && targetUser.role === 'admin' && targetUser.isActive) {
         const adminCount = await User.countDocuments({ role: 'admin', isActive: true });
         if (adminCount <= 1) {
@@ -90,6 +117,27 @@ exports.updateUser = async (req, res) => {
 
     const user = await User.findByIdAndUpdate(req.params.id, update, { new: true }).select('-password');
     if (!user) return res.status(404).json({ success: false, message: 'User not found' });
+    if (user.role === 'admin' && user.exportSection !== 'all') {
+      user.exportSection = 'all';
+      await user.save();
+    }
+    await logAudit(req.user._id, req.user.role, 'user_edited', 'user', user._id, {
+      changedFields: Object.keys(update),
+      oldValues: {
+        name: targetUser.name,
+        phone: targetUser.phone,
+        role: targetUser.role,
+        specialization: targetUser.specialization,
+        isActive: targetUser.isActive
+      },
+      newValues: {
+        name: user.name,
+        phone: user.phone,
+        role: user.role,
+        specialization: user.specialization,
+        isActive: user.isActive
+      }
+    });
     res.json({ success: true, data: user });
   } catch (err) { res.status(500).json({ success: false, message: err.message }); }
 };
@@ -102,6 +150,9 @@ exports.resetPassword = async (req, res) => {
     const newPassword = generateDefaultPassword(user.name);
     user.password = newPassword; // pre-save hook will hash it
     await user.save();
+    await logAudit(req.user._id, req.user.role, 'user_password_reset', 'user', user._id, {
+      reason: 'default_password_reset'
+    });
     res.json({ success: true, message: `Password reset to default: ${newPassword}`, newPassword });
   } catch (err) { res.status(500).json({ success: false, message: err.message }); }
 };
@@ -131,6 +182,17 @@ exports.deleteUser = async (req, res) => {
     // Clean up house references to prevent orphaned user IDs
     await House.updateMany({ owner: req.params.id }, { $set: { owner: null } });
     await House.updateMany({ tenant: req.params.id }, { $set: { tenant: null } });
+    await ResidentHouse.deleteMany({ resident_id: req.params.id });
+
+    await logAudit(req.user._id, req.user.role, 'user_deleted', 'user', user._id, {
+      oldValues: {
+        name: user.name,
+        username: user.username,
+        email: user.email,
+        role: user.role,
+        isActive: user.isActive
+      }
+    });
 
     res.json({ success: true, message: 'User deleted' });
   } catch (err) { res.status(500).json({ success: false, message: err.message }); }

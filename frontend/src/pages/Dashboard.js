@@ -1,17 +1,31 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
+import { useAuth } from '../context/AuthContext';
 
 export default function Dashboard() {
   const [stats,      setStats]      = useState(null);
   const [notices,    setNotices]    = useState([]);
   const [complaints, setComplaints] = useState([]);
+  const [houses,     setHouses]     = useState([]);
+  const [selectedHouseId, setSelectedHouseId] = useState('');
+  const { user } = useAuth();
 
   useEffect(() => {
-    axios.get('/api/dues/stats').then(r => setStats(r.data.data)).catch(() => {});
+    if (user?.role !== 'resident') return;
+    axios.get('/api/houses').then(r => {
+      const linkedHouses = r.data.data || [];
+      setHouses(linkedHouses);
+      setSelectedHouseId(current => current || (linkedHouses.length === 1 ? String(linkedHouses[0]._id) : ''));
+    }).catch(() => setHouses([]));
+  }, [user?.role]);
+
+  useEffect(() => {
+    const houseParam = selectedHouseId ? `?houseId=${encodeURIComponent(selectedHouseId)}` : '';
+    axios.get(`/api/dues/stats${houseParam}`).then(r => setStats(r.data.data)).catch(() => {});
     axios.get('/api/notices').then(r => setNotices(r.data.data?.slice(0, 3) || [])).catch(() => {});
-    axios.get('/api/complaints').then(r => setComplaints(r.data.data?.slice(0, 5) || [])).catch(() => {});
-  }, []);
+    axios.get(`/api/complaints${houseParam}`).then(r => setComplaints(r.data.data?.slice(0, 5) || [])).catch(() => {});
+  }, [selectedHouseId]);
 
   const pieData = stats ? [
     { name: 'Paid',    value: stats.paidDues    },
@@ -22,6 +36,24 @@ export default function Dashboard() {
   return (
     <div>
       <h1 className="page-title">📊 Dashboard</h1>
+      {user?.role === 'resident' && houses.length > 1 && (
+        <div className="card" style={{ marginBottom: 20 }}>
+          <label htmlFor="dashboard-house">View house</label>
+          <select
+            id="dashboard-house"
+            value={selectedHouseId}
+            onChange={event => setSelectedHouseId(event.target.value)}
+            style={{ marginLeft: 10, padding: 8 }}
+          >
+            <option value="">All linked houses</option>
+            {houses.map(house => (
+              <option key={house._id} value={house._id}>
+                {house.houseNo} · {house.section}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
 
       <div className="stats-grid">
         <div className="stat-card blue">

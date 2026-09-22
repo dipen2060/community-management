@@ -5,6 +5,8 @@ const { getPagination, applyPagination, buildMeta } = require('../utils/paginate
 const { createNotification, createNotificationForMany } = require('./notificationController');
 const { detectCategory } = require('../utils/categoryClassifier');
 const { findBestStaffForCategory } = require('../utils/autoAssign');
+const { logAudit } = require('../utils/auditLogger');
+const { getResidentHouseIds, isResidentLinkedToHouse } = require('../utils/residentHouses');
 
 // TF-IDF Content-Based Filtering
 function tokenize(text) {
@@ -55,6 +57,14 @@ exports.getComplaints = async (req, res) => {
   try {
     const filter = {};
     if (req.user.role === 'resident') filter.submittedBy = req.user._id;
+    if (req.user.role === 'resident') {
+      const houseIds = await getResidentHouseIds(req.user._id);
+      if (req.query.houseId) {
+        filter.house = { $in: houseIds.filter(id => String(id) === String(req.query.houseId)) };
+      }
+    } else if (req.query.houseId) {
+      filter.house = req.query.houseId;
+    }
     if (req.user.role === 'staff' && req.query.mine === 'true') filter.assignedTo = req.user._id;
     if (req.query.status) filter.status = req.query.status;
     if (req.query.category) filter.category = req.query.category;
@@ -89,9 +99,22 @@ exports.createComplaint = async (req, res) => {
     const { title, description, priority } = req.body;
 
     // 📍 Find the resident's house to auto-fill the section/area
-    const myHouse = await House.findOne({ $or: [{ owner: req.user._id }, { tenant: req.user._id }] });
+    const linkedHouseIds = req.user.role === 'resident'
+      ? await getResidentHouseIds(req.user._id)
+      : [];
+    const requestedHouseId = req.body.houseId;
+    const myHouse = requestedHouseId
+      ? await House.findById(requestedHouseId)
+      : await House.findOne(
+        req.user.role === 'resident'
+          ? { _id: { $in: linkedHouseIds } }
+          : { $or: [{ owner: req.user._id }, { tenant: req.user._id }] }
+      );
     if (!myHouse && req.user.role === 'resident') {
       return res.status(400).json({ success: false, message: 'No house is linked to your account. Please contact admin to link your house before submitting complaints.' });
+    }
+    if (req.user.role === 'resident' && requestedHouseId && !(await isResidentLinkedToHouse(req.user._id, requestedHouseId))) {
+      return res.status(403).json({ success: false, message: 'You can only submit complaints for your linked houses.' });
     }
     const section = myHouse?.section || req.body.section || 'Unknown';
 
@@ -106,7 +129,7 @@ exports.createComplaint = async (req, res) => {
     const assignedStaff = await findBestStaffForCategory(category);
 
     // Handle file attachments
-    const attachments = req.files ? req.files.map(file => `/uploads/${file.filename}`) : [];
+    const attachments = req.files ? req.files.map(file => `/api/files/${file.filename}`) : [];
 
     const complaint = await Complaint.create({
       title, description, priority,
@@ -195,8 +218,10 @@ exports.updateComplaint = async (req, res) => {
       }
     }
 
+    const oldStatus = complaint.status;
+
     // Track reopens: if it was already resolved before and is now being changed away from resolved/closed
-    const wasResolved = complaint.status === 'resolved';
+    const wasResolved = oldStatus === 'resolved';
     const isReopening = wasResolved && status && status !== 'resolved' && status !== 'closed';
 
     if (status) complaint.status = status;
@@ -219,6 +244,15 @@ exports.updateComplaint = async (req, res) => {
     await complaint.save();
     await complaint.populate('assignedTo', 'name phone specialization');
     await complaint.populate('resolvedBy', 'name phone');
+
+    if (status) {
+      await logAudit(req.user._id, req.user.role, 'complaint_status_changed', 'complaint', complaint._id, {
+        oldStatus,
+        requestedStatus: status,
+        newStatus: complaint.status,
+        reopenCount: complaint.reopenCount
+      });
+    }
 
     // 🔔 Notify the resident who submitted the complaint about status change
     if (status) {

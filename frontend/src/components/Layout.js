@@ -149,6 +149,14 @@ export default function Layout() {
               🤖 AI Clusters
             </NavLink>
           )}
+          {isAdmin && (
+            <NavLink
+              to="/admin/audit-logs"
+              className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}
+            >
+              🧾 Audit Logs
+            </NavLink>
+          )}
           <NavLink
             to="/staff"
             className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}
