@@ -17,14 +17,17 @@ export default function Dashboard() {
       const linkedHouses = r.data.data || [];
       setHouses(linkedHouses);
       setSelectedHouseId(current => current || (linkedHouses.length === 1 ? String(linkedHouses[0]._id) : ''));
-    }).catch(() => setHouses([]));
+    }).catch(err => {
+      console.error('Failed to fetch houses:', err);
+      setHouses([]);
+    });
   }, [user?.role]);
 
   useEffect(() => {
     const houseParam = selectedHouseId ? `?houseId=${encodeURIComponent(selectedHouseId)}` : '';
-    axios.get(`/api/dues/stats${houseParam}`).then(r => setStats(r.data.data)).catch(() => {});
-    axios.get('/api/notices').then(r => setNotices(r.data.data?.slice(0, 3) || [])).catch(() => {});
-    axios.get(`/api/complaints${houseParam}`).then(r => setComplaints(r.data.data?.slice(0, 5) || [])).catch(() => {});
+    axios.get(`/api/dues/stats${houseParam}`).then(r => setStats(r.data.data)).catch(err => console.error('Failed to fetch due stats:', err));
+    axios.get('/api/notices').then(r => setNotices(r.data.data?.slice(0, 3) || [])).catch(err => console.error('Failed to fetch notices:', err));
+    axios.get(`/api/complaints${houseParam}`).then(r => setComplaints(r.data.data?.slice(0, 5) || [])).catch(err => console.error('Failed to fetch complaints:', err));
   }, [selectedHouseId]);
 
   const pieData = stats ? [

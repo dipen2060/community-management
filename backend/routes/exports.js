@@ -1,4 +1,4 @@
-const express = require('express');
+﻿const express = require('express');
 const router = express.Router();
 const { protect, authorize } = require('../middleware/auth');
 const { exportPermission } = require('../middleware/exportPermissions');
@@ -6,11 +6,17 @@ const {
   exportDuesToExcel,
   exportComplaintsToExcel,
   exportDuesToPDF,
-  exportComplaintsToPDF
+  exportComplaintsToPDF,
+  validateExportPagination,
+  validateExportFilters,
+  auditExport
 } = require('../controllers/exportController');
 
 router.use(protect);
 router.use(authorize('admin', 'staff')); // Only admin and staff can export
+router.use(validateExportPagination);
+router.use(validateExportFilters);
+router.use(auditExport);
 
 // Dues exports
 router.get('/dues/excel', exportPermission('dues'), exportDuesToExcel);

@@ -1,4 +1,6 @@
 const House = require('../models/House');
+const User = require('../models/User');
+const mongoose = require('mongoose');
 const { getPagination, applyPagination, buildMeta } = require('../utils/paginate'); 
 const { ResidentHouse, syncHouseRelationship } = require('../utils/residentHouses');
 
@@ -8,6 +10,34 @@ async function validateAssignment({ owner, tenant, currentId = null }) {
     err.statusCode = 400;
     throw err;
   }
+  const ids = [owner, tenant].filter(Boolean);
+  if (!ids.length) return;
+  if (ids.some(id => !mongoose.isValidObjectId(id))) {
+    const err = new Error('Owner and tenant must be valid users');
+    err.statusCode = 400;
+    throw err;
+  }
+  const users = await User.find({ _id: { $in: ids }, role: 'resident', isActive: true }).select('_id').lean();
+  if (users.length !== ids.length) {
+    const err = new Error('Owner and tenant must be active resident users');
+    err.statusCode = 400;
+    throw err;
+  }
+}
+
+function handleAssignmentConflict(err, next) {
+  if (err?.statusCode) return next(err);
+  if (err?.code !== 11000) return next(err);
+  const duplicateField = Object.keys(err.keyPattern || {})[0];
+  if (duplicateField === 'houseNo') {
+    const conflict = new Error('House number already exists');
+    conflict.statusCode = 409;
+    return next(conflict);
+  }
+  const label = duplicateField === 'tenant' ? 'Tenant' : 'Owner';
+  const conflict = new Error(`${label} is already assigned to another house`);
+  conflict.statusCode = 409;
+  return next(conflict);
 }
 
 exports.getHouses = async (req, res, next) => {
@@ -45,7 +75,9 @@ exports.createHouse = async (req, res, next) => {
     await syncHouseRelationship(house._id, owner, 'owner', true);
     await syncHouseRelationship(house._id, tenant, 'tenant', true);
     res.status(201).json({ success: true, data: await House.findById(house._id).populate('owner', 'name username phone email').populate('tenant', 'name username phone email') });
-  } catch (err) { next(err); }
+  } catch (err) {
+    handleAssignmentConflict(err, next);
+  }
 };
 
 exports.updateHouse = async (req, res, next) => {
@@ -70,7 +102,11 @@ exports.updateHouse = async (req, res, next) => {
     if (update.monthlyDue !== undefined) update.monthlyDue = Number(update.monthlyDue);
     if (req.body.owner === '') update.owner = null;
     if (req.body.tenant === '') update.tenant = null;
-    const house = await House.findByIdAndUpdate(req.params.id, { $set: update }, { new: true, runValidators: true }).populate('owner', 'name username phone email').populate('tenant', 'name username phone email');
+    const house = await House.findOneAndUpdate(
+      { _id: req.params.id },
+      { $set: update },
+      { new: true, runValidators: true }
+    ).populate('owner', 'name username phone email').populate('tenant', 'name username phone email');
     if (req.body.owner !== undefined) {
       await syncHouseRelationship(current._id, current.owner, 'owner', false);
       await syncHouseRelationship(current._id, owner, 'owner', true);
@@ -80,7 +116,9 @@ exports.updateHouse = async (req, res, next) => {
       await syncHouseRelationship(current._id, tenant, 'tenant', true);
     }
     res.json({ success: true, data: house });
-  } catch (err) { next(err); }
+  } catch (err) {
+    handleAssignmentConflict(err, next);
+  }
 };
 
 exports.deleteHouse = async (req, res, next) => {

@@ -10,7 +10,7 @@ const {
   getPollResults
 } = require('../controllers/pollController');
 const { protect, authorize } = require('../middleware/auth');
-const { createPollValidation } = require('../middleware/validator');
+const { createPollValidation, updatePollValidation, votePollValidation } = require('../middleware/validator');
 
 router.use(protect);
 
@@ -19,14 +19,14 @@ router.get('/', getPolls);
 router.get('/:id', getPollById);
 
 // Voting (residents only)
-router.post('/:id/vote', authorize('resident'), votePoll);
+router.post('/:id/vote', authorize('resident'), votePollValidation, votePoll);
 
-// Results (admin/staff only, or after voting)
-router.get('/:id/results', authorize('admin', 'staff'), getPollResults);
+// Results are available to admins/staff and residents who have voted.
+router.get('/:id/results', getPollResults);
 
 // Admin/Staff only routes
 router.post('/', authorize('admin', 'staff'), createPollValidation, createPoll);
-router.put('/:id', authorize('admin', 'staff'), updatePoll);
+router.put('/:id', authorize('admin', 'staff'), updatePollValidation, updatePoll);
 router.delete('/:id', authorize('admin'), deletePoll);
 
 module.exports = router;

@@ -15,7 +15,7 @@ const pollSchema = new mongoose.Schema({
   createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
   endDate: { type: Date }, // Optional end date for poll
   totalVotes: { type: Number, default: 0 }
-}, { timestamps: true });
+}, { timestamps: true, optimisticConcurrency: true });
 
 // Index for efficient queries
 pollSchema.index({ status: 1, createdAt: -1 });

@@ -21,8 +21,8 @@ export default function Layout() {
       const res = await axios.get('/api/notifications');
       setNotifications(res.data.data || []);
       setUnreadCount(res.data.unreadCount || 0);
-    } catch {
-      // Silently ignore if not logged in or network error
+    } catch (err) {
+      console.error('Failed to fetch notifications', err);
     }
   };
 

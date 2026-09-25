@@ -4,8 +4,10 @@ const Notification = require('../models/Notification');
 exports.createNotification = async ({ user, title, message, type = 'general', link = '' }) => {
   try {
     await Notification.create({ user, title, message, type, link });
+    return { success: true };
   } catch (err) {
     console.error('Notification creation failed:', err.message);
+    return { success: false, error: err };
   }
 };
 
@@ -14,8 +16,10 @@ exports.createNotificationForMany = async (userIds, { title, message, type = 'ge
   try {
     const docs = userIds.map(user => ({ user, title, message, type, link }));
     await Notification.insertMany(docs);
+    return { success: true };
   } catch (err) {
     console.error('Bulk notification creation failed:', err.message);
+    return { success: false, error: err };
   }
 };
 

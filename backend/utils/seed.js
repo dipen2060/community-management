@@ -6,10 +6,16 @@ const Due      = require('../models/Due');
 const Notice   = require('../models/Notice');
 const Complaint= require('../models/Complaint');
 const Notification = require('../models/Notification');
+const { generateTemporaryPassword } = require('./userCredentials');
 
 const seed = async () => {
   if (!process.env.MONGO_URI) throw new Error('MONGO_URI is missing. Create backend/.env from backend/.env.example.');
-  if (process.env.NODE_ENV === 'production') throw new Error('Seeding is disabled in production because this script drops the database.');
+  if (process.env.NODE_ENV !== 'development') {
+    throw new Error('Seeding is only permitted when NODE_ENV=development.');
+  }
+  if (/\bprod(uction)?\b/i.test(process.env.MONGO_URI)) {
+    throw new Error('Refusing to seed a production MONGO_URI.');
+  }
   await mongoose.connect(process.env.MONGO_URI);
 
   // Drop entire database to remove stale indexes (handles email unique index migration)
@@ -25,15 +31,16 @@ const seed = async () => {
   await Notification.syncIndexes();
   console.log('📦 Indexes recreated');
 
-  // Create users — email = login, username = display (firstname.lastname), password = firstname@123
-  const admin       = await User.create({ name: 'Admin Sharma',       username: 'admin.sharma',       email: 'admin@tole.com',        password: 'admin@123',    role: 'admin', exportSection: 'all' });
-  const staff       = await User.create({ name: 'General Staff',      username: 'general.staff',      email: 'staff@tole.com',        password: 'general@123',  role: 'staff', specialization: 'general', exportSection: 'complaints' });
-  const electrician = await User.create({ name: 'Bishnu Electrician', username: 'bishnu.electrician', email: 'electrician@tole.com',  password: 'bishnu@123',    role: 'staff', specialization: 'electric', phone: '9811111111', exportSection: 'complaints' });
-  const plumber     = await User.create({ name: 'Krishna Plumber',    username: 'krishna.plumber',    email: 'plumber@tole.com',      password: 'krishna@123',  role: 'staff', specialization: 'water',    phone: '9822222222', exportSection: 'dues' });
-  const guard       = await User.create({ name: 'Suresh Guard',       username: 'suresh.guard',       email: 'guard@tole.com',        password: 'suresh@123',    role: 'staff', specialization: 'security', phone: '9833333333', exportSection: null });
-  const r1          = await User.create({ name: 'Ram Bahadur',        username: 'ram.bahadur',        email: 'ram@tole.com',          password: 'ram@123',      role: 'resident' });
-  const r2          = await User.create({ name: 'Sita Devi',          username: 'sita.devi',          email: 'sita@tole.com',         password: 'sita@123',     role: 'resident' });
-  const r3          = await User.create({ name: 'Hari Prasad',        username: 'hari.prasad',        email: 'hari@tole.com',         password: 'hari@123',     role: 'resident' });
+  // Create users with random temporary passwords that must be delivered securely.
+  const temporaryPassword = () => ({ password: generateTemporaryPassword(), mustChangePassword: true });
+  const admin       = await User.create({ name: 'Admin Sharma',       username: 'admin.sharma',       email: 'admin@tole.com',        ...temporaryPassword(),    role: 'admin', exportSection: 'all' });
+  const staff       = await User.create({ name: 'General Staff',      username: 'general.staff',      email: 'staff@tole.com',        ...temporaryPassword(),  role: 'staff', specialization: 'general', exportSection: 'complaints' });
+  const electrician = await User.create({ name: 'Bishnu Electrician', username: 'bishnu.electrician', email: 'electrician@tole.com',  ...temporaryPassword(),    role: 'staff', specialization: 'electric', phone: '9811111111', exportSection: 'complaints' });
+  const plumber     = await User.create({ name: 'Krishna Plumber',    username: 'krishna.plumber',    email: 'plumber@tole.com',      ...temporaryPassword(),  role: 'staff', specialization: 'water',    phone: '9822222222', exportSection: 'dues' });
+  const guard       = await User.create({ name: 'Suresh Guard',       username: 'suresh.guard',       email: 'guard@tole.com',        ...temporaryPassword(),    role: 'staff', specialization: 'security', phone: '9833333333', exportSection: null });
+  const r1          = await User.create({ name: 'Ram Bahadur',        username: 'ram.bahadur',        email: 'ram@tole.com',          ...temporaryPassword(),      role: 'resident' });
+  const r2          = await User.create({ name: 'Sita Devi',          username: 'sita.devi',          email: 'sita@tole.com',         ...temporaryPassword(),     role: 'resident' });
+  const r3          = await User.create({ name: 'Hari Prasad',        username: 'hari.prasad',        email: 'hari@tole.com',         ...temporaryPassword(),     role: 'resident' });
 
   // Create houses — different sections
   const h1 = await House.create({ houseNo: 'A-101', section: 'Section 1', floor: 1, type: 'apartment', owner: r1._id, monthlyDue: 500 });
@@ -79,15 +86,7 @@ const seed = async () => {
 
   console.log('✅ Seed data created!');
   console.log('');
-  console.log('Login uses EMAIL + PASSWORD:');
-  console.log('👑 Admin:        admin@tole.com        / admin@123');
-  console.log('🧰 General:      staff@tole.com        / general@123');
-  console.log('🔌 Electrician:  electrician@tole.com  / bishnu@123');
-  console.log('🚿 Plumber:      plumber@tole.com      / krishna@123');
-  console.log('🛡️  Guard:        guard@tole.com        / suresh@123');
-  console.log('🏠 Resident:     ram@tole.com          / ram@123  (Section 1)');
-  console.log('🏠 Resident:     sita@tole.com         / sita@123  (Section 1)');
-  console.log('🏠 Resident:     hari@tole.com         / hari@123  (Section 2)');
+  console.log('Temporary passwords were generated for seeded users and must be delivered through a secure channel.');
   process.exit(0);
 };
 

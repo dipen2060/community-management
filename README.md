@@ -53,12 +53,21 @@ Browser ma automatically open huncha: **http://localhost:3000**
 
 ---
 
-## 👤 Login Credentials (Demo)
-| Role     | Email              | Password    |
-|----------|--------------------|-------------|
-| Admin    | admin@tole.com     | admin123    |
-| Staff    | staff@tole.com     | staff123    |
-| Resident | ram@tole.com       | resident123 |
+## 👤 Secure Login and Onboarding
+
+Login uses the user's **email address** and password. Do not share or commit
+passwords in documentation.
+
+For local development only, `npm run seed` creates demo users and prints their
+one-time development credentials in the backend terminal. Seeding drops and
+recreates the database, so never run it against production.
+
+For normal onboarding, an administrator creates Staff or Resident accounts from
+the User Management page. The system generates a random temporary password, but
+does not return it in an API response. Deliver it through a secure out-of-band
+channel, then have the user change it from their profile. Production deployments
+should provision the first administrator through a protected deployment/bootstrap
+process rather than relying on documented default credentials.
 
 ---
 
@@ -150,14 +159,8 @@ tole-management/
 ## 👷 Staff Management (New!)
 
 Admin can create staff with a **specialization** (Electrician, Plumber, Lift Technician, Sanitation, Security, General)
-from the **Staff** page (`/staff`). This specialization drives the auto-assignment algorithm above.
-
-| Test Staff Account | Specialization |
-|---|---|
-| electrician@tole.com / staff123 | Electric |
-| plumber@tole.com / staff123 | Water |
-| guard@tole.com / staff123 | Security |
-| staff@tole.com / staff123 | General |
+from the **Staff** page (`/staff`). This specialization drives the auto-assignment algorithm above. Credentials are
+generated during onboarding and should be delivered privately; no shared test passwords are documented here.
 
 ## 📍 Section-Based Notices (New!)
 
@@ -166,31 +169,12 @@ section(s) — only residents in those sections get notified and see the notice.
 
 ---
 
-## 👤 Login is Username-Based (Updated!)
-
-Login no longer uses email — it uses **username** in `firstname.lastname` format (auto-generated, lowercase).
-Default password is also auto-generated as `firstname@123`.
-
-⚠️ **Important:** Run `npm run seed` again to regenerate accounts with the new username format —
-old email-based accounts won't work anymore.
-
-| Role | Username | Password |
-|---|---|---|
-| Admin | admin.sharma | admin@123 |
-| General Staff | general.staff | general@123 |
-| Electrician | bishnu.electrician | bishnu@123 |
-| Plumber | krishna.plumber | krishna@123 |
-| Guard | suresh.guard | suresh@123 |
-| Resident (Section 1) | ram.bahadur | ram@123 |
-| Resident (Section 1) | sita.devi | sita@123 |
-| Resident (Section 2) | hari.prasad | hari@123 |
-
 ## 👥 Full User Management (Admin Only) — New!
 
 Admin gets a **User Management** page (`/staff`) with full CRUD for Staff and Residents:
-- **Create** — just enter name + phone + role (+ specialization for staff). Username & password auto-generate.
+- **Create** — enter name + phone + role (+ specialization for staff). The email/login identifier and temporary password are generated and shown once to the admin.
 - **Edit** — update name, phone, specialization, role.
-- **Reset Password** — resets back to the default `firstname@123`.
+- **Reset Password** — generates a new temporary password that must be delivered securely.
 - **Activate/Deactivate** — disable login without deleting the account.
 - **Delete** — permanently remove a user (admin cannot delete their own account).
 
@@ -300,3 +284,18 @@ npm start
 ```
 
 For production, replace the local `.env` values—especially `MONGO_URI` and `JWT_SECRET`—with secure production values and never expose them publicly.
+
+## Security model
+
+- JWTs are accepted only from the `Authorization: Bearer <token>` header. The frontend
+  currently stores the token in localStorage, which is a known XSS tradeoff; use a
+  hardened deployment and rotate `JWT_SECRET` immediately if it is exposed.
+- Complaint attachments are not public static files. Access requires authentication
+  and is limited to the submitter, assigned staff, or administrators. Uploaded files
+  are checked by content signatures as well as filename/MIME metadata.
+- Administrators have management powers. Staff access is limited to their assigned
+  complaints and the staff directory scope; residents cannot access management data.
+- Payment submission, approval, and rejection use conditional state transitions, so
+  concurrent requests cannot approve/reject or submit the same payment twice.
+- Use a new, random JWT secret during rotation and invalidate existing tokens by
+  restarting the backend with the replacement secret.

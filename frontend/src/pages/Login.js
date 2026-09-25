@@ -4,8 +4,8 @@ import { useAuth } from '../context/AuthContext';
 import '../components/Layout.css';
 
 export default function Login() {
-  const [email,    setEmail]    = useState('admin@tole.com');
-  const [password, setPassword] = useState('admin@123');
+  const [email,    setEmail]    = useState('');
+  const [password, setPassword] = useState('');
   const [error,    setError]    = useState('');
   const [loading,  setLoading]  = useState(false);
   const { login }   = useAuth();
@@ -41,13 +41,6 @@ export default function Login() {
             {loading ? 'Logging in...' : 'Login'}
           </button>
         </form>
-        <div className="hint-box">
-          <strong>Test Accounts (email / password):</strong>
-          <p>Admin:  admin@tole.com / admin@123</p>
-          <p>Plumber: plumber@tole.com / krishna@123</p>
-          <p>Electrician: electrician@tole.com / bishnu@123</p>
-          <p>Resident: ram@tole.com / ram@123</p>
-        </div>
       </div>
     </div>
   );

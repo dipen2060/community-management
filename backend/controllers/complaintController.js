@@ -7,6 +7,9 @@ const { detectCategory } = require('../utils/categoryClassifier');
 const { findBestStaffForCategory } = require('../utils/autoAssign');
 const { logAudit } = require('../utils/auditLogger');
 const { getResidentHouseIds, isResidentLinkedToHouse } = require('../utils/residentHouses');
+const fs = require('fs');
+const path = require('path');
+const { MAX_SEARCH_LENGTH, getSearchRegex } = require('../utils/search');
 
 // TF-IDF Content-Based Filtering
 function tokenize(text) {
@@ -53,7 +56,7 @@ async function findSimilarComplaints(newText, pastComplaints) {
   return ranked;
 }
 
-exports.getComplaints = async (req, res) => {
+exports.getComplaints = async (req, res, next) => {
   try {
     const filter = {};
     if (req.user.role === 'resident') filter.submittedBy = req.user._id;
@@ -69,10 +72,18 @@ exports.getComplaints = async (req, res) => {
     if (req.query.status) filter.status = req.query.status;
     if (req.query.category) filter.category = req.query.category;
     if (req.query.section) filter.section = req.query.section;
+    if (req.query.history !== 'true') {
+      const activeHouseIds = await House.find({ status: { $ne: 'archived' } }).distinct('_id');
+      filter.$and = [{ $or: [{ house: { $in: activeHouseIds } }, { house: null }] }];
+    }
 
     // Search functionality - search in title and description
-    if (req.query.search) {
-      const searchRegex = new RegExp(req.query.search, 'i');
+    if (req.query.search !== undefined) {
+      if (typeof req.query.search !== 'string' || req.query.search.length > MAX_SEARCH_LENGTH) {
+        return res.status(400).json({ success: false, message: `Search query must be a string of at most ${MAX_SEARCH_LENGTH} characters.` });
+      }
+      const searchRegex = getSearchRegex(req.query.search);
+      if (!searchRegex) return res.json({ success: true, ...buildMeta(0, 1, getPagination(req).limit, []), data: [] });
       filter.$or = [
         { title: searchRegex },
         { description: searchRegex }
@@ -91,12 +102,16 @@ exports.getComplaints = async (req, res) => {
     const complaints = await query;
 
     res.json({ success: true, ...buildMeta(total, page, limit, complaints.length), data: complaints });
-  } catch (err) { res.status(500).json({ success: false, message: err.message }); }
+  } catch (err) { next(err); }
 };
 
-exports.createComplaint = async (req, res) => {
+exports.createComplaint = async (req, res, next) => {
   try {
-    const { title, description, priority } = req.body;
+    const { title, description } = req.body;
+    if (req.user.role === 'resident' && ['high', 'urgent'].includes(req.body.priority)) {
+      return res.status(403).json({ success: false, message: 'Residents may only submit low or medium priority complaints.' });
+    }
+    const priority = req.body.priority || 'medium';
 
     // 📍 Find the resident's house to auto-fill the section/area
     const linkedHouseIds = req.user.role === 'resident'
@@ -122,14 +137,16 @@ exports.createComplaint = async (req, res) => {
     const { category, confidence } = detectCategory(title, description);
 
     // Find similar past complaints (only within resolved/closed of same category for better relevance)
-    const resolved = await Complaint.find({ status: { $in: ['resolved', 'closed'] }, category });
+    const resolved = await Complaint.find({ status: { $in: ['resolved', 'closed'] }, category })
+      .sort({ createdAt: -1 })
+      .limit(200);
     const similar = resolved.length ? await findSimilarComplaints(`${title} ${description}`, resolved) : [];
 
     // 🤖 ALGORITHM 2: Auto-assign to best-matching, least-busy staff
     const assignedStaff = await findBestStaffForCategory(category);
 
     // Handle file attachments
-    const attachments = req.files ? req.files.map(file => `/api/files/${file.filename}`) : [];
+    const attachments = req.files ? req.files.map(file => file.filename) : [];
 
     const complaint = await Complaint.create({
       title, description, priority,
@@ -140,6 +157,10 @@ exports.createComplaint = async (req, res) => {
       status: assignedStaff ? 'inprogress' : 'pending',
       attachments
     });
+    if (attachments.length) {
+      complaint.attachments = attachments.map(filename => `/api/complaints/${complaint._id}/attachments/${filename}`);
+      await complaint.save();
+    }
 
     await complaint.populate('assignedTo', 'name phone specialization');
 
@@ -153,7 +174,7 @@ exports.createComplaint = async (req, res) => {
         link: '/complaints'
       });
       // Also let admin know who it went to
-      const admins = await User.find({ role: 'admin' }).select('_id');
+      const admins = await User.find({ role: 'admin', isActive: true }).select('_id');
       await createNotificationForMany(admins.map(u => u._id), {
         title: 'New Complaint Auto-Assigned 🤖',
         message: `"${title}" (${section}) assigned to ${assignedStaff.name} (${category} specialist)`,
@@ -161,7 +182,7 @@ exports.createComplaint = async (req, res) => {
         link: '/complaints'
       });
     } else {
-      const staffAndAdmin = await User.find({ role: { $in: ['admin', 'staff'] } }).select('_id');
+      const staffAndAdmin = await User.find({ role: { $in: ['admin', 'staff'] }, isActive: true }).select('_id');
       await createNotificationForMany(staffAndAdmin.map(u => u._id), {
         title: 'New Complaint — No Specialist Available ⚠️',
         message: `${req.user.name} submitted: "${title}" (${category}, ${section}). No matching staff found — please assign manually.`,
@@ -183,10 +204,45 @@ exports.createComplaint = async (req, res) => {
         matchPercent: (s.sim * 100).toFixed(1)
       }))
     });
-  } catch (err) { res.status(500).json({ success: false, message: err.message }); }
+  } catch (err) { next(err); }
 };
 
-exports.updateComplaint = async (req, res) => {
+exports.authorizeComplaintUpdate = async (req, res, next) => {
+  if (req.user.role === 'admin' || req.user.role === 'resident') return next();
+
+  try {
+    const complaint = await Complaint.findById(req.params.id).select('assignedTo');
+    if (!complaint) return res.status(404).json({ success: false, message: 'Not found' });
+    if (req.user.role !== 'staff' || !complaint.assignedTo || complaint.assignedTo.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ success: false, message: 'Only the staff assigned to this complaint or an admin can update it.' });
+    }
+    next();
+  } catch (err) {
+    next(err);
+  }
+};
+
+exports.getComplaintAttachment = async (req, res, next) => {
+  try {
+    const complaint = await Complaint.findOne({
+      _id: req.params.id,
+      attachments: `/api/complaints/${req.params.id}/attachments/${req.params.filename}`
+    }).select('submittedBy assignedTo attachments');
+    if (!complaint) return res.status(404).json({ success: false, message: 'Attachment not found' });
+    const allowed = req.user.role === 'admin' ||
+      complaint.submittedBy.toString() === req.user._id.toString() ||
+      (complaint.assignedTo && complaint.assignedTo.toString() === req.user._id.toString());
+    if (!allowed) return res.status(403).json({ success: false, message: 'Access denied' });
+    const filename = path.basename(req.params.filename);
+    const filePath = path.resolve(__dirname, '..', 'uploads', filename);
+    if (!filePath.startsWith(path.resolve(__dirname, '..', 'uploads') + path.sep) || !fs.existsSync(filePath)) {
+      return res.status(404).json({ success: false, message: 'Attachment not found' });
+    }
+    return res.sendFile(filePath);
+  } catch (err) { next(err); }
+};
+
+exports.updateComplaint = async (req, res, next) => {
   try {
     const { status, assignedTo, resolution } = req.body;
     const complaint = await Complaint.findById(req.params.id);
@@ -219,6 +275,15 @@ exports.updateComplaint = async (req, res) => {
     }
 
     const oldStatus = complaint.status;
+    const allowedTransitions = {
+      pending: ['inprogress'],
+      inprogress: ['resolved'],
+      resolved: ['pending', 'closed'],
+      closed: []
+    };
+    if (status && status !== oldStatus && !allowedTransitions[oldStatus].includes(status)) {
+      return res.status(400).json({ success: false, message: `Invalid complaint status transition from ${oldStatus} to ${status}.` });
+    }
 
     // Track reopens: if it was already resolved before and is now being changed away from resolved/closed
     const wasResolved = oldStatus === 'resolved';
@@ -275,5 +340,5 @@ exports.updateComplaint = async (req, res) => {
     }
 
     res.json({ success: true, data: complaint });
-  } catch (err) { res.status(500).json({ success: false, message: err.message }); }
+  } catch (err) { next(err); }
 };

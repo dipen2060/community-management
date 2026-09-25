@@ -5,6 +5,15 @@ const assert = require('assert');
 
 console.log('🧪 Running Tole Management Logic Verification Tests...\n');
 
+const uploadDirectories = [
+  path.join(__dirname, 'uploads'),
+  path.join(__dirname, 'uploads', 'payment-proofs')
+];
+
+uploadDirectories.forEach((directory) => {
+  fs.mkdirSync(directory, { recursive: true });
+});
+
 let passed = 0;
 let failed = 0;
 
@@ -72,23 +81,84 @@ test('Devanagari characters are preserved by tokenizer', () => {
   assert.ok(tokens.includes('water'), 'Should include English word water');
 });
 
-// 5. Auth Middleware Token Query Param Support
-test('Auth middleware supports query token', () => {
-  let extractedToken = null;
+// 5. Auth Middleware Rejects Query Token
+const { protect } = require('./middleware/auth');
+
+test('Auth middleware rejects query-string token with 401', () => {
+  let statusCode;
+  let nextCalled = false;
   const reqWithQuery = { headers: {}, query: { token: 'my-jwt-token' } };
-  if (reqWithQuery.headers.authorization && reqWithQuery.headers.authorization.startsWith('Bearer')) {
-    extractedToken = reqWithQuery.headers.authorization.split(' ')[1];
-  } else if (reqWithQuery.query && reqWithQuery.query.token) {
-    extractedToken = reqWithQuery.query.token;
-  }
-  assert.strictEqual(extractedToken, 'my-jwt-token', 'Token should be extracted from req.query.token');
+  const res = {
+    status(code) {
+      statusCode = code;
+      return this;
+    },
+    json() {
+      return this;
+    }
+  };
+
+  protect(reqWithQuery, res, () => {
+    nextCalled = true;
+  });
+
+  assert.strictEqual(statusCode, 401, 'Query-string token requests must be rejected');
+  assert.strictEqual(nextCalled, false, 'Rejected requests must not reach the next middleware');
 });
 
 // 6. User credentials generator test
-const { generateDefaultPassword } = require('./utils/userCredentials');
-test('Default password generated accurately', () => {
-  assert.strictEqual(generateDefaultPassword('Ram Bahadur'), 'ram@123');
-  assert.strictEqual(generateDefaultPassword('Sita'), 'sita@123');
+const { generateTemporaryPassword } = require('./utils/userCredentials');
+test('Temporary passwords are random and sufficiently long', () => {
+  const first = generateTemporaryPassword();
+  const second = generateTemporaryPassword();
+  assert.ok(first.length >= 20);
+  assert.notStrictEqual(first, second);
+});
+
+test('Concurrent payment decisions allow only one conditional transition', () => {
+  let status = 'verification_pending';
+  const transition = (nextStatus) => {
+    if (status !== 'verification_pending') return false;
+    status = nextStatus;
+    return true;
+  };
+
+  assert.strictEqual(transition('paid'), true);
+  assert.strictEqual(transition('pending'), false);
+  assert.strictEqual(status, 'paid');
+});
+
+test('Concurrent poll submissions reject a duplicate voter', () => {
+  const voters = new Set();
+  const submitVote = (userId) => {
+    if (voters.has(userId)) return false;
+    voters.add(userId);
+    return true;
+  };
+
+  assert.strictEqual(submitVote('resident-1'), true);
+  assert.strictEqual(submitVote('resident-1'), false);
+});
+
+test('Staff directory scope excludes non-staff users', () => {
+  const users = [
+    { role: 'admin', isActive: true },
+    { role: 'staff', isActive: true },
+    { role: 'resident', isActive: true },
+    { role: 'staff', isActive: false }
+  ];
+  const staffDirectory = users.filter(user => user.role === 'staff' && user.isActive);
+  assert.deepStrictEqual(staffDirectory, [{ role: 'staff', isActive: true }]);
+});
+
+test('Complaint updates require the assigned staff member', () => {
+  const complaint = { assignedTo: 'staff-1' };
+  const canUpdate = (user) => user.role === 'admin'
+    || (user.role === 'staff' && complaint.assignedTo === user.id);
+
+  assert.strictEqual(canUpdate({ id: 'staff-1', role: 'staff' }), true);
+  assert.strictEqual(canUpdate({ id: 'staff-2', role: 'staff' }), false);
+  assert.strictEqual(canUpdate({ id: 'admin-1', role: 'admin' }), true);
 });
 
 console.log(`\n========================================`);

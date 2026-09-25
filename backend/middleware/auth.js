@@ -2,6 +2,12 @@ const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 
 exports.protect = async (req, res, next) => {
+  // Tokens in URLs can leak through logs, browser history, and referrer headers.
+  // Authentication is intentionally accepted from the Authorization header only.
+  if (req.query && (req.query.token || req.query.access_token)) {
+    return res.status(401).json({ success: false, message: 'Use the Authorization request header' });
+  }
+
   const authorization = req.headers.authorization || '';
   const token = authorization.startsWith('Bearer ')
     ? authorization.slice(7).trim()

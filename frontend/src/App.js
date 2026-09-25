@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import Login      from './pages/Login';
 import Dashboard  from './pages/Dashboard';
@@ -15,8 +15,13 @@ import Layout     from './components/Layout';
 
 const PrivateRoute = ({ children }) => {
   const { user, loading } = useAuth();
+  const location = useLocation();
   if (loading) return <div>Loading...</div>;
-  return user ? children : <Navigate to="/login" />;
+  if (!user) return <Navigate to="/login" />;
+  if (user.mustChangePassword && location.pathname !== '/profile') {
+    return <Navigate to="/profile" replace />;
+  }
+  return children;
 };
 
 // Role-aware guard. Wrap any route that the backend also restricts by role
@@ -51,6 +56,7 @@ export default function App() {
             <Route path="profile"    element={<Profile />} />
             <Route path="admin/audit-logs" element={<RoleRoute roles={['admin']}><AdminAuditLogs /></RoleRoute>} />
           </Route>
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </BrowserRouter>
     </AuthProvider>

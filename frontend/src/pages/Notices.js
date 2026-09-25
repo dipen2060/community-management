@@ -34,7 +34,9 @@ export default function Notices() {
       const res = await axios.post('/api/notices', form);
       setShowModal(false);
       setForm({ title: '', content: '', type: 'general', targetSections: [] });
-      alert(`Notice posted! Notified ${res.data.notifiedCount} resident(s).`);
+      alert(res.data.warning
+        ? `Notice posted, but notifications could not be delivered. Notified ${res.data.notifiedCount} resident(s).`
+        : `Notice posted! Notified ${res.data.notifiedCount} resident(s).`);
       fetchNotices();
     } catch (err) {
       alert(err.response?.data?.message || 'Could not post notice');

@@ -3,9 +3,10 @@ const User = require('../models/User');
 const House = require('../models/House');
 const { createNotificationForMany } = require('./notificationController');
 const { getResidentHouseIds, ResidentHouse } = require('../utils/residentHouses');
+const { getPagination, buildMeta } = require('../utils/paginate');
 
 // Get all polls (with section filtering for residents)
-exports.getPolls = async (req, res) => {
+exports.getPolls = async (req, res, next) => {
   try {
     const filter = {};
     if (req.query.status) filter.status = req.query.status;
@@ -28,15 +29,24 @@ exports.getPolls = async (req, res) => {
       pollObj.hasVoted = poll.options.some(option => 
         option.votes.some(voterId => voterId.toString() === req.user._id.toString())
       );
+      if (poll.type === 'anonymous') {
+        pollObj.options = pollObj.options.map(option => ({
+          ...option,
+          votes: option.votes.map(() => ({ _id: 'anonymous', name: 'Anonymous' }))
+        }));
+      }
       return pollObj;
     });
 
-    res.json({ success: true, count: polls.length, data: polls });
-  } catch (err) { res.status(500).json({ success: false, message: err.message }); }
+    const { page, limit } = getPagination(req);
+    const total = polls.length;
+    const data = page ? polls.slice((page - 1) * limit, page * limit) : polls;
+    res.json({ success: true, ...buildMeta(total, page, limit, data.length), data });
+  } catch (err) { next(err); }
 };
 
 // Get single poll with details
-exports.getPollById = async (req, res) => {
+exports.getPollById = async (req, res, next) => {
   try {
     const poll = await Poll.findById(req.params.id)
       .populate('createdBy', 'name')
@@ -69,11 +79,11 @@ exports.getPollById = async (req, res) => {
     }
 
     res.json({ success: true, data: pollObj });
-  } catch (err) { res.status(500).json({ success: false, message: err.message }); }
+  } catch (err) { next(err); }
 };
 
 // Create new poll (admin/staff only)
-exports.createPoll = async (req, res) => {
+exports.createPoll = async (req, res, next) => {
   try {
     const { title, description, options, type, targetSections, endDate } = req.body;
 
@@ -85,14 +95,17 @@ exports.createPoll = async (req, res) => {
       return res.status(400).json({ success: false, message: 'At least 2 options are required' });
     }
 
-    if (options.some(opt => !opt || !opt.trim())) {
+    if (options.some(opt => typeof opt !== 'string' || !opt.trim())) {
       return res.status(400).json({ success: false, message: 'All options must have text' });
+    }
+    if (type !== undefined && !['anonymous', 'named'].includes(type)) {
+      return res.status(400).json({ success: false, message: 'Invalid poll type' });
     }
 
     const sections = Array.isArray(targetSections) ? targetSections.filter(Boolean) : [];
 
     // Validate end date
-    if (endDate && new Date(endDate) <= new Date()) {
+    if (endDate && (!Number.isFinite(new Date(endDate).getTime()) || new Date(endDate) <= new Date())) {
       return res.status(400).json({ success: false, message: 'End date must be in the future' });
     }
 
@@ -122,12 +135,12 @@ exports.createPoll = async (req, res) => {
       });
       recipientIds = Array.from(userIds);
     } else {
-      const residents = await User.find(residentFilter).select('_id');
+      const residents = await User.find({ ...residentFilter, isActive: true }).select('_id');
       recipientIds = residents.map(u => u._id);
     }
 
     const sectionLabel = sections.length > 0 ? ` (${sections.join(', ')})` : '';
-    await createNotificationForMany(recipientIds, {
+    const notificationResult = await createNotificationForMany(recipientIds, {
       title: `🗳️ New Poll${sectionLabel}: ${poll.title}`,
       message: poll.description || 'Please cast your vote.',
       type: 'general',
@@ -138,13 +151,15 @@ exports.createPoll = async (req, res) => {
       success: true, 
       data: poll, 
       notifiedCount: recipientIds.length,
+      notificationDelivered: notificationResult.success,
+      warning: notificationResult.success ? undefined : 'Poll was saved, but notifications could not be delivered.',
       message: 'Poll created successfully'
     });
-  } catch (err) { res.status(500).json({ success: false, message: err.message }); }
+  } catch (err) { next(err); }
 };
 
 // Update poll (admin/staff only)
-exports.updatePoll = async (req, res) => {
+exports.updatePoll = async (req, res, next) => {
   try {
     const { title, description, status, endDate } = req.body;
     const poll = await Poll.findById(req.params.id);
@@ -164,29 +179,40 @@ exports.updatePoll = async (req, res) => {
     const update = {};
     if (title) update.title = title.trim();
     if (description !== undefined) update.description = description?.trim() || '';
-    if (status) update.status = status;
-    if (endDate) update.endDate = new Date(endDate);
+    if (status !== undefined) {
+      if (!['active', 'closed'].includes(status)) {
+        return res.status(400).json({ success: false, message: 'Invalid poll status' });
+      }
+      update.status = status;
+    }
+    if (endDate !== undefined) {
+      const parsedEndDate = new Date(endDate);
+      if (!Number.isFinite(parsedEndDate.getTime()) || parsedEndDate <= new Date()) {
+        return res.status(400).json({ success: false, message: 'End date must be in the future' });
+      }
+      update.endDate = parsedEndDate;
+    }
 
-    const updatedPoll = await Poll.findByIdAndUpdate(req.params.id, update, { new: true })
+    const updatedPoll = await Poll.findByIdAndUpdate(req.params.id, update, { new: true, runValidators: true })
       .populate('createdBy', 'name');
 
     res.json({ success: true, data: updatedPoll, message: 'Poll updated successfully' });
-  } catch (err) { res.status(500).json({ success: false, message: err.message }); }
+  } catch (err) { next(err); }
 };
 
 // Delete poll (admin only)
-exports.deletePoll = async (req, res) => {
+exports.deletePoll = async (req, res, next) => {
   try {
     const poll = await Poll.findById(req.params.id);
     if (!poll) return res.status(404).json({ success: false, message: 'Poll not found' });
 
     await Poll.findByIdAndDelete(req.params.id);
     res.json({ success: true, message: 'Poll deleted successfully' });
-  } catch (err) { res.status(500).json({ success: false, message: err.message }); }
+  } catch (err) { next(err); }
 };
 
 // Vote on poll (residents only)
-exports.votePoll = async (req, res) => {
+exports.votePoll = async (req, res, next) => {
   try {
     const { optionIndex } = req.body;
     const poll = await Poll.findById(req.params.id);
@@ -211,33 +237,41 @@ exports.votePoll = async (req, res) => {
       }
     }
 
-    // Check if user has already voted
-    const hasVoted = poll.options.some(option => 
-      option.votes.some(voterId => voterId.toString() === req.user._id.toString())
-    );
-
-    if (hasVoted) {
-      return res.status(400).json({ success: false, message: 'You have already voted in this poll' });
-    }
-
     // Validate option index
     if (optionIndex < 0 || optionIndex >= poll.options.length) {
       return res.status(400).json({ success: false, message: 'Invalid option index' });
     }
 
-    // Add vote
-    poll.options[optionIndex].votes.push(req.user._id);
-    poll.totalVotes += 1;
-    await poll.save();
+    const updatedPoll = await Poll.findOneAndUpdate(
+      {
+        _id: req.params.id,
+        status: 'active',
+        $or: [{ endDate: null }, { endDate: { $gt: new Date() } }],
+        'options.votes': { $ne: req.user._id }
+      },
+      {
+        $push: { [`options.${optionIndex}.votes`]: req.user._id },
+        $inc: { totalVotes: 1 }
+      },
+      { new: true, runValidators: true }
+    ).populate('createdBy', 'name');
+    if (!updatedPoll) {
+      return res.status(409).json({ success: false, message: 'You have already voted or this poll is no longer available.' });
+    }
 
-    await poll.populate('createdBy', 'name');
-
-    res.json({ success: true, data: poll, message: 'Vote recorded successfully' });
-  } catch (err) { res.status(500).json({ success: false, message: err.message }); }
+    const pollResponse = updatedPoll.toObject();
+    if (updatedPoll.type === 'anonymous') {
+      pollResponse.options = pollResponse.options.map(option => ({
+        ...option,
+        votes: option.votes.map(() => ({ _id: 'anonymous', name: 'Anonymous' }))
+      }));
+    }
+    res.json({ success: true, data: pollResponse, message: 'Vote recorded successfully' });
+  } catch (err) { next(err); }
 };
 
 // Get poll results (admin/staff only, or after voting)
-exports.getPollResults = async (req, res) => {
+exports.getPollResults = async (req, res, next) => {
   try {
     const poll = await Poll.findById(req.params.id)
       .populate('createdBy', 'name')
@@ -266,5 +300,5 @@ exports.getPollResults = async (req, res) => {
         results
       }
     });
-  } catch (err) { res.status(500).json({ success: false, message: err.message }); }
+  } catch (err) { next(err); }
 };

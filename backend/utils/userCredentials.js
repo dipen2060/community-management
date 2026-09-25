@@ -1,4 +1,5 @@
 const User = require('../models/User');
+const crypto = require('crypto');
 
 // Generates "firstname.lastname" from full name, lowercase, no special chars
 // Handles duplicates by appending a number: ram.bahadur, ram.bahadur2, ram.bahadur3...
@@ -19,11 +20,8 @@ async function generateUsername(fullName) {
   return username;
 }
 
-// Generates default password "firstname@123" (lowercase first name)
-function generateDefaultPassword(fullName) {
-  const firstName = fullName.trim().toLowerCase().split(/\s+/)[0] || 'user';
-  const clean = firstName.replace(/[^a-z0-9]/g, '');
-  return `${clean}@123`;
+function generateTemporaryPassword() {
+  return crypto.randomBytes(18).toString('base64url');
 }
 
-module.exports = { generateUsername, generateDefaultPassword };
+module.exports = { generateUsername, generateTemporaryPassword };

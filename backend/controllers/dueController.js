@@ -6,12 +6,7 @@ const { createNotification } = require('./notificationController');
 const { getPagination, applyPagination, buildMeta } = require('../utils/paginate');
 const { logAudit } = require('../utils/auditLogger');
 const { getResidentHouseIds, isResidentLinkedToHouse, getHouseResidentIds } = require('../utils/residentHouses');
-
-function calculateFine(dueDate, now = new Date()) {
-  if (!dueDate || dueDate >= now) return 0;
-  const daysLate = Math.max(0, Math.floor((now - dueDate) / (1000 * 60 * 60 * 24)));
-  return daysLate * 10;
-}
+const { calculateFine, effectiveFine } = require('../utils/fines');
 
 
 function removeUploadedFile(url) {
@@ -52,7 +47,7 @@ function kMeansClustering(data, k = 3) {
   return clusters.map((group, i) => ({ label: labels[i] || 'Unknown', residents: group }));
 }
 
-exports.getDues = async (req, res) => {
+exports.getDues = async (req, res, next) => {
   try {
     const filter = {};
     if (req.query.status) filter.status = req.query.status;
@@ -60,6 +55,10 @@ exports.getDues = async (req, res) => {
     if (req.query.year) filter.year = Number(req.query.year);
 
     // Residents can only see dues belonging to a house where they are owner/tenant.
+    if (req.query.history !== 'true') {
+      const activeHouseIds = await House.find({ status: { $ne: 'archived' } }).distinct('_id');
+      filter.house = { $in: activeHouseIds };
+    }
     if (req.user.role === 'resident') {
       const houseIds = await getResidentHouseIds(req.user._id);
       filter.house = { $in: houseIds };
@@ -92,7 +91,7 @@ exports.getDues = async (req, res) => {
     const summaryDocs = await Due.find(filter).select('amount fine dueDate status').lean();
     const summary = summaryDocs.reduce((acc, d) => {
       if (['pending', 'overdue'].includes(d.status)) {
-        const fine = Math.max(Number(d.fine || 0), calculateFine(d.dueDate, now));
+        const fine = effectiveFine(d.fine, d.dueDate, now);
         acc.outstanding += Number(d.amount || 0) + fine;
       } else if (d.status === 'verification_pending') {
         acc.verification += 1;
@@ -104,18 +103,18 @@ exports.getDues = async (req, res) => {
 
     res.json({ success: true, ...buildMeta(total, page, limit, dues.length), data: dues, summary });
   } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
+    next(err);
   }
 };
 // Submit proof; this does NOT mark the due paid. An admin must verify it first.
-exports.submitPaymentProof = async (req, res) => {
+exports.submitPaymentProof = async (req, res, next) => {
   let saved = false;
   try {
     if (!req.file) {
       return res.status(400).json({ success: false, message: 'Payment proof is required (JPG, PNG or PDF).' });
     }
 
-    const due = await Due.findById(req.params.id).populate('house', 'houseNo owner tenant');
+    let due = await Due.findById(req.params.id).populate('house', 'houseNo owner tenant');
     if (!due) return res.status(404).json({ success: false, message: 'Due not found' });
 
     if (due.status === 'paid') {
@@ -133,8 +132,8 @@ exports.submitPaymentProof = async (req, res) => {
       return res.status(403).json({ success: false, message: 'You can only submit proof for your own house.' });
     }
 
-    const effectiveFine = Math.max(due.fine || 0, calculateFine(due.dueDate));
-    const totalDue = Number((due.amount + effectiveFine).toFixed(2));
+    const totalFine = effectiveFine(due.fine, due.dueDate);
+    const totalDue = Number((due.amount + totalFine).toFixed(2));
     const declaredAmount = Number(req.body.declaredAmount);
     if (!Number.isFinite(declaredAmount) || declaredAmount <= 0) {
       removeUploadedFile(`/uploads/payment-proofs/${req.file.filename}`);
@@ -153,7 +152,7 @@ exports.submitPaymentProof = async (req, res) => {
     }
 
     // If the due date has passed, capture the current fine at submission time.
-    const currentFine = Math.max(due.fine || 0, calculateFine(due.dueDate));
+    const currentFine = effectiveFine(due.fine, due.dueDate);
     const paymentProof = {
       originalName: req.file.originalname,
       fileName: req.file.filename,
@@ -166,19 +165,43 @@ exports.submitPaymentProof = async (req, res) => {
     // Keep track of an older rejected proof and remove it only after the replacement is saved.
     const previousProofUrl = due.paymentProof?.url;
 
-    due.fine = currentFine;
-    due.status = 'verification_pending';
-    due.submittedBy = req.user._id;
-    due.paymentSubmittedAt = new Date();
-    due.paymentMethod = paymentMethod;
-    due.paymentReference = String(req.body.paymentReference || '').trim() || undefined;
-    due.declaredAmount = declaredAmount;
-    due.paymentProof = paymentProof;
-    due.rejectionReason = null;
-    due.verifiedBy = null;
-    due.verifiedAt = null;
-    due.paymentAttempts.push({ submittedBy: req.user._id, paymentSubmittedAt: due.paymentSubmittedAt, paymentMethod, paymentReference: due.paymentReference, declaredAmount, paymentProof, status: 'verification_pending' });
-    await due.save();
+    const paymentSubmittedAt = new Date();
+    const paymentReference = String(req.body.paymentReference || '').trim() || undefined;
+    const updatedDue = await Due.findOneAndUpdate(
+      { _id: due._id, status: { $in: ['pending', 'overdue'] } },
+      {
+        $set: {
+          fine: currentFine,
+          status: 'verification_pending',
+          submittedBy: req.user._id,
+          paymentSubmittedAt,
+          paymentMethod,
+          paymentReference,
+          declaredAmount,
+          paymentProof,
+          rejectionReason: null,
+          verifiedBy: null,
+          verifiedAt: null
+        },
+        $push: {
+          paymentAttempts: {
+            submittedBy: req.user._id,
+            paymentSubmittedAt,
+            paymentMethod,
+            paymentReference,
+            declaredAmount,
+            paymentProof,
+            status: 'verification_pending'
+          }
+        }
+      },
+      { new: true, runValidators: true }
+    ).populate('house', 'houseNo owner tenant');
+    if (!updatedDue) {
+      removeUploadedFile(`/uploads/payment-proofs/${req.file.filename}`);
+      return res.status(409).json({ success: false, message: 'This due was updated by another request. Please refresh and try again.' });
+    }
+    due = updatedDue;
     saved = true;
     // Keep previous proofs for audit/history instead of deleting financial evidence.
 
@@ -214,30 +237,35 @@ exports.submitPaymentProof = async (req, res) => {
     res.json({ success: true, data: due, message: 'Payment proof submitted. Waiting for admin verification.' });
   } catch (err) {
     if (req.file && !saved) removeUploadedFile(`/uploads/payment-proofs/${req.file.filename}`);
-    res.status(500).json({ success: false, message: err.message });
+    next(err);
   }
 };
 
-exports.approvePayment = async (req, res) => {
+exports.approvePayment = async (req, res, next) => {
   try {
-    const due = await Due.findById(req.params.id).populate('house', 'houseNo owner tenant');
-    if (!due) return res.status(404).json({ success: false, message: 'Due not found' });
-    if (due.status !== 'verification_pending') {
-      return res.status(400).json({ success: false, message: 'Only payments awaiting verification can be approved.' });
-    }
-
-    const receiptNo = `RCP-${Date.now()}-${String(due._id).slice(-5).toUpperCase()}`;
+    const receiptNo = `RCP-${Date.now()}-${String(req.params.id).slice(-5).toUpperCase()}`;
     const now = new Date();
-    const latestAttempt = [...(due.paymentAttempts || [])].reverse().find(a => a.status === 'verification_pending');
-    if (latestAttempt) { latestAttempt.status = 'approved'; latestAttempt.verifiedBy = req.user._id; latestAttempt.verifiedAt = now; }
-    due.status = 'paid';
-    due.paidDate = now;
-    due.paidBy = due.submittedBy || req.user._id;
-    due.receiptNo = receiptNo;
-    due.verifiedBy = req.user._id;
-    due.verifiedAt = now;
-    due.rejectionReason = null;
-    await due.save();
+    const currentDue = await Due.findById(req.params.id);
+    if (!currentDue) return res.status(404).json({ success: false, message: 'Due not found' });
+    const due = await Due.findOneAndUpdate(
+      { _id: req.params.id, status: 'verification_pending' },
+      {
+        $set: {
+          status: 'paid',
+          paidDate: now,
+          paidBy: currentDue.submittedBy || req.user._id,
+          receiptNo,
+          verifiedBy: req.user._id,
+          verifiedAt: now,
+          rejectionReason: null,
+          'paymentAttempts.$[pending].status': 'approved',
+          'paymentAttempts.$[pending].verifiedBy': req.user._id,
+          'paymentAttempts.$[pending].verifiedAt': now
+        }
+      },
+      { new: true, runValidators: true, arrayFilters: [{ 'pending.status': 'verification_pending' }] }
+    ).populate('house', 'houseNo owner tenant');
+    if (!due) return res.status(409).json({ success: false, message: 'This payment was already processed. Refresh and try again.' });
 
     const recipient = due.submittedBy || due.house.owner || due.house.tenant;
     if (recipient) {
@@ -262,30 +290,36 @@ exports.approvePayment = async (req, res) => {
 
     res.json({ success: true, data: due, message: 'Payment approved and receipt generated.' });
   } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
+    next(err);
   }
 };
 
-exports.rejectPayment = async (req, res) => {
+exports.rejectPayment = async (req, res, next) => {
   try {
     const reason = String(req.body.reason || '').trim();
     if (!reason) return res.status(400).json({ success: false, message: 'Rejection reason is required.' });
 
-    const due = await Due.findById(req.params.id).populate('house', 'houseNo owner tenant');
-    if (!due) return res.status(404).json({ success: false, message: 'Due not found' });
-    if (due.status !== 'verification_pending') {
-      return res.status(400).json({ success: false, message: 'Only payments awaiting verification can be rejected.' });
-    }
-
+    const currentDue = await Due.findById(req.params.id).populate('house', 'houseNo owner tenant');
+    if (!currentDue) return res.status(404).json({ success: false, message: 'Due not found' });
     const now = new Date();
-    due.fine = Math.max(due.fine || 0, calculateFine(due.dueDate, now));
-    due.status = due.dueDate && due.dueDate < now ? 'overdue' : 'pending';
-    due.rejectionReason = reason;
-    due.verifiedBy = req.user._id;
-    due.verifiedAt = now;
-    const latestAttempt = [...(due.paymentAttempts || [])].reverse().find(a => a.status === 'verification_pending');
-    if (latestAttempt) { latestAttempt.status = 'rejected'; latestAttempt.rejectionReason = reason; latestAttempt.verifiedBy = req.user._id; latestAttempt.verifiedAt = now; }
-    await due.save();
+    const due = await Due.findOneAndUpdate(
+      { _id: req.params.id, status: 'verification_pending' },
+      {
+        $set: {
+          fine: effectiveFine(currentDue.fine, currentDue.dueDate, now),
+          status: currentDue.dueDate && currentDue.dueDate < now ? 'overdue' : 'pending',
+          rejectionReason: reason,
+          verifiedBy: req.user._id,
+          verifiedAt: now,
+          'paymentAttempts.$[pending].status': 'rejected',
+          'paymentAttempts.$[pending].rejectionReason': reason,
+          'paymentAttempts.$[pending].verifiedBy': req.user._id,
+          'paymentAttempts.$[pending].verifiedAt': now
+        }
+      },
+      { new: true, runValidators: true, arrayFilters: [{ 'pending.status': 'verification_pending' }] }
+    ).populate('house', 'houseNo owner tenant');
+    if (!due) return res.status(409).json({ success: false, message: 'This payment was already processed. Refresh and try again.' });
 
     const recipient = due.submittedBy || due.house.owner || due.house.tenant;
     if (recipient) {
@@ -310,7 +344,7 @@ exports.rejectPayment = async (req, res) => {
 
     res.json({ success: true, data: due, message: 'Payment proof rejected. Resident can submit a new proof.' });
   } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
+    next(err);
   }
 };
 
@@ -322,54 +356,68 @@ exports.payDue = async (req, res) => {
   });
 };
 
-// Auto generate monthly dues
-exports.generateMonthlyDues = async (req, res) => {
-  try {
-    const now = new Date();
+async function generateMonthlyDues(now = new Date()) {
     const month = now.getMonth() + 1;
     const year = now.getFullYear();
-    const houses = await House.find({ isOccupied: true });
+    const houses = await House.find({ isOccupied: true, status: { $ne: 'archived' } });
     let created = 0;
 
     for (const house of houses) {
-      const exists = await Due.findOne({ house: house._id, month, year });
-      if (exists) continue;
+      try {
+        const dueDate = new Date(year, month - 1, 10, 23, 59, 59, 999);
+        const overdue = dueDate < now;
+        const result = await Due.updateOne(
+          { house: house._id, month, year },
+          {
+            $setOnInsert: {
+              amount: house.monthlyDue,
+              fine: calculateFine(dueDate, now),
+              status: overdue ? 'overdue' : 'pending',
+              dueDate
+            }
+          },
+          { upsert: true }
+        );
 
-      const dueDate = new Date(year, month - 1, 10, 23, 59, 59, 999);
-      const overdue = dueDate < now;
-      const fine = calculateFine(dueDate, now);
+        if (!result.upsertedCount) continue;
+        created++;
 
-      await Due.create({
-        house: house._id,
-        month,
-        year,
-        amount: house.monthlyDue,
-        fine,
-        status: overdue ? 'overdue' : 'pending',
-        dueDate
-      });
-      created++;
-
-      const recipients = await getHouseResidentIds(house);
-      for (const userId of recipients) {
-        await createNotification({
-          user: userId,
-          title: 'New Due Generated',
-          message: `Rs. ${house.monthlyDue} due generated for ${house.houseNo} (${month}/${year}). Please pay before the 10th to avoid fine.`,
-          type: 'due',
-          link: '/dues'
-        });
+        const recipients = await getHouseResidentIds(house);
+        for (const userId of recipients) {
+          await createNotification({
+            user: userId,
+            title: 'New Due Generated',
+            message: `Rs. ${house.monthlyDue} due generated for ${house.houseNo} (${month}/${year}). Please pay before the 10th to avoid fine.`,
+            type: 'due',
+            link: '/dues'
+          });
+        }
+      } catch (err) {
+        if (err && err.code === 11000) {
+          console.warn(`Skipping duplicate due for house ${house._id} (${month}/${year}).`);
+          continue;
+        }
+        throw err;
       }
     }
 
-    res.json({ success: true, message: `${created} dues generated for ${month}/${year}` });
+    return { created, month, year };
+}
+
+// Auto generate monthly dues
+exports.generateMonthlyDues = async (req, res, next) => {
+  try {
+    const result = await generateMonthlyDues();
+    res.json({ success: true, message: `${result.created} dues generated for ${result.month}/${result.year}` });
   } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
+    next(err);
   }
 };
 
+exports.generateMonthlyDuesForCron = generateMonthlyDues;
+
 // Payment behavior clustering
-exports.getPaymentClusters = async (req, res) => {
+exports.getPaymentClusters = async (req, res, next) => {
   try {
     const houses = await House.find().populate('owner', 'name');
     const houseStats = [];
@@ -383,11 +431,11 @@ exports.getPaymentClusters = async (req, res) => {
     const clusters = kMeansClustering(houseStats);
     res.json({ success: true, data: clusters });
   } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
+    next(err);
   }
 };
 
-exports.getDashboardStats = async (req, res) => {
+exports.getDashboardStats = async (req, res, next) => {
   try {
     const now = new Date();
     const month = now.getMonth() + 1;
@@ -419,11 +467,11 @@ exports.getDashboardStats = async (req, res) => {
       }
     });
   } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
+    next(err);
   }
 };
 
-exports.getPaymentProof = async (req, res) => {
+exports.getPaymentProof = async (req, res, next) => {
   try {
     const due = await Due.findById(req.params.id).populate('house', 'owner tenant');
     if (!due) return res.status(404).json({ success: false, message: 'Due not found' });
@@ -438,10 +486,10 @@ exports.getPaymentProof = async (req, res) => {
     const absolute = path.join(__dirname, '..', 'uploads', 'payment-proofs', fileName);
     if (!fs.existsSync(absolute)) return res.status(404).json({ success: false, message: 'Proof file not found' });
     return res.sendFile(absolute);
-  } catch (err) { res.status(500).json({ success: false, message: err.message }); }
+  } catch (err) { next(err); }
 };
 
-exports.getDueById = async (req, res) => {
+exports.getDueById = async (req, res, next) => {
   try {
     const due = await Due.findById(req.params.id)
       .populate({
@@ -461,6 +509,6 @@ exports.getDueById = async (req, res) => {
 
     res.json({ success: true, data: due });
   } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
+    next(err);
   }
 };

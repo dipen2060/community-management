@@ -10,14 +10,14 @@ const cron = require('node-cron');
 
 const connectDB = require('./config/db');
 const Due = require('./models/Due');
-const House = require('./models/House');
 const { createNotification } = require('./controllers/notificationController');
 const { getHouseResidentIds } = require('./utils/residentHouses');
+const { calculateFine } = require('./utils/fines');
+const { generateMonthlyDuesForCron } = require('./controllers/dueController');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
-
-connectDB();
+let server;
 
 const uploadDirectories = [
     'uploads',
@@ -56,14 +56,6 @@ app.use(
  * During development, localhost/127.0.0.1
  * origins on any port are allowed.
  */
-const allowedOrigins = (
-    process.env.CLIENT_URL ||
-    'http://localhost:3000,http://127.0.0.1:3000'
-)
-    .split(',')
-    .map((origin) => origin.trim())
-    .filter(Boolean);
-
 const isDevelopment = process.env.NODE_ENV !== 'production';
 
 const isLocalhost = (origin) => {
@@ -79,6 +71,14 @@ const isLocalhost = (origin) => {
         return false;
     }
 };
+
+const allowedOrigins = (
+    process.env.CLIENT_URL ||
+    'http://localhost:3000,http://127.0.0.1:3000'
+)
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter((origin) => origin && (isDevelopment || !isLocalhost(origin)));
 
 app.use(
     cors({
@@ -133,41 +133,6 @@ app.use(
         limit: '1mb'
     })
 );
-
-/*
- * --------------------------------------------------
- * Static uploads
- * --------------------------------------------------
- */
-app.get('/api/files/*', async (req, res, next) => {
-    try {
-        const { protect } = require('./middleware/auth');
-        await protect(req, res, () => {
-            const requested = req.params[0].replace(/\\/g, '/');
-            const safeRelative = requested.split('/').filter(Boolean).join('/');
-            const uploadsRoot = path.resolve(__dirname, 'uploads');
-            const absolute = path.resolve(uploadsRoot, safeRelative);
-
-            if (!absolute.startsWith(uploadsRoot)) {
-                return res.status(400).json({
-                    success: false,
-                    message: 'Invalid file path'
-                });
-            }
-
-            if (!fs.existsSync(absolute)) {
-                return res.status(404).json({
-                    success: false,
-                    message: 'File not found'
-                });
-            }
-
-            return res.sendFile(absolute);
-        });
-    } catch (error) {
-        next(error);
-    }
-});
 
 // Routes
 
@@ -239,6 +204,21 @@ app.get('/', (req, res) => {
 // Error handling middleware
 app.use(require('./middleware/errorHandler'));
 
+const startServer = async () => {
+    try {
+        await connectDB();
+
+        server = app.listen(PORT, () => {
+            console.log(`Server running on port ${PORT}`);
+        });
+    } catch (error) {
+        console.error('Failed to start server:', error.message);
+        process.exit(1);
+    }
+};
+
+startServer();
+
 /*
  * ==================================================
  * AUTOMATION
@@ -252,91 +232,15 @@ app.use(require('./middleware/errorHandler'));
 cron.schedule('0 8 1 * *', async () => {
     try {
         console.log('Cron: Generating monthly dues...');
-
-        const now = new Date();
-
-        const houses = await House.find({
-            isOccupied: true
-        });
-
-        let created = 0;
-
-        for (const house of houses) {
-            const month = now.getMonth() + 1;
-            const year = now.getFullYear();
-
-            const existingDue = await Due.findOne({
-                house: house._id,
-                month,
-                year
-            });
-
-            if (existingDue) {
-                continue;
-            }
-
-            const dueDate = new Date(
-                year,
-                now.getMonth(),
-                10,
-                23,
-                59,
-                59,
-                999
-            );
-
-            const isOverdue = dueDate < now;
-
-            const daysLate = isOverdue
-                ? Math.max(
-                    0,
-                    Math.floor(
-                        (now - dueDate) /
-                        (1000 * 60 * 60 * 24)
-                    )
-                )
-                : 0;
-
-            const due = await Due.create({
-                house: house._id,
-                month,
-                year,
-                amount: house.monthlyDue,
-                fine: daysLate * 10,
-                status: isOverdue
-                    ? 'overdue'
-                    : 'pending',
-                dueDate
-            });
-
-            created++;
-
-            const recipients = await getHouseResidentIds(house);
-
-            for (const userId of recipients) {
-                await createNotification({
-                    user: userId,
-                    title: 'New Due Generated',
-                    message:
-                        `Rs. ${house.monthlyDue} due generated for ` +
-                        `${house.houseNo}. Please pay before the 10th ` +
-                        `to avoid fine.`,
-                    type: 'due',
-                    link: '/dues'
-                });
-            }
-        }
-
-        console.log(
-            `Monthly dues generated: ${created}`
-        );
+        const result = await generateMonthlyDuesForCron();
+        console.log(`Monthly dues generated: ${result.created}`);
     } catch (error) {
         console.error(
             'Monthly dues cron error:',
             error
         );
     }
-});
+}, { timezone: process.env.TZ || 'Asia/Kathmandu' });
 
 /*
  * Update overdue fines
@@ -356,15 +260,7 @@ cron.schedule('0 0 * * *', async () => {
         }).populate('house');
 
         for (const due of overdueDues) {
-            const daysLate = Math.max(
-                0,
-                Math.floor(
-                    (now - due.dueDate) /
-                    (1000 * 60 * 60 * 24)
-                )
-            );
-
-            due.fine = daysLate * 10;
+            due.fine = calculateFine(due.dueDate, now);
             due.status = 'overdue';
 
             await due.save();
@@ -386,7 +282,7 @@ cron.schedule('0 0 * * *', async () => {
                         `is overdue. Fine: Rs. ${due.fine}.`,
                     type: 'overdue',
                     link: '/dues'
-                });
+                }, { timezone: process.env.TZ || 'Asia/Kathmandu' });
             }
         }
 
@@ -403,12 +299,6 @@ cron.schedule('0 0 * * *', async () => {
     }
 });
 
-const server = app.listen(PORT, () => {
-    console.log(
-        `Server running on http://localhost:${PORT}`
-    );
-});
-
 /*
  * --------------------------------------------------
  * Graceful shutdown
@@ -417,7 +307,7 @@ const server = app.listen(PORT, () => {
 const gracefulShutdown = async (signal) => {
     console.log(`${signal} received. Shutting down...`);
 
-    server.close(async () => {
+    const closeDatabase = async () => {
         try {
             const mongoose = require('mongoose');
 
@@ -432,7 +322,14 @@ const gracefulShutdown = async (signal) => {
         } finally {
             process.exit(0);
         }
-    });
+    };
+
+    if (!server) {
+        await closeDatabase();
+        return;
+    }
+
+    server.close(closeDatabase);
 
     setTimeout(() => {
         console.error(

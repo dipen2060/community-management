@@ -54,7 +54,7 @@ export default function Staff() {
       } else {
         const res = await axios.post('/api/users', { ...form, exportSection: form.role === 'staff' ? (form.exportSection || null) : undefined });
         setShowModal(false);
-        setCredentials(res.data.credentials);
+        alert(res.data.message);
       }
       fetchUsers();
     } catch (err) {
@@ -72,9 +72,13 @@ export default function Staff() {
   };
 
   const handleResetPassword = async (u) => {
-    if (!window.confirm(`Reset ${u.name}'s password to default?`)) return;
-    const res = await axios.put(`/api/users/${u._id}/reset-password`);
-    alert(res.data.message);
+    if (!window.confirm(`Reset ${u.name}'s password? They must change it on first login.`)) return;
+    try {
+      const res = await axios.put(`/api/users/${u._id}/reset-password`);
+      alert(res.data.message);
+    } catch (err) {
+      alert(err.response?.data?.message || 'Could not reset password');
+    }
   };
 
   const handleDelete = async (u) => {
@@ -120,7 +124,7 @@ export default function Staff() {
       <h1 className="page-title">👥 User Management</h1>
       <div className="card" style={{ background: '#f0f9ff', border: '1px solid #bae6fd', marginBottom: 20 }}>
         <p style={{ fontSize: '0.85rem', color: '#0369a1' }}>
-          Username (firstname.lastname) ra default password (firstname@123) automatically generate huncha — manually type garnu pardaina.
+          Username automatically generate huncha. A secure temporary password must be delivered separately and changed on first login.
           Residents/Staff le aafno profile edit garna milidaina — admin le matra change garna sakcha.
         </p>
       </div>
@@ -211,7 +215,7 @@ export default function Staff() {
               )}
               {!editUser && (
                 <p style={{ fontSize: '0.78rem', color: '#6b7280', marginBottom: 12 }}>
-                  ℹ️ Username ra password automatically generate huncha submit garepachi.
+                  ℹ️ A secure temporary password is generated. The user must change it on first login.
                 </p>
               )}
               <div className="modal-actions">
@@ -223,22 +227,6 @@ export default function Staff() {
         </div>
       )}
 
-      {/* Show generated credentials once */}
-      {credentials && (
-        <div className="modal-overlay" onClick={() => setCredentials(null)}>
-          <div className="modal" onClick={e => e.stopPropagation()}>
-            <h3>✅ User Created!</h3>
-            <p style={{ fontSize: '0.9rem', marginBottom: 8 }}>Share these login details with the user:</p>
-            <div style={{ background: '#f8fafc', padding: 14, borderRadius: 8, fontSize: '0.9rem' }}>
-              <p>📧 Email (login): <strong>{credentials.email}</strong></p>
-              <p>🔑 Password: <strong>{credentials.password}</strong></p>
-            </div>
-            <div className="modal-actions">
-              <button className="btn btn-primary" onClick={() => setCredentials(null)}>OK</button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

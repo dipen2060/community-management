@@ -1,11 +1,12 @@
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 
+const jwtExpire = process.env.JWT_EXPIRE;
 const generateToken = (id) =>
-  jwt.sign({ id }, process.env.JWT_SECRET, { expiresIn: process.env.JWT_EXPIRE });
+  jwt.sign({ id }, process.env.JWT_SECRET, { expiresIn: jwtExpire });
 
 // Login by EMAIL — unique per user, avoids duplicate-name collision with username
-exports.login = async (req, res) => {
+exports.login = async (req, res, next) => {
   try {
     const { email, password } = req.body;
     const user = await User.findOne({ email: email?.trim().toLowerCase() });
@@ -23,11 +24,12 @@ exports.login = async (req, res) => {
         phone: user.phone,
         address: user.address,
         specialization: user.specialization,
-        exportSection: user.exportSection || (user.role === 'admin' ? 'all' : null)
+        exportSection: user.exportSection || (user.role === 'admin' ? 'all' : null),
+        mustChangePassword: user.mustChangePassword
       }
     });
   } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
+    next(err);
   }
 };
 
@@ -44,7 +46,8 @@ exports.getMe = async (req, res) => {
       phone: u.phone,
       address: u.address,
       specialization: u.specialization,
-      exportSection: u.exportSection || (u.role === 'admin' ? 'all' : null)
+      exportSection: u.exportSection || (u.role === 'admin' ? 'all' : null),
+      mustChangePassword: u.mustChangePassword
     }
   });
 };

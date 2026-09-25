@@ -1,6 +1,10 @@
 node_modules/
 .env
 *.log
-backend/uploads/
+backend/uploads/*
+!backend/uploads/.gitkeep
+!backend/uploads/payment-proofs/
+backend/uploads/payment-proofs/*
+!backend/uploads/payment-proofs/.gitkeep
 frontend/build/
 .DS_Store

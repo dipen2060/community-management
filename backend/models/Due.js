@@ -49,7 +49,7 @@ const dueSchema = new mongoose.Schema({
   verifiedBy:       { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   verifiedAt:       { type: Date },
   paymentAttempts:  { type: [paymentAttemptSchema], default: [] }
-}, { timestamps: true });
+}, { timestamps: true, optimisticConcurrency: true });
 
 // A house can have only one due for a given month/year.
 dueSchema.index({ house: 1, month: 1, year: 1 }, { unique: true });

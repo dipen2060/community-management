@@ -1,4 +1,4 @@
-// Centralized error handling middleware
+﻿// Centralized error handling middleware
 const errorHandler = (err, req, res, next) => {
   let error = { ...err };
   error.message = err.message;
@@ -28,6 +28,11 @@ const errorHandler = (err, req, res, next) => {
   if (err && (err.name === 'MulterError' || err.code === 'LIMIT_FILE_SIZE')) {
     const message = err.code === 'LIMIT_FILE_SIZE' ? 'Uploaded file is too large. Maximum size is 5 MB.' : err.message;
     error = { message, statusCode: 400 };
+  }
+
+  // Upload filters reject files whose declared type or content is not allowed.
+  if (err.code === 'INVALID_FILE_TYPE') {
+    error = { message: 'Invalid file type. Upload a supported image or PDF file.', statusCode: 400 };
   }
 
   // JWT errors

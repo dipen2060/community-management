@@ -28,7 +28,7 @@ const Polls = () => {
     axios.get('/api/houses').then(r => {
       const unique = [...new Set((r.data.data || []).map(h => h.section).filter(Boolean))];
       if (unique.length > 0) setAvailableSections(unique);
-    }).catch(() => {});
+    }).catch(err => console.error('Failed to fetch houses:', err));
   }, []);
 
   const fetchPolls = async () => {
