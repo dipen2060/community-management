@@ -4,6 +4,16 @@ import axios from 'axios';
 const AuthContext = createContext();
 const USER_STORAGE_KEY = 'authUser';
 
+// Attach the token immediately on module load (before any component renders
+// or fires a data-fetch effect). Doing this inside AuthProvider's useEffect
+// instead would race with child pages' own effects on reload, since child
+// effects run before parent effects in the same commit -- causing the first
+// requests after a page refresh to go out with no Authorization header.
+const cachedTokenAtLoad = localStorage.getItem('token');
+if (cachedTokenAtLoad) {
+  axios.defaults.headers.common.Authorization = `Bearer ${cachedTokenAtLoad}`;
+}
+
 export const useAuth = () => useContext(AuthContext);
 
 const readCachedUser = () => {
@@ -33,7 +43,6 @@ export const AuthProvider = ({ children }) => {
       return undefined;
     }
 
-    axios.defaults.headers.common.Authorization = `Bearer ${token}`;
     let cancelled = false;
 
     // A cached user makes reloads instant while the token is still verified.

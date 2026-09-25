@@ -30,14 +30,6 @@ export default function Clusters() {
   return (
     <div>
       <h1 className="page-title">🤖 AI Payment Behavior Clusters</h1>
-      <div className="card" style={{ background: '#f0f9ff', border: '1px solid #bae6fd', marginBottom: 24 }}>
-        <h3 style={{ marginBottom: 8 }}>ℹ️ K-Means Clustering Algorithm</h3>
-        <p style={{ fontSize: '0.875rem', color: '#0369a1' }}>
-          Yo page ma <strong>K-Means Clustering</strong> algorithm use garera residents lai uniharu ko payment behavior anusar
-          3 group ma classify gareko cha — Regular Payer, Late Payer, ra Defaulter.
-          Yo data use garera admin le targeted reminders pathauна sakcha.
-        </p>
-      </div>
 
       {loading ? (
         <div className="card" style={{ textAlign: 'center', padding: 40, color: '#6b7280' }}>Running AI algorithm...</div>
@@ -110,15 +102,6 @@ export default function Clusters() {
           </div>
         </>
       )}
-
-      <div className="card" style={{ marginTop: 24, background: '#fefce8', border: '1px solid #fde047' }}>
-        <h3 style={{ marginBottom: 12 }}>🧠 Content-Based Filtering</h3>
-        <p style={{ fontSize: '0.875rem', color: '#713f12' }}>
-          Complaint submit garda system le automatically TF-IDF + Cosine Similarity use garera similar past complaints
-          suggest garcha — resolution faster huncha!
-          <br /><strong>Try it:</strong> Complaints page ma "paani" related complaint submit gara.
-        </p>
-      </div>
     </div>
   );
 }

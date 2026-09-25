@@ -122,12 +122,6 @@ export default function Staff() {
   return (
     <div>
       <h1 className="page-title">👥 User Management</h1>
-      <div className="card" style={{ background: '#f0f9ff', border: '1px solid #bae6fd', marginBottom: 20 }}>
-        <p style={{ fontSize: '0.85rem', color: '#0369a1' }}>
-          Username automatically generate huncha. A secure temporary password must be delivered separately and changed on first login.
-          Residents/Staff le aafno profile edit garna milidaina — admin le matra change garna sakcha.
-        </p>
-      </div>
 
       <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
         {['staff', 'resident', 'admin'].map(t => (
@@ -138,11 +132,9 @@ export default function Staff() {
         ))}
       </div>
 
-      {tab !== 'admin' && (
-        <button className="btn btn-primary" style={{ marginBottom: 20 }} onClick={() => openCreate(tab)}>
-          + Add {tab === 'staff' ? 'Staff Member' : 'Resident'}
-        </button>
-      )}
+      <button className="btn btn-primary" style={{ marginBottom: 20 }} onClick={() => openCreate(tab)}>
+        + Add {tab === 'staff' ? 'Staff Member' : tab === 'admin' ? 'Admin' : 'Resident'}
+      </button>
 
       <div className="card">
         <table>
@@ -184,7 +176,7 @@ export default function Staff() {
       {showModal && (
         <div className="modal-overlay" onClick={() => setShowModal(false)}>
           <div className="modal" onClick={e => e.stopPropagation()}>
-            <h3>{editUser ? `Edit ${editUser.name}` : `Add New ${form.role === 'staff' ? 'Staff' : 'Resident'}`}</h3>
+            <h3>{editUser ? `Edit ${editUser.name}` : `Add New ${form.role === 'staff' ? 'Staff' : form.role === 'admin' ? 'Admin' : 'Resident'}`}</h3>
             <form onSubmit={handleSubmit}>
               <div className="form-group"><label>Full Name</label><input value={form.name} onChange={e => setForm({...form, name: e.target.value})} placeholder="e.g. Bishnu Thapa" required /></div>
               <div className="form-group">
