@@ -131,7 +131,7 @@ export default function Complaints() {
   };
 
   return (
-    <div>
+    <div className="min-w-0 w-full">
       <h1 className="page-title">🔧 Complaints</h1>
       <div style={{ marginBottom: 20, display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
         <button className="btn btn-primary" onClick={() => { setShowModal(true); setAutoInfo(null); }}>+ New Complaint</button>
@@ -175,7 +175,8 @@ export default function Complaints() {
       )}
 
       <div className="card">
-        <table>
+        <div className="w-full overflow-x-auto">
+        <table className="min-w-[1040px]">
           <thead>
             <tr><th>Title</th><th>Section</th><th>Category</th><th>Priority</th><th>Submitted By</th><th>Assigned To</th><th>Status</th><th>Action</th></tr>
           </thead>
@@ -240,12 +241,13 @@ export default function Complaints() {
             ))}
           </tbody>
         </table>
+        </div>
       </div>
       <Pagination page={page} pages={pages} total={total} onChange={setPage} /> 
       {/* New Complaint Modal */}
       {showModal && (
         <div className="modal-overlay" onClick={() => setShowModal(false)}>
-          <div className="modal" onClick={e => e.stopPropagation()}>
+          <div className="modal !max-h-[calc(100vh_-_2rem)] !w-[calc(100%_-_2rem)] !overflow-y-auto sm:!w-[480px]" onClick={e => e.stopPropagation()}>
             <h3>New Complaint</h3>
             <p style={{ fontSize: '0.8rem', color: '#6b7280', marginBottom: 14 }}>
               🤖 Category automatically detect huncha title/description bata, ani section/area timro linked house bata automatic feel huncha — relevant specialist staff lai auto-assign garincha!
@@ -268,7 +270,7 @@ export default function Complaints() {
                   <option value="urgent">Urgent</option>
                 </select>
               </div>
-              <div className="modal-actions">
+              <div className="modal-actions !flex-col sm:!flex-row">
                 <button type="button" className="btn btn-cancel" onClick={() => setShowModal(false)}>Cancel</button>
                 <button type="submit" className="btn btn-primary">Submit Complaint</button>
               </div>
@@ -280,7 +282,7 @@ export default function Complaints() {
       {/* Auto-assignment result toast/modal */}
       {autoInfo && !showModal && similar.length === 0 && (
         <div className="modal-overlay" onClick={() => setAutoInfo(null)}>
-          <div className="modal" onClick={e => e.stopPropagation()}>
+          <div className="modal !max-h-[calc(100vh_-_2rem)] !w-[calc(100%_-_2rem)] !overflow-y-auto sm:!w-[480px]" onClick={e => e.stopPropagation()}>
             <h3>✅ Complaint Submitted!</h3>
             <p style={{ fontSize: '0.9rem', marginBottom: 8 }}>🤖 Auto-detected category: <strong>{autoInfo.category}</strong></p>
             <p style={{ fontSize: '0.9rem', marginBottom: 8 }}>📍 Section/Area: <strong>{autoInfo.section}</strong> (from your linked house)</p>
@@ -292,7 +294,7 @@ export default function Complaints() {
             ) : (
               <p style={{ fontSize: '0.9rem', color: '#92400e' }}>⚠️ No specialist available right now — admin will assign manually.</p>
             )}
-            <div className="modal-actions">
+            <div className="modal-actions !flex-col sm:!flex-row">
               <button className="btn btn-primary" onClick={() => setAutoInfo(null)}>OK</button>
             </div>
           </div>
@@ -302,7 +304,7 @@ export default function Complaints() {
       {/* Resolve Modal — resolution text required */}
       {resolveFor && (
         <div className="modal-overlay" onClick={() => setResolveFor(null)}>
-          <div className="modal" onClick={e => e.stopPropagation()}>
+          <div className="modal !max-h-[calc(100vh_-_2rem)] !w-[calc(100%_-_2rem)] !overflow-y-auto sm:!w-[480px]" onClick={e => e.stopPropagation()}>
             <h3>Resolve: {resolveFor.title}</h3>
             <div className="form-group">
               <label>What was the problem and how was it fixed? (required)</label>
@@ -310,7 +312,7 @@ export default function Complaints() {
                 placeholder="e.g. Main pump motor fail bhayeko thiyo, naya motor lagayera fix gariyo."
                 style={{ width: '100%', padding: '10px', border: '1px solid #d1d5db', borderRadius: '8px' }} required />
             </div>
-            <div className="modal-actions">
+            <div className="modal-actions !flex-col sm:!flex-row">
               <button type="button" className="btn btn-cancel" onClick={() => setResolveFor(null)}>Cancel</button>
               <button className="btn btn-success" onClick={submitResolution}>Mark Resolved</button>
             </div>

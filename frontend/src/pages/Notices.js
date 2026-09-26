@@ -57,14 +57,14 @@ export default function Notices() {
   const typeColors = { general: '#dbeafe', emergency: '#fee2e2', event: '#d1fae5', maintenance: '#fef3c7' };
 
   return (
-    <div>
+    <div className="min-w-0 w-full">
       <h1 className="page-title">📢 Notices</h1>
       {canPost && <button className="btn btn-primary" style={{ marginBottom: 20 }} onClick={() => setShowModal(true)}>+ Post Notice</button>}
-      <div style={{ display: 'grid', gap: 16 }}>
+      <div className="grid min-w-0 gap-4 sm:gap-5">
         {notices.map(n => (
           <div key={n._id} className="card" style={{ background: typeColors[n.type] || '#fff', border: '1px solid #e2e8f0' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-              <div>
+            <div className="flex min-w-0 flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+              <div className="min-w-0 break-words">
                 <h3 style={{ marginBottom: 8 }}>{n.title}</h3>
                 <p style={{ color: '#374151', fontSize: '0.875rem' }}>{n.content}</p>
                 <div style={{ marginTop: 10, fontSize: '0.78rem', color: '#6b7280' }}>
@@ -85,7 +85,7 @@ export default function Notices() {
 
       {showModal && (
         <div className="modal-overlay" onClick={() => setShowModal(false)}>
-          <div className="modal" onClick={e => e.stopPropagation()}>
+          <div className="modal !max-h-[calc(100vh_-_2rem)] !w-[calc(100%_-_2rem)] !overflow-y-auto sm:!w-[480px]" onClick={e => e.stopPropagation()}>
             <h3>Post Notice</h3>
             <form onSubmit={handleSubmit}>
               <div className="form-group"><label>Title</label><input value={form.title} onChange={e => setForm({...form, title: e.target.value})} required /></div>
@@ -108,7 +108,7 @@ export default function Notices() {
                   ))}
                 </div>
               </div>
-              <div className="modal-actions">
+              <div className="modal-actions !flex-col sm:!flex-row">
                 <button type="button" className="btn btn-cancel" onClick={() => setShowModal(false)}>Cancel</button>
                 <button type="submit" className="btn btn-primary">Post Notice</button>
               </div>

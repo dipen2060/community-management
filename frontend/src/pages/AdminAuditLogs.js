@@ -37,37 +37,39 @@ export default function AdminAuditLogs() {
   };
 
   return (
-    <div>
+    <div className="min-w-0 w-full">
       <h1 className="page-title">🧾 Audit Logs</h1>
-      <div className="card" style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 20 }}>
-        <select value={filters.actor} onChange={event => updateFilter('actor', event.target.value)}>
+      <div className="card mb-5 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+        <select className="w-full min-w-0 sm:w-auto" value={filters.actor} onChange={event => updateFilter('actor', event.target.value)}>
           <option value="">All actors</option>
           {actors.map(actor => <option key={actor._id} value={actor._id}>{actor.name} ({actor.role})</option>)}
         </select>
-        <input placeholder="Action type" value={filters.action} onChange={event => updateFilter('action', event.target.value)} />
-        <label>From <input type="date" value={filters.from} onChange={event => updateFilter('from', event.target.value)} /></label>
-        <label>To <input type="date" value={filters.to} onChange={event => updateFilter('to', event.target.value)} /></label>
+        <input className="w-full min-w-0 sm:w-auto" placeholder="Action type" value={filters.action} onChange={event => updateFilter('action', event.target.value)} />
+        <label className="flex items-center gap-2">From <input className="min-w-0 flex-1 sm:flex-none" type="date" value={filters.from} onChange={event => updateFilter('from', event.target.value)} /></label>
+        <label className="flex items-center gap-2">To <input className="min-w-0 flex-1 sm:flex-none" type="date" value={filters.to} onChange={event => updateFilter('to', event.target.value)} /></label>
       </div>
 
       <div className="card">
-        <table>
-          <thead>
-            <tr><th>Date</th><th>Actor</th><th>Role</th><th>Action</th><th>Target</th><th>Details</th></tr>
-          </thead>
-          <tbody>
-            {logs.map(log => (
-              <tr key={log._id}>
-                <td>{new Date(log.created_at).toLocaleString()}</td>
-                <td>{log.actor_id?.name || log.actor_id?.username || log.actor_id}</td>
-                <td>{log.actor_role}</td>
-                <td>{log.action}</td>
-                <td>{log.target_type} / {log.target_id}</td>
-                <td><code>{JSON.stringify(log.details)}</code></td>
-              </tr>
-            ))}
-            {!logs.length && <tr><td colSpan="6">No audit logs found.</td></tr>}
-          </tbody>
-        </table>
+        <div className="w-full overflow-x-auto">
+          <table className="min-w-[720px]">
+            <thead>
+              <tr><th>Date</th><th>Actor</th><th>Role</th><th>Action</th><th>Target</th><th>Details</th></tr>
+            </thead>
+            <tbody>
+              {logs.map(log => (
+                <tr key={log._id}>
+                  <td>{new Date(log.created_at).toLocaleString()}</td>
+                  <td>{log.actor_id?.name || log.actor_id?.username || log.actor_id}</td>
+                  <td>{log.actor_role}</td>
+                  <td>{log.action}</td>
+                  <td>{log.target_type} / {log.target_id}</td>
+                  <td><code>{JSON.stringify(log.details)}</code></td>
+                </tr>
+              ))}
+              {!logs.length && <tr><td colSpan="6">No audit logs found.</td></tr>}
+            </tbody>
+          </table>
+        </div>
         <Pagination page={page} pages={pages} total={total} onChange={setPage} />
       </div>
     </div>

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { NavLink, Outlet, useNavigate } from 'react-router-dom';
+import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
 import './Layout.css';
@@ -7,14 +7,20 @@ import './Layout.css';
 export default function Layout() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [showNotifs, setShowNotifs] = useState(false);
+  const [showMobileNav, setShowMobileNav] = useState(false);
   const notifRef = useRef(null);
 
   const isAdmin = user?.role === 'admin';
   const isStaff = user?.role === 'staff';
   const isAdminOrStaff = isAdmin || isStaff;
+
+  useEffect(() => {
+    setShowMobileNav(false);
+  }, [location.pathname]);
 
   const fetchNotifications = async () => {
     try {
@@ -99,15 +105,15 @@ export default function Layout() {
   };
 
   return (
-    <div className="layout">
+    <div className="layout min-h-screen overflow-x-hidden">
       {/* Sidebar */}
-      <aside className="sidebar">
+      <aside className={`sidebar z-50 transform transition-transform duration-300 lg:translate-x-0 ${showMobileNav ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}>
         <div className="sidebar-header">
           <h2>🏘️ Tole</h2>
           <p>Community Management</p>
         </div>
 
-        <nav>
+        <nav className="overflow-y-auto">
           <NavLink
             to="/"
             end
@@ -187,11 +193,28 @@ export default function Layout() {
           </button>
         </div>
       </aside>
+      {showMobileNav && (
+        <button
+          type="button"
+          className="fixed inset-0 z-40 bg-black/50 lg:hidden"
+          onClick={() => setShowMobileNav(false)}
+          aria-label="Close navigation menu"
+        />
+      )}
 
       {/* Main Content Area */}
-      <main className="main-content">
+      <main className="main-content !ml-0 min-w-0 w-full !p-3 sm:!p-5 md:!p-6 lg:!ml-[240px] lg:!p-7">
         {/* Topbar with Notification Bell */}
-        <div className="topbar">
+        <div className="topbar !justify-between">
+          <button
+            type="button"
+            className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-gray-700 shadow-sm lg:hidden"
+            onClick={() => setShowMobileNav(true)}
+            aria-label="Open navigation menu"
+            aria-expanded={showMobileNav}
+          >
+            ☰
+          </button>
           <div className="notif-wrapper" ref={notifRef}>
             <button
               type="button"
@@ -208,7 +231,7 @@ export default function Layout() {
             </button>
 
             {showNotifs && (
-              <div className="notif-dropdown">
+              <div className="notif-dropdown !w-[calc(100vw_-_1.5rem)] sm:!w-[360px]">
                 <div className="notif-header">
                   <h4>Notifications</h4>
                   {unreadCount > 0 && (

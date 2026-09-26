@@ -28,7 +28,7 @@ export default function Clusters() {
   }));
 
   return (
-    <div>
+    <div className="min-w-0 w-full">
       <h1 className="page-title">🤖 AI Payment Behavior Clusters</h1>
 
       {loading ? (
@@ -40,9 +40,9 @@ export default function Clusters() {
       ) : (
         <>
           {/* Visual Charts */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: 24, marginBottom: 24 }}>
+          <div className="mb-6 grid min-w-0 grid-cols-1 gap-4 lg:grid-cols-2 lg:gap-6">
             {/* Pie Chart */}
-            <div className="card">
+            <div className="card min-w-0">
               <h3 style={{ marginBottom: 16 }}>📊 Cluster Distribution</h3>
               <ResponsiveContainer width="100%" height={300}>
                 <PieChart>
@@ -67,7 +67,7 @@ export default function Clusters() {
             </div>
 
             {/* Bar Chart */}
-            <div className="card">
+            <div className="card min-w-0">
               <h3 style={{ marginBottom: 16 }}>📈 Residents vs Avg Late Dues</h3>
               <ResponsiveContainer width="100%" height={300}>
                 <BarChart data={barData}>

@@ -96,34 +96,36 @@ export default function Staff() {
   // Non-admin (staff) — read-only directory view
   if (!isAdmin) {
     return (
-      <div>
+      <div className="min-w-0 w-full">
         <h1 className="page-title">👷 Staff Directory</h1>
         <p style={{ fontSize: '0.85rem', color: '#6b7280', marginBottom: 16 }}>
           Aafno profile edit garna chahanu huncha vane admin lai contact garnu hos.
         </p>
         <div className="card">
-          <table>
-            <thead><tr><th>Name</th><th>Specialization</th><th>Phone</th></tr></thead>
-            <tbody>
-              {users.map(s => (
-                <tr key={s._id}>
-                  <td>{s.name}</td>
-                  <td>{specializationLabels[s.specialization] || s.specialization}</td>
-                  <td>{s.phone || '—'}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <div className="w-full overflow-x-auto">
+            <table className="min-w-[560px]">
+              <thead><tr><th>Name</th><th>Specialization</th><th>Phone</th></tr></thead>
+              <tbody>
+                {users.map(s => (
+                  <tr key={s._id}>
+                    <td>{s.name}</td>
+                    <td>{specializationLabels[s.specialization] || s.specialization}</td>
+                    <td>{s.phone || '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <div>
+    <div className="min-w-0 w-full">
       <h1 className="page-title">👥 User Management</h1>
 
-      <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
+      <div className="mb-5 flex flex-wrap gap-2">
         {['staff', 'resident', 'admin'].map(t => (
           <button key={t} className="btn btn-sm" onClick={() => setTab(t)}
             style={{ background: tab === t ? '#e94560' : '#f3f4f6', color: tab === t ? 'white' : '#374151' }}>
@@ -137,7 +139,8 @@ export default function Staff() {
       </button>
 
       <div className="card">
-        <table>
+        <div className="w-full overflow-x-auto">
+        <table className="min-w-[1050px]">
           <thead>
             <tr>
               <th>Name</th><th>Email (Login)</th><th>Username</th>
@@ -170,12 +173,13 @@ export default function Staff() {
             )}
           </tbody>
         </table>
+        </div>
       </div>
 
       {/* Create/Edit Modal */}
       {showModal && (
         <div className="modal-overlay" onClick={() => setShowModal(false)}>
-          <div className="modal" onClick={e => e.stopPropagation()}>
+          <div className="modal !max-h-[calc(100vh_-_2rem)] !w-[calc(100%_-_2rem)] !overflow-y-auto sm:!w-[480px]" onClick={e => e.stopPropagation()}>
             <h3>{editUser ? `Edit ${editUser.name}` : `Add New ${form.role === 'staff' ? 'Staff' : form.role === 'admin' ? 'Admin' : 'Resident'}`}</h3>
             <form onSubmit={handleSubmit}>
               <div className="form-group"><label>Full Name</label><input value={form.name} onChange={e => setForm({...form, name: e.target.value})} placeholder="e.g. Bishnu Thapa" required /></div>
@@ -210,7 +214,7 @@ export default function Staff() {
                   ℹ️ A secure temporary password is generated. The user must change it on first login.
                 </p>
               )}
-              <div className="modal-actions">
+              <div className="modal-actions !flex-col sm:!flex-row">
                 <button type="button" className="btn btn-cancel" onClick={() => setShowModal(false)}>Cancel</button>
                 <button type="submit" className="btn btn-primary">{editUser ? 'Save Changes' : 'Create'}</button>
               </div>

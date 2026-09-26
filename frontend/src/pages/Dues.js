@@ -205,8 +205,8 @@ export default function Dues() {
   };
 
   return (
-    <div>
-      <div className="dues-heading-row">
+    <div className="min-w-0 w-full">
+      <div className="dues-heading-row min-w-0">
         <div>
           <h1 className="page-title">💰 {isResident ? 'My Dues' : 'Dues Management'}</h1>
           <p className="page-subtitle">
@@ -216,7 +216,7 @@ export default function Dues() {
           </p>
         </div>
         {isManagement && (
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+          <div className="flex flex-wrap items-center gap-2">
             <button className="btn btn-primary" onClick={async () => {
               try {
                 await axios.post('/api/dues/generate');
@@ -369,7 +369,7 @@ export default function Dues() {
 
       {paymentDue && (
         <div className="modal-overlay" onClick={() => !submitting && setPaymentDue(null)}>
-          <div className="modal dues-modal" onClick={e => e.stopPropagation()}>
+          <div className="modal dues-modal !max-h-[calc(100vh_-_2rem)] !w-[calc(100%_-_2rem)] !overflow-y-auto sm:!w-[560px]" onClick={e => e.stopPropagation()}>
             <div className="modal-top-row">
               <div>
                 <h3>Submit Payment Proof</h3>
@@ -425,7 +425,7 @@ export default function Dues() {
                 <p className="input-help">JPG, PNG or PDF · maximum 5 MB. Upload a clear bank/wallet receipt or cash receipt.</p>
               </div>
               {error && <div className="form-error">{error}</div>}
-              <div className="modal-actions">
+              <div className="modal-actions !flex-col sm:!flex-row">
                 <button type="button" className="btn btn-cancel" onClick={() => setPaymentDue(null)} disabled={submitting}>Cancel</button>
                 <button type="submit" className="btn btn-primary" disabled={submitting}>
                   {submitting ? 'Submitting...' : 'Submit for Verification'}
@@ -438,7 +438,7 @@ export default function Dues() {
 
       {reviewDue && (
         <div className="modal-overlay" onClick={() => !reviewing && setReviewDue(null)}>
-          <div className="modal dues-review-modal" onClick={e => e.stopPropagation()}>
+          <div className="modal dues-review-modal !max-h-[calc(100vh_-_2rem)] !w-[calc(100%_-_2rem)] !overflow-y-auto sm:!w-[760px]" onClick={e => e.stopPropagation()}>
             <div className="modal-top-row">
               <div>
                 <h3>Payment Proof Review</h3>
@@ -482,7 +482,7 @@ export default function Dues() {
                   <textarea value={rejectReason} onChange={e => setRejectReason(e.target.value)} rows="3" placeholder="e.g. Receipt is unreadable or amount does not match." maxLength="500" />
                 </div>
                 {error && <div className="form-error">{error}</div>}
-                <div className="modal-actions review-actions">
+                <div className="modal-actions review-actions !flex-col sm:!flex-row">
                   <button type="button" className="btn btn-cancel" onClick={() => setReviewDue(null)} disabled={reviewing}>Close</button>
                   <button type="button" className="btn btn-danger" onClick={reject} disabled={reviewing}>Reject Proof</button>
                   <button type="button" className="btn btn-success" onClick={approve} disabled={reviewing}>Approve & Generate Receipt</button>

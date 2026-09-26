@@ -37,7 +37,7 @@ export default function Dashboard() {
   const COLORS = ['#10b981', '#f59e0b'];
 
   return (
-    <div>
+    <div className="min-w-0 w-full">
       <h1 className="page-title">📊 Dashboard</h1>
       {user?.role === 'resident' && houses.length > 1 && (
         <div className="card" style={{ marginBottom: 20 }}>
@@ -81,8 +81,8 @@ export default function Dashboard() {
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '20px' }}>
-        <div className="card">
+      <div className="mb-5 grid min-w-0 grid-cols-1 gap-4 lg:grid-cols-2 lg:gap-5">
+        <div className="card min-w-0">
           <div className="card-header"><h3>Due Status</h3></div>
           {pieData.length > 0 && (
             <ResponsiveContainer width="100%" height={200}>
@@ -95,7 +95,7 @@ export default function Dashboard() {
             </ResponsiveContainer>
           )}
         </div>
-        <div className="card">
+        <div className="card min-w-0">
           <div className="card-header"><h3>📢 Latest Notices</h3></div>
           {notices.map(n => (
             <div key={n._id} style={{ padding: '10px 0', borderBottom: '1px solid #f1f5f9' }}>
@@ -108,19 +108,21 @@ export default function Dashboard() {
 
       <div className="card">
         <div className="card-header"><h3>🔧 Recent Complaints</h3></div>
-        <table>
-          <thead><tr><th>Title</th><th>Category</th><th>Priority</th><th>Status</th></tr></thead>
-          <tbody>
-            {complaints.map(c => (
-              <tr key={c._id}>
-                <td>{c.title}</td>
-                <td>{c.category}</td>
-                <td><span className={`status status-${c.priority === 'urgent' ? 'overdue' : c.priority === 'high' ? 'pending' : 'paid'}`}>{c.priority}</span></td>
-                <td><span className={`status status-${c.status}`}>{c.status}</span></td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <div className="w-full overflow-x-auto">
+          <table className="min-w-[560px]">
+            <thead><tr><th>Title</th><th>Category</th><th>Priority</th><th>Status</th></tr></thead>
+            <tbody>
+              {complaints.map(c => (
+                <tr key={c._id}>
+                  <td>{c.title}</td>
+                  <td>{c.category}</td>
+                  <td><span className={`status status-${c.priority === 'urgent' ? 'overdue' : c.priority === 'high' ? 'pending' : 'paid'}`}>{c.priority}</span></td>
+                  <td><span className={`status status-${c.status}`}>{c.status}</span></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );

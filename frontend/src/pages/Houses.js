@@ -40,31 +40,33 @@ export function Houses() {
   };
 
   return (
-    <div>
+    <div className="min-w-0 w-full">
       <h1 className="page-title">🏠 Houses</h1>
       {isAdmin && <button className="btn btn-primary" style={{ marginBottom: 20 }} onClick={() => setShowModal(true)}>+ Add House</button>}
       <div className="card">
-        <table>
-          <thead><tr><th>House No</th><th>Section</th><th>Floor</th><th>Type</th><th>Owner</th><th>Tenant</th><th>Monthly Due</th></tr></thead>
-          <tbody>
-            {houses.map(h => (
-              <tr key={h._id}>
-                <td><strong>{h.houseNo}</strong></td>
-                <td><span className="status status-inprogress">{h.section}</span></td>
-                <td>Floor {h.floor}</td>
-                <td>{h.type}</td>
-                <td>{h.owner?.name || <span style={{ color: '#9ca3af' }}>Not linked</span>}</td>
-                <td>{h.tenant?.name || <span style={{ color: '#9ca3af' }}>Not linked</span>}</td>
-                <td>Rs. {h.monthlyDue}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <div className="w-full overflow-x-auto">
+          <table className="min-w-[760px]">
+            <thead><tr><th>House No</th><th>Section</th><th>Floor</th><th>Type</th><th>Owner</th><th>Tenant</th><th>Monthly Due</th></tr></thead>
+            <tbody>
+              {houses.map(h => (
+                <tr key={h._id}>
+                  <td><strong>{h.houseNo}</strong></td>
+                  <td><span className="status status-inprogress">{h.section}</span></td>
+                  <td>Floor {h.floor}</td>
+                  <td>{h.type}</td>
+                  <td>{h.owner?.name || <span style={{ color: '#9ca3af' }}>Not linked</span>}</td>
+                  <td>{h.tenant?.name || <span style={{ color: '#9ca3af' }}>Not linked</span>}</td>
+                  <td>Rs. {h.monthlyDue}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
       <Pagination page={page} pages={pages} total={total} onChange={setPage} />
       {showModal && (
         <div className="modal-overlay" onClick={() => setShowModal(false)}>
-          <div className="modal" onClick={e => e.stopPropagation()}>
+          <div className="modal !max-h-[calc(100vh_-_2rem)] !w-[calc(100%_-_2rem)] !overflow-y-auto sm:!w-[480px]" onClick={e => e.stopPropagation()}>
             <h3>Add House</h3>
             <form onSubmit={handleSubmit}>
               <div className="form-group"><label>House No</label><input value={form.houseNo} onChange={e => setForm({ ...form, houseNo: e.target.value })} required /></div>
@@ -96,7 +98,7 @@ export function Houses() {
                   {residents.map(r => <option key={r._id} value={r._id}>{r.name} ({r.username})</option>)}
                 </select>
               </div>
-              <div className="modal-actions">
+              <div className="modal-actions !flex-col sm:!flex-row">
                 <button type="button" className="btn btn-cancel" onClick={() => setShowModal(false)}>Cancel</button>
                 <button type="submit" className="btn btn-primary">Add House</button>
               </div>

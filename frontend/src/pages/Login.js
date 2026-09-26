@@ -23,8 +23,8 @@ export default function Login() {
   };
 
   return (
-    <div className="login-page">
-      <div className="login-card">
+    <div className="login-page w-full px-4 py-6 sm:px-6 sm:py-8">
+      <div className="login-card !w-full !max-w-[400px] !p-6 sm:!p-10">
         <h1>🏘️ Tole Management</h1>
         <p>Community Management System</p>
         {error && <div className="error-msg">{error}</div>}

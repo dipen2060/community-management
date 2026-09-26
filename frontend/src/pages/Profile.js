@@ -94,7 +94,7 @@ const Profile = () => {
   };
 
   return (
-    <div className="p-6 max-w-4xl mx-auto">
+    <div className="mx-auto w-full min-w-0 max-w-4xl p-3 sm:p-5 lg:p-6">
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-gray-800 mb-2">👤 My Profile</h1>
         <p className="text-gray-600">Manage your account settings and personal information</p>
@@ -159,7 +159,7 @@ const Profile = () => {
               </div>
             )}
 
-            <form onSubmit={handleSubmit} className="space-y-6">
+            <form onSubmit={handleSubmit} className="min-w-0 space-y-6">
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">Full Name</label>
                 <input
@@ -250,7 +250,7 @@ const Profile = () => {
                 </div>
               </div>
 
-              <div className="flex gap-4 pt-4">
+              <div className="flex flex-col gap-3 pt-4 sm:flex-row sm:gap-4">
                 <button
                   type="submit"
                   disabled={loading}

@@ -141,9 +141,9 @@ const Polls = () => {
   );
 
   return (
-    <div className="p-6 max-w-6xl mx-auto">
+    <div className="mx-auto w-full min-w-0 max-w-6xl p-3 sm:p-5 lg:p-6">
       {/* Header */}
-      <div className="flex justify-between items-center mb-8">
+      <div className="mb-6 flex flex-col items-start justify-between gap-4 sm:mb-8 sm:flex-row sm:items-center">
         <div>
           <h1 className="text-3xl font-bold text-gray-800 flex items-center gap-3">
             <span className="bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">🗳️ Community Polls</span>
@@ -153,7 +153,7 @@ const Polls = () => {
         {(user?.role === 'admin' || user?.role === 'staff') && (
           <button
             onClick={() => setShowCreateForm(true)}
-            className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-6 py-3 rounded-lg hover:from-blue-700 hover:to-purple-700 transition-all shadow-lg hover:shadow-xl flex items-center gap-2"
+            className="flex w-full items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-blue-600 to-purple-600 px-6 py-3 text-white shadow-lg transition-all hover:from-blue-700 hover:to-purple-700 hover:shadow-xl sm:w-auto"
           >
             <span className="text-xl">+</span>
             <span>Create Poll</span>
@@ -163,7 +163,7 @@ const Polls = () => {
 
       {/* Create Poll Form */}
       {showCreateForm && (
-        <div className="bg-white rounded-2xl shadow-xl p-8 mb-8 border border-gray-100">
+        <div className="mb-8 rounded-2xl border border-gray-100 bg-white p-4 shadow-xl sm:p-8">
           <div className="flex justify-between items-center mb-6">
             <h2 className="text-2xl font-bold text-gray-800">Create New Poll</h2>
             <button
@@ -411,10 +411,10 @@ const Polls = () => {
             <div key={poll._id} className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-shadow border border-gray-100 overflow-hidden">
               {/* Poll Header */}
               <div className="bg-gradient-to-r from-blue-50 to-purple-50 p-6">
-                <div className="flex justify-between items-start">
+                <div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-start">
                   <div className="flex-1">
-                    <div className="flex items-center gap-3 mb-2">
-                      <h3 className="text-xl font-bold text-gray-800">{poll.title}</h3>
+                    <div className="mb-2 flex flex-wrap items-center gap-3">
+                      <h3 className="break-words text-xl font-bold text-gray-800">{poll.title}</h3>
                       <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
                         poll.status === 'active' 
                           ? 'bg-green-100 text-green-700' 
@@ -437,7 +437,7 @@ const Polls = () => {
                   </div>
 
                   {(user?.role === 'admin' || user?.role === 'staff') && (
-                    <div className="flex gap-2 ml-4">
+                    <div className="flex flex-wrap gap-2 sm:ml-4">
                       {poll.status === 'active' && (
                         <button
                           onClick={() => handleClosePoll(poll._id)}
