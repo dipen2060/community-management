@@ -11,7 +11,12 @@ const specializationLabels = {
   general: '🧰 General Staff'
 };
 
-const roleLabels = { admin: '👑 Admin', staff: '👷 Staff', resident: '🏠 Resident' };
+const roleLabels = {
+  admin: '👑 Admin',
+  staff: '👷 Staff',
+  resident: '🏠 Resident'
+};
+
 const exportSectionLabels = {
   '': 'No export access',
   dues: 'Dues',
@@ -21,45 +26,94 @@ const exportSectionLabels = {
 };
 
 export default function Staff() {
-  const [users, setUsers]       = useState([]);
-  const [tab, setTab]           = useState('staff'); // 'staff' | 'resident' | 'admin'
+  const [users, setUsers] = useState([]);
+  const [tab, setTab] = useState('staff');
   const [showModal, setShowModal] = useState(false);
-  const [editUser, setEditUser]   = useState(null); // user being edited, null = creating new
-  const [credentials, setCredentials] = useState(null); // show after creation
-  const [form, setForm] = useState({ name: '', email: '', phone: '', role: 'staff', specialization: 'water', exportSection: 'complaints' });
+  const [editUser, setEditUser] = useState(null);
+  const [credentials, setCredentials] = useState(null);
+
+  const [form, setForm] = useState({
+    name: '',
+    email: '',
+    phone: '',
+    role: 'staff',
+    specialization: 'water',
+    exportSection: 'complaints'
+  });
+
   const { user } = useAuth();
   const isAdmin = user?.role === 'admin';
 
-  const fetchUsers = () => axios.get('/api/users').then(r => setUsers(r.data.data || []));
-  useEffect(() => { if (isAdmin) fetchUsers(); else axios.get('/api/users?role=staff').then(r => setUsers(r.data.data || [])); }, []);
+  const fetchUsers = () =>
+    axios.get('/api/users').then(r => setUsers(r.data.data || []));
+
+  useEffect(() => {
+    if (isAdmin) {
+      fetchUsers();
+    } else {
+      axios
+        .get('/api/users?role=staff')
+        .then(r => setUsers(r.data.data || []));
+    }
+  }, [isAdmin]);
 
   const openCreate = (role) => {
     setEditUser(null);
-    setForm({ name: '', email: '', phone: '', role, specialization: 'water', exportSection: role === 'staff' ? 'complaints' : '' });
+
+    setForm({
+      name: '',
+      email: '',
+      phone: '',
+      role,
+      specialization: 'water',
+      exportSection: role === 'staff' ? 'complaints' : ''
+    });
+
     setShowModal(true);
   };
 
   const openEdit = (u) => {
     setEditUser(u);
-    setForm({ name: u.name, email: u.email || '', phone: u.phone || '', role: u.role, specialization: u.specialization || 'water', exportSection: u.exportSection || '' });
+
+    setForm({
+      name: u.name,
+      email: u.email || '',
+      phone: u.phone || '',
+      role: u.role,
+      specialization: u.specialization || 'water',
+      exportSection: u.exportSection || ''
+    });
+
     setShowModal(true);
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
     try {
       if (editUser) {
-        await axios.put(`/api/users/${editUser._id}`, { ...form, exportSection: form.role === 'staff' ? (form.exportSection || null) : undefined });
+        await axios.put(`/api/users/${editUser._id}`, {
+          ...form,
+          exportSection:
+            form.role === 'staff'
+              ? form.exportSection || null
+              : undefined
+        });
+
         setShowModal(false);
       } else {
-        const res = await axios.post('/api/users', { ...form, exportSection: form.role === 'staff' ? (form.exportSection || null) : undefined });
-        setShowModal(false);
-        setCredentials({
-          name: res.data.data.username,
-          email: res.data.data.email,
-          password: res.data.data.temporaryPassword
+        const res = await axios.post('/api/users', {
+          ...form,
+          exportSection:
+            form.role === 'staff'
+              ? form.exportSection || null
+              : undefined
         });
+
+        setShowModal(false);
+        alert(res.data.message);
       }
+
       fetchUsers();
     } catch (err) {
       alert(err.response?.data?.message || 'Action failed');
@@ -68,60 +122,94 @@ export default function Staff() {
 
   const handleDeactivateToggle = async (u) => {
     try {
-      await axios.put(`/api/users/${u._id}`, { isActive: !u.isActive });
+      await axios.put(`/api/users/${u._id}`, {
+        isActive: !u.isActive
+      });
+
       fetchUsers();
     } catch (err) {
-      alert(err.response?.data?.message || 'Could not update this user');
+      alert(
+        err.response?.data?.message ||
+          'Could not update this user'
+      );
     }
   };
 
   const handleResetPassword = async (u) => {
-    if (!window.confirm(`Reset ${u.name}'s password? They must change it on first login.`)) return;
+    if (
+      !window.confirm(
+        `Reset ${u.name}'s password? They must change it on first login.`
+      )
+    ) {
+      return;
+    }
+
     try {
       const res = await axios.put(`/api/users/${u._id}/reset-password`);
-      setCredentials({
-        name: u.username,
-        email: u.email,
-        password: res.data.data.temporaryPassword
-      });
+      alert(res.data.message);
     } catch (err) {
-      alert(err.response?.data?.message || 'Could not reset password');
+      alert(
+        err.response?.data?.message ||
+          'Could not reset password'
+      );
     }
   };
 
   const handleDelete = async (u) => {
-    if (!window.confirm(`Permanently delete ${u.name}? This cannot be undone.`)) return;
+    if (
+      !window.confirm(
+        `Permanently delete ${u.name}? This cannot be undone.`
+      )
+    ) {
+      return;
+    }
+
     try {
       await axios.delete(`/api/users/${u._id}`);
+
       fetchUsers();
     } catch (err) {
-      alert(err.response?.data?.message || 'Could not delete user');
+      alert(
+        err.response?.data?.message ||
+          'Could not delete user'
+      );
     }
   };
 
   const filtered = users.filter(u => u.role === tab);
 
-  // Non-admin (staff) — read-only directory view
+  // Non-admin staff — read-only directory
   if (!isAdmin) {
     return (
       <div>
         <h1 className="page-title">👷 Staff Directory</h1>
-        <p style={{ fontSize: '0.85rem', color: '#6b7280', marginBottom: 16 }}>
-          Aafno profile edit garna chahanu huncha vane admin lai contact garnu hos.
+
+        <p
+          style={{
+            fontSize: '0.85rem',
+            color: '#6b7280',
+            marginBottom: 16
+          }}
+        >
+          Aafno profile edit garna chahanu huncha vane admin lai
+          contact garnu hos.
         </p>
+
         <div className="card">
-          <table>
-            <thead><tr><th>Name</th><th>Specialization</th><th>Phone</th></tr></thead>
-            <tbody>
-              {users.map(s => (
-                <tr key={s._id}>
-                  <td>{s.name}</td>
-                  <td>{specializationLabels[s.specialization] || s.specialization}</td>
-                  <td>{s.phone || '—'}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <div className="w-full overflow-x-auto">
+            <table className="min-w-[560px]">
+              <thead><tr><th>Name</th><th>Specialization</th><th>Phone</th></tr></thead>
+              <tbody>
+                {users.map(s => (
+                  <tr key={s._id}>
+                    <td>{s.name}</td>
+                    <td>{specializationLabels[s.specialization] || s.specialization}</td>
+                    <td>{s.phone || '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     );
@@ -133,19 +221,39 @@ export default function Staff() {
 
       <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
         {['staff', 'resident', 'admin'].map(t => (
-          <button key={t} className="btn btn-sm" onClick={() => setTab(t)}
-            style={{ background: tab === t ? '#e94560' : '#f3f4f6', color: tab === t ? 'white' : '#374151' }}>
-            {roleLabels[t]} ({users.filter(u => u.role === t).length})
+          <button
+            key={t}
+            className="btn btn-sm"
+            onClick={() => setTab(t)}
+            style={{
+              background:
+                tab === t ? '#e94560' : '#f3f4f6',
+              color:
+                tab === t ? 'white' : '#374151'
+            }}
+          >
+            {roleLabels[t]} (
+            {users.filter(u => u.role === t).length})
           </button>
         ))}
       </div>
 
-      <button className="btn btn-primary" style={{ marginBottom: 20 }} onClick={() => openCreate(tab)}>
-        + Add {tab === 'staff' ? 'Staff Member' : tab === 'admin' ? 'Admin' : 'Resident'}
+      <button
+        className="btn btn-primary"
+        style={{ marginBottom: 20 }}
+        onClick={() => openCreate(tab)}
+      >
+        + Add{' '}
+        {tab === 'staff'
+          ? 'Staff Member'
+          : tab === 'admin'
+          ? 'Admin'
+          : 'Resident'}
       </button>
 
       <div className="card">
-        <table>
+        <div className="w-full overflow-x-auto">
+        <table className="min-w-[1050px]">
           <thead>
             <tr>
               <th>Name</th><th>Email (Login)</th><th>Username</th>
@@ -178,86 +286,143 @@ export default function Staff() {
             )}
           </tbody>
         </table>
+        </div>
       </div>
 
       {/* Create/Edit Modal */}
       {showModal && (
         <div className="modal-overlay" onClick={() => setShowModal(false)}>
-          <div className="modal" onClick={e => e.stopPropagation()}>
+          <div className="modal !max-h-[calc(100vh_-_2rem)] !w-[calc(100%_-_2rem)] !overflow-y-auto sm:!w-[480px]" onClick={e => e.stopPropagation()}>
             <h3>{editUser ? `Edit ${editUser.name}` : `Add New ${form.role === 'staff' ? 'Staff' : form.role === 'admin' ? 'Admin' : 'Resident'}`}</h3>
             <form onSubmit={handleSubmit}>
-              <div className="form-group"><label>Full Name</label><input value={form.name} onChange={e => setForm({...form, name: e.target.value})} placeholder="e.g. Bishnu Thapa" required /></div>
               <div className="form-group">
-                <label>Email {!editUser && '(used for login)'}</label>
-                <input type="email" value={form.email} onChange={e => setForm({...form, email: e.target.value})} placeholder="e.g. bishnu@tole.com" required={!editUser} disabled={!!editUser} style={{ background: editUser ? '#f9fafb' : undefined }} />
-                {editUser && <p style={{ fontSize: '0.72rem', color: '#9ca3af', marginTop: 3 }}>Email cannot be changed after creation</p>}
+                <label>Full Name</label>
+
+                <input
+                  value={form.name}
+                  onChange={e =>
+                    setForm({
+                      ...form,
+                      name: e.target.value
+                    })
+                  }
+                  placeholder="e.g. Bishnu Thapa"
+                  required
+                />
               </div>
-              <div className="form-group"><label>Phone</label><input value={form.phone} onChange={e => setForm({...form, phone: e.target.value})} placeholder="98xxxxxxxx" /></div>
+
+              <div className="form-group">
+                <label>
+                  Email {!editUser && '(used for login)'}
+                </label>
+
+                <input
+                  type="email"
+                  value={form.email}
+                  onChange={e =>
+                    setForm({
+                      ...form,
+                      email: e.target.value
+                    })
+                  }
+                  placeholder="e.g. bishnu@tole.com"
+                  required={!editUser}
+                  disabled={!!editUser}
+                  style={{
+                    background: editUser
+                      ? '#f9fafb'
+                      : undefined
+                  }}
+                />
+
+                {editUser && (
+                  <p
+                    style={{
+                      fontSize: '0.72rem',
+                      color: '#9ca3af',
+                      marginTop: 3
+                    }}
+                  >
+                    Email cannot be changed after creation
+                  </p>
+                )}
+              </div>
+
+              <div className="form-group">
+                <label>Phone</label>
+
+                <input
+                  value={form.phone}
+                  onChange={e =>
+                    setForm({
+                      ...form,
+                      phone: e.target.value
+                    })
+                  }
+                  placeholder="98xxxxxxxx"
+                />
+              </div>
+
               {form.role === 'staff' && (
                 <div className="form-group">
                   <label>Specialization</label>
-                  <select value={form.specialization} onChange={e => setForm({...form, specialization: e.target.value})}>
-                    {Object.entries(specializationLabels).map(([val, label]) => (
-                      <option key={val} value={val}>{label}</option>
+
+                  <select
+                    value={form.specialization}
+                    onChange={e =>
+                      setForm({
+                        ...form,
+                        specialization: e.target.value
+                      })
+                    }
+                  >
+                    {Object.entries(
+                      specializationLabels
+                    ).map(([val, label]) => (
+                      <option key={val} value={val}>
+                        {label}
+                      </option>
                     ))}
                   </select>
                 </div>
               )}
+
               {form.role === 'staff' && (
                 <div className="form-group">
                   <label>Export Access</label>
-                  <select value={form.exportSection} onChange={e => setForm({ ...form, exportSection: e.target.value })}>
-                    {Object.entries(exportSectionLabels).map(([value, label]) => (
-                      <option key={value} value={value}>{label}</option>
+
+                  <select
+                    value={form.exportSection}
+                    onChange={e =>
+                      setForm({
+                        ...form,
+                        exportSection: e.target.value
+                      })
+                    }
+                  >
+                    {Object.entries(
+                      exportSectionLabels
+                    ).map(([value, label]) => (
+                      <option
+                        key={value}
+                        value={value}
+                      >
+                        {label}
+                      </option>
                     ))}
                   </select>
                 </div>
               )}
               {!editUser && (
                 <p style={{ fontSize: '0.78rem', color: '#6b7280', marginBottom: 12 }}>
-                  ℹ️ The account is created with the default login password (shown right after you click Create). The user must change it on first login.
+                  ℹ️ A secure temporary password is generated. The user must change it on first login.
                 </p>
               )}
-              <div className="modal-actions">
+              <div className="modal-actions !flex-col sm:!flex-row">
                 <button type="button" className="btn btn-cancel" onClick={() => setShowModal(false)}>Cancel</button>
                 <button type="submit" className="btn btn-primary">{editUser ? 'Save Changes' : 'Create'}</button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
-
-      {/* One-time credentials reveal — shown right after create or reset, never retrievable again */}
-      {credentials && (
-        <div className="modal-overlay" onClick={() => setCredentials(null)}>
-          <div className="modal" onClick={e => e.stopPropagation()}>
-            <h3>🔑 Login Credentials</h3>
-            <p style={{ fontSize: '0.8rem', color: '#374151', marginBottom: 14 }}>
-              Give these to {credentials.name} to log in. This is the default password every new
-              account starts with — they'll be required to set their own on first login.
-            </p>
-            <div className="form-group">
-              <label>Login Email</label>
-              <input readOnly value={credentials.email || ''} onFocus={e => e.target.select()} />
-            </div>
-            <div className="form-group">
-              <label>Default Password</label>
-              <input readOnly value={credentials.password || ''} onFocus={e => e.target.select()}
-                style={{ fontFamily: 'monospace', fontWeight: 600 }} />
-            </div>
-            <div className="modal-actions">
-              <button
-                type="button"
-                className="btn btn-primary"
-                onClick={() => {
-                  const text = `Email: ${credentials.email}\nTemporary password: ${credentials.password}`;
-                  if (navigator.clipboard) navigator.clipboard.writeText(text);
-                }}
-              >
-                Copy to Clipboard
-              </button>
-              <button type="button" className="btn btn-cancel" onClick={() => setCredentials(null)}>Done</button>
-            </div>
           </div>
         </div>
       )}

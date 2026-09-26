@@ -94,7 +94,7 @@ const Profile = () => {
   };
 
   return (
-    <div className="mx-auto w-full min-w-0 max-w-4xl p-3 sm:p-5 lg:p-6">
+    <div className="mx-auto w-full border-4 border-red-500 min-w-0 max-w-4xl p-3 sm:p-5 lg:p-6">
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-gray-800 mb-2">👤 My Profile</h1>
         <p className="text-gray-600">Manage your account settings and personal information</p>

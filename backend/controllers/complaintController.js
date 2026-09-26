@@ -112,7 +112,7 @@ exports.createComplaint = async (req, res, next) => {
       return res.status(403).json({ success: false, message: 'Residents may only submit low or medium priority complaints.' });
     }
     const priority = req.body.priority || 'medium';
-
+    
     // 📍 Find the resident's house to auto-fill the section/area
     const linkedHouseIds = req.user.role === 'resident'
       ? await getResidentHouseIds(req.user._id)

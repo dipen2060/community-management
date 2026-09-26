@@ -181,24 +181,74 @@ exports.updateUser = async (req, res) => {
 };
 
 // PUT /api/users/:id/reset-password — Admin generates a temporary password that must be changed on first login
+// exports.resetPassword = async (req, res) => {
+//   try {
+//     const user = await User.findById(req.params.id);
+//     if (!user || !user.isActive) return res.status(404).json({ success: false, message: 'Active user not found' });
+//     const newPassword = generateTemporaryPassword();
+//     user.password = newPassword;
+//     user.mustChangePassword = true;
+//     await user.save();
+//     await logAudit(req.user._id, req.user.role, 'user_password_reset', 'user', user._id, {
+//       reason: 'default_password_reset'
+//     });
+//     res.json({
+//       success: true,
+//       // Same one-time-reveal pattern as createUser: returned once here, never stored or logged in plaintext.
+//       data: { id: user._id, temporaryPassword: newPassword },
+//       message: 'Password reset. This temporary password is shown only once — copy it now and deliver it through a secure channel. It must be changed on first login.'
+//     });
+//   } catch (err) { res.status(500).json({ success: false, message: err.message }); }
+// };
+
+// PUT /api/users/:id/reset-password — Admin generates a temporary password that must be changed on first login
+
 exports.resetPassword = async (req, res) => {
   try {
     const user = await User.findById(req.params.id);
-    if (!user || !user.isActive) return res.status(404).json({ success: false, message: 'Active user not found' });
+
+    if (!user || !user.isActive) {
+      return res.status(404).json({
+        success: false,
+        message: 'Active user not found'
+      });
+    }
+
     const newPassword = generateTemporaryPassword();
+
     user.password = newPassword;
     user.mustChangePassword = true;
+
     await user.save();
-    await logAudit(req.user._id, req.user.role, 'user_password_reset', 'user', user._id, {
-      reason: 'default_password_reset'
-    });
+
+    await logAudit(
+      req.user._id,
+      req.user.role,
+      'user_password_reset',
+      'user',
+      user._id,
+      {
+        reason: 'default_password_reset'
+      }
+    );
+
     res.json({
       success: true,
-      // Same one-time-reveal pattern as createUser: returned once here, never stored or logged in plaintext.
-      data: { id: user._id, temporaryPassword: newPassword },
-      message: 'Password reset. This temporary password is shown only once — copy it now and deliver it through a secure channel. It must be changed on first login.'
+      data: {
+        id: user._id,
+        name: user.name,
+        username: user.username,
+        email: user.email,
+        temporaryPassword: newPassword
+      },
+      message: `Password reset successfully Email: ${user.email}, Password: ${newPassword}`
     });
-  } catch (err) { res.status(500).json({ success: false, message: err.message }); }
+  } catch (err) {
+    res.status(500).json({
+      success: false,
+      message: err.message
+    });
+  }
 };
 
 // DELETE /api/users/:id — Admin soft-deletes a user to preserve historical references

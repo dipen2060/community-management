@@ -250,7 +250,7 @@ export default function Complaints() {
           <div className="modal !max-h-[calc(100vh_-_2rem)] !w-[calc(100%_-_2rem)] !overflow-y-auto sm:!w-[480px]" onClick={e => e.stopPropagation()}>
             <h3>New Complaint</h3>
             <p style={{ fontSize: '0.8rem', color: '#6b7280', marginBottom: 14 }}>
-              🤖 Category automatically detect huncha title/description bata, ani section/area timro linked house bata automatic feel huncha — relevant specialist staff lai auto-assign garincha!
+              🤖 The category is automatically detected from the title and description, while the section and area are auto-filled based on your linked house — then automatically assigned to the relevant specialist staff
             </p>
             <form onSubmit={handleSubmit}>
               <div className="form-group">
