@@ -54,7 +54,11 @@ export default function Staff() {
       } else {
         const res = await axios.post('/api/users', { ...form, exportSection: form.role === 'staff' ? (form.exportSection || null) : undefined });
         setShowModal(false);
-        alert(res.data.message);
+        setCredentials({
+          name: res.data.data.username,
+          email: res.data.data.email,
+          password: res.data.data.temporaryPassword
+        });
       }
       fetchUsers();
     } catch (err) {
@@ -75,7 +79,11 @@ export default function Staff() {
     if (!window.confirm(`Reset ${u.name}'s password? They must change it on first login.`)) return;
     try {
       const res = await axios.put(`/api/users/${u._id}/reset-password`);
-      alert(res.data.message);
+      setCredentials({
+        name: u.username,
+        email: u.email,
+        password: res.data.data.temporaryPassword
+      });
     } catch (err) {
       alert(err.response?.data?.message || 'Could not reset password');
     }
@@ -96,36 +104,34 @@ export default function Staff() {
   // Non-admin (staff) — read-only directory view
   if (!isAdmin) {
     return (
-      <div className="min-w-0 w-full">
+      <div>
         <h1 className="page-title">👷 Staff Directory</h1>
         <p style={{ fontSize: '0.85rem', color: '#6b7280', marginBottom: 16 }}>
           Aafno profile edit garna chahanu huncha vane admin lai contact garnu hos.
         </p>
         <div className="card">
-          <div className="w-full overflow-x-auto">
-            <table className="min-w-[560px]">
-              <thead><tr><th>Name</th><th>Specialization</th><th>Phone</th></tr></thead>
-              <tbody>
-                {users.map(s => (
-                  <tr key={s._id}>
-                    <td>{s.name}</td>
-                    <td>{specializationLabels[s.specialization] || s.specialization}</td>
-                    <td>{s.phone || '—'}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <table>
+            <thead><tr><th>Name</th><th>Specialization</th><th>Phone</th></tr></thead>
+            <tbody>
+              {users.map(s => (
+                <tr key={s._id}>
+                  <td>{s.name}</td>
+                  <td>{specializationLabels[s.specialization] || s.specialization}</td>
+                  <td>{s.phone || '—'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-w-0 w-full">
+    <div>
       <h1 className="page-title">👥 User Management</h1>
 
-      <div className="mb-5 flex flex-wrap gap-2">
+      <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
         {['staff', 'resident', 'admin'].map(t => (
           <button key={t} className="btn btn-sm" onClick={() => setTab(t)}
             style={{ background: tab === t ? '#e94560' : '#f3f4f6', color: tab === t ? 'white' : '#374151' }}>
@@ -139,8 +145,7 @@ export default function Staff() {
       </button>
 
       <div className="card">
-        <div className="w-full overflow-x-auto">
-        <table className="min-w-[1050px]">
+        <table>
           <thead>
             <tr>
               <th>Name</th><th>Email (Login)</th><th>Username</th>
@@ -173,13 +178,12 @@ export default function Staff() {
             )}
           </tbody>
         </table>
-        </div>
       </div>
 
       {/* Create/Edit Modal */}
       {showModal && (
         <div className="modal-overlay" onClick={() => setShowModal(false)}>
-          <div className="modal !max-h-[calc(100vh_-_2rem)] !w-[calc(100%_-_2rem)] !overflow-y-auto sm:!w-[480px]" onClick={e => e.stopPropagation()}>
+          <div className="modal" onClick={e => e.stopPropagation()}>
             <h3>{editUser ? `Edit ${editUser.name}` : `Add New ${form.role === 'staff' ? 'Staff' : form.role === 'admin' ? 'Admin' : 'Resident'}`}</h3>
             <form onSubmit={handleSubmit}>
               <div className="form-group"><label>Full Name</label><input value={form.name} onChange={e => setForm({...form, name: e.target.value})} placeholder="e.g. Bishnu Thapa" required /></div>
@@ -211,14 +215,49 @@ export default function Staff() {
               )}
               {!editUser && (
                 <p style={{ fontSize: '0.78rem', color: '#6b7280', marginBottom: 12 }}>
-                  ℹ️ A secure temporary password is generated. The user must change it on first login.
+                  ℹ️ The account is created with the default login password (shown right after you click Create). The user must change it on first login.
                 </p>
               )}
-              <div className="modal-actions !flex-col sm:!flex-row">
+              <div className="modal-actions">
                 <button type="button" className="btn btn-cancel" onClick={() => setShowModal(false)}>Cancel</button>
                 <button type="submit" className="btn btn-primary">{editUser ? 'Save Changes' : 'Create'}</button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* One-time credentials reveal — shown right after create or reset, never retrievable again */}
+      {credentials && (
+        <div className="modal-overlay" onClick={() => setCredentials(null)}>
+          <div className="modal" onClick={e => e.stopPropagation()}>
+            <h3>🔑 Login Credentials</h3>
+            <p style={{ fontSize: '0.8rem', color: '#374151', marginBottom: 14 }}>
+              Give these to {credentials.name} to log in. This is the default password every new
+              account starts with — they'll be required to set their own on first login.
+            </p>
+            <div className="form-group">
+              <label>Login Email</label>
+              <input readOnly value={credentials.email || ''} onFocus={e => e.target.select()} />
+            </div>
+            <div className="form-group">
+              <label>Default Password</label>
+              <input readOnly value={credentials.password || ''} onFocus={e => e.target.select()}
+                style={{ fontFamily: 'monospace', fontWeight: 600 }} />
+            </div>
+            <div className="modal-actions">
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={() => {
+                  const text = `Email: ${credentials.email}\nTemporary password: ${credentials.password}`;
+                  if (navigator.clipboard) navigator.clipboard.writeText(text);
+                }}
+              >
+                Copy to Clipboard
+              </button>
+              <button type="button" className="btn btn-cancel" onClick={() => setCredentials(null)}>Done</button>
+            </div>
           </div>
         </div>
       )}

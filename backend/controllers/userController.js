@@ -38,7 +38,8 @@ exports.getUserById = async (req, res) => {
 
 // POST /api/users — Admin creates a new user.
 // username = auto-generated "firstname.lastname"
-// password = cryptographically random temporary password; user must change it on first login
+// password = fixed default password (DEFAULT_USER_PASSWORD, see backend/utils/userCredentials.js);
+// user must change it on first login (mustChangePassword is always forced to true)
 // email = required (unique login identifier — avoids username collision with duplicate names)
 exports.createUser = async (req, res) => {
   try {
@@ -85,12 +86,14 @@ exports.createUser = async (req, res) => {
         specialization: user.specialization
       }
     });
-    console.info(`Temporary password generated for ${user.email}; deliver it through a secure channel.`);
+    console.info(`Temporary password generated for ${user.email}; shown once to ${req.user.email} at creation time.`);
 
     res.status(201).json({
       success: true,
-      data: { id: user._id, name: user.name, username: user.username, email: user.email, role: user.role, specialization: user.specialization, exportSection: user.exportSection },
-      message: 'User created. Deliver the temporary password through a secure channel; it must be changed on first login.'
+      // temporaryPassword is only ever present in this one response — it is never stored in
+      // plaintext, never logged, and never retrievable again after this request.
+      data: { id: user._id, name: user.name, username: user.username, email: user.email, role: user.role, specialization: user.specialization, exportSection: user.exportSection, temporaryPassword: password },
+      message: 'User created. This temporary password is shown only once — copy it now and deliver it through a secure channel. It must be changed on first login.'
     });
   } catch (err) { res.status(500).json({ success: false, message: err.message }); }
 };
@@ -189,7 +192,12 @@ exports.resetPassword = async (req, res) => {
     await logAudit(req.user._id, req.user.role, 'user_password_reset', 'user', user._id, {
       reason: 'default_password_reset'
     });
-    res.json({ success: true, message: 'Password reset. Deliver the new temporary password through a secure channel; it must be changed on first login.' });
+    res.json({
+      success: true,
+      // Same one-time-reveal pattern as createUser: returned once here, never stored or logged in plaintext.
+      data: { id: user._id, temporaryPassword: newPassword },
+      message: 'Password reset. This temporary password is shown only once — copy it now and deliver it through a secure channel. It must be changed on first login.'
+    });
   } catch (err) { res.status(500).json({ success: false, message: err.message }); }
 };
 

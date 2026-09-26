@@ -31,16 +31,24 @@ const seed = async () => {
   await Notification.syncIndexes();
   console.log('📦 Indexes recreated');
 
-  // Create users with random temporary passwords that must be delivered securely.
-  const temporaryPassword = () => ({ password: generateTemporaryPassword(), mustChangePassword: true });
-  const admin       = await User.create({ name: 'Admin Sharma',       username: 'admin.sharma',       email: 'admin@tole.com',        ...temporaryPassword(),    role: 'admin', exportSection: 'all' });
-  const staff       = await User.create({ name: 'General Staff',      username: 'general.staff',      email: 'staff@tole.com',        ...temporaryPassword(),  role: 'staff', specialization: 'general', exportSection: 'complaints' });
-  const electrician = await User.create({ name: 'Bishnu Electrician', username: 'bishnu.electrician', email: 'electrician@tole.com',  ...temporaryPassword(),    role: 'staff', specialization: 'electric', phone: '9811111111', exportSection: 'complaints' });
-  const plumber     = await User.create({ name: 'Krishna Plumber',    username: 'krishna.plumber',    email: 'plumber@tole.com',      ...temporaryPassword(),  role: 'staff', specialization: 'water',    phone: '9822222222', exportSection: 'dues' });
-  const guard       = await User.create({ name: 'Suresh Guard',       username: 'suresh.guard',       email: 'guard@tole.com',        ...temporaryPassword(),    role: 'staff', specialization: 'security', phone: '9833333333', exportSection: null });
-  const r1          = await User.create({ name: 'Ram Bahadur',        username: 'ram.bahadur',        email: 'ram@tole.com',          ...temporaryPassword(),      role: 'resident' });
-  const r2          = await User.create({ name: 'Sita Devi',          username: 'sita.devi',          email: 'sita@tole.com',         ...temporaryPassword(),     role: 'resident' });
-  const r3          = await User.create({ name: 'Hari Prasad',        username: 'hari.prasad',        email: 'hari@tole.com',         ...temporaryPassword(),     role: 'resident' });
+  // Create users with random temporary passwords. In development (the only NODE_ENV this
+  // script will run under — see the guard above) we keep the plaintext values just long
+  // enough to print them once below, then let them go out of scope; only the bcrypt hash
+  // is ever persisted.
+  const seededCredentials = [];
+  const temporaryPassword = (email) => {
+    const password = generateTemporaryPassword();
+    seededCredentials.push({ email, password });
+    return { password, mustChangePassword: true };
+  };
+  const admin       = await User.create({ name: 'Admin Sharma',       username: 'admin.sharma',       email: 'admin@tole.com',        ...temporaryPassword('admin@tole.com'),    role: 'admin', exportSection: 'all' });
+  const staff       = await User.create({ name: 'General Staff',      username: 'general.staff',      email: 'staff@tole.com',        ...temporaryPassword('staff@tole.com'),  role: 'staff', specialization: 'general', exportSection: 'complaints' });
+  const electrician = await User.create({ name: 'Bishnu Electrician', username: 'bishnu.electrician', email: 'electrician@tole.com',  ...temporaryPassword('electrician@tole.com'),    role: 'staff', specialization: 'electric', phone: '9811111111', exportSection: 'complaints' });
+  const plumber     = await User.create({ name: 'Krishna Plumber',    username: 'krishna.plumber',    email: 'plumber@tole.com',      ...temporaryPassword('plumber@tole.com'),  role: 'staff', specialization: 'water',    phone: '9822222222', exportSection: 'dues' });
+  const guard       = await User.create({ name: 'Suresh Guard',       username: 'suresh.guard',       email: 'guard@tole.com',        ...temporaryPassword('guard@tole.com'),    role: 'staff', specialization: 'security', phone: '9833333333', exportSection: null });
+  const r1          = await User.create({ name: 'Ram Bahadur',        username: 'ram.bahadur',        email: 'ram@tole.com',          ...temporaryPassword('ram@tole.com'),      role: 'resident' });
+  const r2          = await User.create({ name: 'Sita Devi',          username: 'sita.devi',          email: 'sita@tole.com',         ...temporaryPassword('sita@tole.com'),     role: 'resident' });
+  const r3          = await User.create({ name: 'Hari Prasad',        username: 'hari.prasad',        email: 'hari@tole.com',         ...temporaryPassword('hari@tole.com'),     role: 'resident' });
 
   // Create houses — different sections
   const h1 = await House.create({ houseNo: 'A-101', section: 'Section 1', floor: 1, type: 'apartment', owner: r1._id, monthlyDue: 500 });
@@ -86,7 +94,13 @@ const seed = async () => {
 
   console.log('✅ Seed data created!');
   console.log('');
-  console.log('Temporary passwords were generated for seeded users and must be delivered through a secure channel.');
+  console.log('🔑 All seeded accounts share the same default password (DEFAULT_USER_PASSWORD in .env):');
+  console.log('');
+  seededCredentials.forEach(({ email, password }) => {
+    console.log(`   ${email.padEnd(22)} ${password}`);
+  });
+  console.log('');
+  console.log('   Each user must change their password on first login (mustChangePassword=true).');
   process.exit(0);
 };
 
