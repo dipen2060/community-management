@@ -253,7 +253,13 @@ export default function Complaints() {
         <div className="modal-overlay" onClick={() => setShowModal(false)}>
           <div className="modal" onClick={e => e.stopPropagation()}>
             <h3>New Complaint</h3>
+<<<<<<< HEAD
             
+=======
+            <p style={{ fontSize: '0.8rem', color: '#6b7280', marginBottom: 14 }}>
+              🤖 The category is automatically detected from the title and description, while the section and area are auto-filled based on your linked house — then automatically assigned to the relevant specialist staff
+            </p>
+>>>>>>> c53e76b3ee128c9665eaa1ebde60318d3eb34fee
             <form onSubmit={handleSubmit}>
               <div className="form-group">
                 <label>Title</label>

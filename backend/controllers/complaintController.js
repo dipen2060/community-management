@@ -112,6 +112,7 @@ exports.createComplaint = async (req, res, next) => {
     if (req.user.role === 'resident' && ['high', 'urgent'].includes(req.body.priority)) {
       return res.status(403).json({ success: false, message: 'Residents may only submit low or medium priority complaints.' });
     }
+<<<<<<< HEAD
     const requestedPriority = req.body.priority || 'medium';
 
     // 🤖 ALGORITHM 3: Auto-detect urgency from wording (keyword scoring, same
@@ -124,6 +125,10 @@ exports.createComplaint = async (req, res, next) => {
     const priorityWasEscalated = priority !== requestedPriority;
     const priorityNote = priorityWasEscalated ? ` — ⚠️ auto-flagged ${priority} priority by the system based on wording` : '';
 
+=======
+    const priority = req.body.priority || 'medium';
+    
+>>>>>>> c53e76b3ee128c9665eaa1ebde60318d3eb34fee
     // 📍 Find the resident's house to auto-fill the section/area
     const linkedHouseIds = req.user.role === 'resident'
       ? await getResidentHouseIds(req.user._id)
