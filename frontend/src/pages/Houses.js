@@ -2,15 +2,18 @@ import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
 import Pagination from '../components/Pagination';
+import { SkeletonTable } from '../components/Skeleton';
 
 export function Houses() {
   const [houses, setHouses] = useState([]);
   const [residents, setResidents] = useState([]);
   const [showModal, setShowModal] = useState(false);
+  const [editHouse, setEditHouse] = useState(null); // house being edited, null = creating new
   const [form, setForm] = useState({ houseNo: '', section: 'Section 1', floor: 0, type: 'apartment', monthlyDue: 500, owner: '', tenant: '' });
   const [page, setPage] = useState(1);
   const [pages, setPages] = useState(1);
   const [total, setTotal] = useState(0);
+  const [loading, setLoading] = useState(true);
   const { user } = useAuth();
   const isAdmin = ['admin', 'staff'].includes(user?.role);
 
@@ -19,55 +22,84 @@ export function Houses() {
       setHouses(r.data.data || []);
       setPages(r.data.pages || 1);
       setTotal(r.data.total ?? (r.data.data || []).length);
-    });
+    }).finally(() => setLoading(false));
 
   useEffect(() => {
     fetchHouses(page);
     if (isAdmin) axios.get('/api/users?role=resident').then(r => setResidents(r.data.data || []));
   }, [page]);
 
+  const openCreate = () => {
+    setEditHouse(null);
+    setForm({ houseNo: '', section: 'Section 1', floor: 0, type: 'apartment', monthlyDue: 500, owner: '', tenant: '' });
+    setShowModal(true);
+  };
+
+  const openEdit = (h) => {
+    setEditHouse(h);
+    setForm({
+      houseNo: h.houseNo, section: h.section, floor: h.floor, type: h.type,
+      monthlyDue: h.monthlyDue, owner: h.owner?._id || '', tenant: h.tenant?._id || ''
+    });
+    setShowModal(true);
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      const payload = { ...form, owner: form.owner || undefined };
-      await axios.post('/api/houses', payload);
+      if (editHouse) {
+        // '' clears the link (unassign), a real id (re)assigns it — updateHouse
+        // handles both and keeps the resident_houses table in sync either way.
+        await axios.put(`/api/houses/${editHouse._id}`, { ...form, owner: form.owner ?? '', tenant: form.tenant ?? '' });
+      } else {
+        const payload = { ...form, owner: form.owner || undefined };
+        await axios.post('/api/houses', payload);
+      }
       setShowModal(false);
+      setEditHouse(null);
       setForm({ houseNo: '', section: 'Section 1', floor: 0, type: 'apartment', monthlyDue: 500, owner: '', tenant: '' });
       fetchHouses(page);
     } catch (err) {
-      alert(err.response?.data?.message || 'Could not add house');
+      alert(err.response?.data?.message || `Could not ${editHouse ? 'update' : 'add'} house`);
     }
   };
 
   return (
-    <div className="min-w-0 w-full">
+    <div>
       <h1 className="page-title">🏠 Houses</h1>
-      {isAdmin && <button className="btn btn-primary" style={{ marginBottom: 20 }} onClick={() => setShowModal(true)}>+ Add House</button>}
+      {isAdmin && <button className="btn btn-primary" style={{ marginBottom: 20 }} onClick={openCreate}>+ Add House</button>}
+      {loading ? (
+        <SkeletonTable rows={6} columns={7} />
+      ) : (
       <div className="card">
-        <div className="w-full overflow-x-auto">
-          <table className="min-w-[760px]">
-            <thead><tr><th>House No</th><th>Section</th><th>Floor</th><th>Type</th><th>Owner</th><th>Tenant</th><th>Monthly Due</th></tr></thead>
-            <tbody>
-              {houses.map(h => (
-                <tr key={h._id}>
-                  <td><strong>{h.houseNo}</strong></td>
-                  <td><span className="status status-inprogress">{h.section}</span></td>
-                  <td>Floor {h.floor}</td>
-                  <td>{h.type}</td>
-                  <td>{h.owner?.name || <span style={{ color: '#9ca3af' }}>Not linked</span>}</td>
-                  <td>{h.tenant?.name || <span style={{ color: '#9ca3af' }}>Not linked</span>}</td>
-                  <td>Rs. {h.monthlyDue}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <table>
+          <thead><tr><th>House No</th><th>Section</th><th>Floor</th><th>Type</th><th>Owner</th><th>Tenant</th><th>Monthly Due</th>{isAdmin && <th>Action</th>}</tr></thead>
+          <tbody>
+            {houses.map(h => (
+              <tr key={h._id}>
+                <td><strong>{h.houseNo}</strong></td>
+                <td><span className="status status-inprogress">{h.section}</span></td>
+                <td>Floor {h.floor}</td>
+                <td>{h.type}</td>
+                <td>{h.owner?.name || <span style={{ color: '#9ca3af' }}>Not linked</span>}</td>
+                <td>{h.tenant?.name || <span style={{ color: '#9ca3af' }}>Not linked</span>}</td>
+                <td>Rs. {h.monthlyDue}</td>
+                {isAdmin && (
+                  <td>
+                    <button className="btn btn-sm" style={{ background: '#dbeafe', color: '#1e40af' }} onClick={() => openEdit(h)}>Edit</button>
+                  </td>
+                )}
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
-      <Pagination page={page} pages={pages} total={total} onChange={setPage} />
+      )}
+      {!loading && <Pagination page={page} pages={pages} total={total} onChange={setPage} />}
       {showModal && (
-        <div className="modal-overlay" onClick={() => setShowModal(false)}>
-          <div className="modal !max-h-[calc(100vh_-_2rem)] !w-[calc(100%_-_2rem)] !overflow-y-auto sm:!w-[480px]" onClick={e => e.stopPropagation()}>
-            <h3>Add House</h3>
+        <div className="modal-overlay" onClick={() => { setShowModal(false); setEditHouse(null); }}>
+          <div className="modal" onClick={e => e.stopPropagation()}>
+            <h3>{editHouse ? `Edit House ${editHouse.houseNo}` : 'Add House'}</h3>
             <form onSubmit={handleSubmit}>
               <div className="form-group"><label>House No</label><input value={form.houseNo} onChange={e => setForm({ ...form, houseNo: e.target.value })} required /></div>
               <div className="form-group"><label>Section</label>
@@ -87,20 +119,17 @@ export function Houses() {
                   <option value="">— Not linked yet —</option>
                   {residents.map(r => <option key={r._id} value={r._id}>{r.name} ({r.username})</option>)}
                 </select>
-                <p style={{ fontSize: '0.75rem', color: '#9ca3af', marginTop: 4 }}>
-                  Resident pahile "Staff/User Management" page bata create gara, ani yaha link gara.
-                </p>
               </div>
               <div className="form-group">
-                <label>Tenant (resident) — may be linked to multiple houses</label>
+                <label>Tenant (resident)</label>
                 <select value={form.tenant} onChange={e => setForm({ ...form, tenant: e.target.value })}>
                   <option value="">— Not linked yet —</option>
                   {residents.map(r => <option key={r._id} value={r._id}>{r.name} ({r.username})</option>)}
                 </select>
               </div>
-              <div className="modal-actions !flex-col sm:!flex-row">
-                <button type="button" className="btn btn-cancel" onClick={() => setShowModal(false)}>Cancel</button>
-                <button type="submit" className="btn btn-primary">Add House</button>
+              <div className="modal-actions">
+                <button type="button" className="btn btn-cancel" onClick={() => { setShowModal(false); setEditHouse(null); }}>Cancel</button>
+                <button type="submit" className="btn btn-primary">{editHouse ? 'Save Changes' : 'Add House'}</button>
               </div>
             </form>
           </div>

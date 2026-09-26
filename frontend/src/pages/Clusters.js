@@ -24,11 +24,12 @@ export default function Clusters() {
   const barData = clusters.map((group, i) => ({
     name: group.label,
     residents: group.residents?.length || 0,
-    avgLateDues: group.residents?.reduce((sum, r) => sum + (r.lateDues || 0), 0) / (group.residents?.length || 1)
+    avgLateDues: group.residents?.reduce((sum, r) => sum + (r.lateDues || 0), 0) / (group.residents?.length || 1),
+    avgComplaints: group.residents?.reduce((sum, r) => sum + (r.complaintCount || 0), 0) / (group.residents?.length || 1)
   }));
 
   return (
-    <div className="min-w-0 w-full">
+    <div>
       <h1 className="page-title">🤖 AI Payment Behavior Clusters</h1>
 
       {loading ? (
@@ -40,9 +41,9 @@ export default function Clusters() {
       ) : (
         <>
           {/* Visual Charts */}
-          <div className="mb-6 grid min-w-0 grid-cols-1 gap-4 lg:grid-cols-2 lg:gap-6">
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: 24, marginBottom: 24 }}>
             {/* Pie Chart */}
-            <div className="card min-w-0">
+            <div className="card">
               <h3 style={{ marginBottom: 16 }}>📊 Cluster Distribution</h3>
               <ResponsiveContainer width="100%" height={300}>
                 <PieChart>
@@ -67,8 +68,8 @@ export default function Clusters() {
             </div>
 
             {/* Bar Chart */}
-            <div className="card min-w-0">
-              <h3 style={{ marginBottom: 16 }}>📈 Residents vs Avg Late Dues</h3>
+            <div className="card">
+              <h3 style={{ marginBottom: 16 }}>📈 Residents, Late Dues &amp; Complaints</h3>
               <ResponsiveContainer width="100%" height={300}>
                 <BarChart data={barData}>
                   <CartesianGrid strokeDasharray="3 3" />
@@ -78,6 +79,7 @@ export default function Clusters() {
                   <Legend />
                   <Bar dataKey="residents" fill="#3b82f6" name="Residents" />
                   <Bar dataKey="avgLateDues" fill="#ef4444" name="Avg Late Dues" />
+                  <Bar dataKey="avgComplaints" fill="#a855f7" name="Avg Complaints" />
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -94,6 +96,7 @@ export default function Clusters() {
                     <span key={j} className="resident-pill">
                       🏠 {r.houseNo} — {r.owner}
                       {r.lateDues > 0 && <span style={{ color: '#ef4444' }}> ({r.lateDues} late)</span>}
+                      {r.complaintCount > 0 && <span style={{ color: '#a855f7' }}> ({r.complaintCount} complaints)</span>}
                     </span>
                   ))}
                 </div>

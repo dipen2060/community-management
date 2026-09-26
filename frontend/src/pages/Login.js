@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import '../components/Layout.css';
 
@@ -23,8 +23,8 @@ export default function Login() {
   };
 
   return (
-    <div className="login-page w-full px-4 py-6 sm:px-6 sm:py-8">
-      <div className="login-card !w-full !max-w-[400px] !p-6 sm:!p-10">
+    <div className="login-page">
+      <div className="login-card">
         <h1>🏘️ Tole Management</h1>
         <p>Community Management System</p>
         {error && <div className="error-msg">{error}</div>}
@@ -36,6 +36,11 @@ export default function Login() {
           <div className="form-group">
             <label>Password</label>
             <input type="password" value={password} onChange={e => setPassword(e.target.value)} required />
+          </div>
+          <div style={{ textAlign: 'right', marginBottom: 12 }}>
+            <Link to="/forgot-password" style={{ fontSize: '0.8rem', color: '#e94560', textDecoration: 'none' }}>
+              Forgot password?
+            </Link>
           </div>
           <button type="submit" className="btn btn-primary" disabled={loading}>
             {loading ? 'Logging in...' : 'Login'}

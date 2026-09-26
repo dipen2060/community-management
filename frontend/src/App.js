@@ -1,6 +1,8 @@
-import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import Login      from './pages/Login';
+import ForgotPassword from './pages/ForgotPassword';
+import ResetPassword  from './pages/ResetPassword';
 import Dashboard  from './pages/Dashboard';
 import Houses     from './pages/Houses';
 import Dues       from './pages/Dues';
@@ -15,12 +17,10 @@ import Layout     from './components/Layout';
 
 const PrivateRoute = ({ children }) => {
   const { user, loading } = useAuth();
-  const location = useLocation();
   if (loading) return <div>Loading...</div>;
   if (!user) return <Navigate to="/login" />;
-  if (user.mustChangePassword && location.pathname !== '/profile') {
-    return <Navigate to="/profile" replace />;
-  }
+  // mustChangePassword is now enforced by MustChangePasswordModal in Layout.js
+  // (a blocking overlay) rather than a silent redirect to /profile.
   return children;
 };
 
@@ -41,6 +41,8 @@ export default function App() {
       <BrowserRouter>
         <Routes>
           <Route path="/login" element={<Login />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/reset-password/:token" element={<ResetPassword />} />
           <Route path="/" element={<PrivateRoute><Layout /></PrivateRoute>}>
             <Route index          element={<Dashboard />} />
             <Route path="houses"     element={<Houses />} />

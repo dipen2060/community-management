@@ -14,7 +14,7 @@ const { createNotification } = require('./controllers/notificationController');
 const { getHouseResidentIds } = require('./utils/residentHouses');
 const { calculateFine } = require('./utils/fines');
 const { generateMonthlyDuesForCron } = require('./controllers/dueController');
-const { createDocsRouter, isDocsEnabled } = require('./docs/swagger');
+const { escalateOverdueComplaints } = require('./controllers/complaintController');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -38,38 +38,6 @@ app.set(
 );
 
 
-/*
- * --------------------------------------------------
- * API documentation
- * --------------------------------------------------
- *
- * Mounted FIRST, before helmet() and before the rate
- * limiter below. Both orderings are deliberate:
- *
- *  1. helmet()'s default Content-Security-Policy sets
- *     script-src 'self' and style-src 'self'. Swagger
- *     UI needs inline/eval'd script and style, so the
- *     page would render blank with no visible error.
- *     The docs router disables CSP for its own routes
- *     only; the rest of the API keeps full protection.
- *
- *  2. generalLimiter allows just 100 requests per 15
- *     minutes in production, and the Swagger UI page
- *     load alone issues a dozen-plus sub-resource
- *     requests. Mounted after it, the docs would fail
- *     to load in production.
- *
- * Set ENABLE_API_DOCS=true|false to override. Defaults
- * to on in development, off in production.
- */
-if (isDocsEnabled()) {
-    app.use(createDocsRouter());
-}
-
-
-/*
- * Everything below is guarded by helmet.
- */
 app.use(
     helmet({
         crossOriginResourcePolicy: {
@@ -331,6 +299,25 @@ cron.schedule('0 0 * * *', async () => {
         );
     }
 });
+
+/*
+ * Complaint SLA auto-escalation
+ * Runs every 6 hours — checks for complaints that have sat open past their
+ * priority's resolution budget and bumps them up a severity level.
+ */
+cron.schedule('0 */6 * * *', async () => {
+    try {
+        const result = await escalateOverdueComplaints();
+        if (result.escalated > 0) {
+            console.log(`Cron: escalated ${result.escalated}/${result.checked} open complaints past SLA`);
+        }
+    } catch (error) {
+        console.error(
+            'Complaint SLA escalation cron error:',
+            error
+        );
+    }
+}, { timezone: process.env.TZ || 'Asia/Kathmandu' });
 
 /*
  * --------------------------------------------------

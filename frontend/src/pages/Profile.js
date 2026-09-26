@@ -209,7 +209,6 @@ const Profile = () => {
 
               <div className="border-t border-gray-200 pt-6">
                 <h3 className="text-lg font-semibold text-gray-800 mb-4">Change Password</h3>
-                <p className="text-sm text-gray-500 mb-4">Leave blank if you don't want to change your password</p>
 
                 <div className="space-y-4">
                   <div>

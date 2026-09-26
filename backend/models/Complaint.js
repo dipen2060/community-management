@@ -14,6 +14,8 @@ const complaintSchema = new mongoose.Schema({
   resolvedBy:   { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   resolvedAt:   { type: Date },
   reopenCount:  { type: Number, default: 0 },
+  escalated:    { type: Boolean, default: false }, // true once auto-escalated past its SLA threshold
+  escalatedAt:  { type: Date },
   attachments:  [{ type: String }] // Array of file paths for uploaded images/PDFs
 }, { timestamps: true });
 

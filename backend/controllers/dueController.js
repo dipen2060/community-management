@@ -7,6 +7,7 @@ const { getPagination, applyPagination, buildMeta } = require('../utils/paginate
 const { logAudit } = require('../utils/auditLogger');
 const { getResidentHouseIds, isResidentLinkedToHouse, getHouseResidentIds } = require('../utils/residentHouses');
 const { calculateFine, effectiveFine } = require('../utils/fines');
+const Complaint = require('../models/Complaint');
 
 
 function removeUploadedFile(url) {
@@ -16,33 +17,60 @@ function removeUploadedFile(url) {
   fs.unlink(filePath, () => { });
 }
 
-// K-Means clustering for payment behavior
-function kMeansClustering(data, k = 3) {
+// K-Means clustering for payment behavior.
+// Generalized to N feature dimensions (not just a single payment score) —
+// each feature is min-max normalized first so a feature with a naturally
+// larger raw range (e.g. late-payment score) doesn't dominate the distance
+// calculation over one with a smaller range (e.g. complaint count).
+function kMeansClustering(data, k = 3, featureKeys = ['score']) {
   if (data.length < k) k = data.length;
   if (!k) return [];
-  let centroids = data.slice(0, k).map(d => ({ score: d.score }));
-  let clusters = [];
-  for (let iter = 0; iter < 50; iter++) {
-    clusters = Array.from({ length: k }, () => []);
-    data.forEach(d => {
-      let minDist = Infinity, idx = 0;
-      centroids.forEach((c, i) => {
-        const dist = Math.abs(d.score - c.score);
-        if (dist < minDist) { minDist = dist; idx = i; }
-      });
-      clusters[idx].push(d);
-    });
-    const newCentroids = clusters.map(c =>
-      c.length ? { score: c.reduce((s, d) => s + d.score, 0) / c.length } : centroids[0]
-    );
-    if (JSON.stringify(newCentroids) === JSON.stringify(centroids)) break;
-    centroids = newCentroids;
-  }
-  clusters.sort((a, b) => {
-    const avgA = a.reduce((s, d) => s + d.score, 0) / (a.length || 1);
-    const avgB = b.reduce((s, d) => s + d.score, 0) / (b.length || 1);
-    return avgA - avgB;
+
+  const ranges = {};
+  featureKeys.forEach(key => {
+    const values = data.map(d => d[key] || 0);
+    const min = Math.min(...values);
+    const max = Math.max(...values);
+    ranges[key] = { min, span: (max - min) || 1 };
   });
+  const toVector = (d) => featureKeys.map(key => ((d[key] || 0) - ranges[key].min) / ranges[key].span);
+  const vectors = data.map(toVector);
+  const distance = (a, b) => Math.sqrt(a.reduce((sum, val, i) => sum + (val - b[i]) ** 2, 0));
+
+  let centroids = vectors.slice(0, k);
+  let assignment = new Array(data.length).fill(0);
+
+  for (let iter = 0; iter < 50; iter++) {
+    let changed = false;
+    vectors.forEach((vec, i) => {
+      let minDist = Infinity, idx = 0;
+      centroids.forEach((c, ci) => {
+        const dist = distance(vec, c);
+        if (dist < minDist) { minDist = dist; idx = ci; }
+      });
+      if (assignment[i] !== idx) changed = true;
+      assignment[i] = idx;
+    });
+
+    centroids = Array.from({ length: k }, (_, ci) => {
+      const members = vectors.filter((_, i) => assignment[i] === ci);
+      if (!members.length) return centroids[ci];
+      return featureKeys.map((_, dim) => members.reduce((s, v) => s + v[dim], 0) / members.length);
+    });
+    if (!changed) break;
+  }
+
+  const clusters = Array.from({ length: k }, () => []);
+  data.forEach((d, i) => clusters[assignment[i]].push(d));
+
+  // Rank clusters low→high risk using the primary payment score, so labels
+  // stay meaningfully ordered even though the grouping itself now also
+  // weighs the extra dimension(s).
+  clusters.sort((a, b) => {
+    const avg = (group) => group.length ? group.reduce((s, d) => s + (d.score || 0), 0) / group.length : 0;
+    return avg(a) - avg(b);
+  });
+
   const labels = ['Regular Payer 🟢', 'Late Payer 🟡', 'Defaulter 🔴'];
   return clusters.map((group, i) => ({ label: labels[i] || 'Unknown', residents: group }));
 }
@@ -426,9 +454,14 @@ exports.getPaymentClusters = async (req, res, next) => {
       const lateDues = allDues.filter(d => d.status === 'overdue').length;
       const paidLate = allDues.filter(d => d.status === 'paid' && d.paidDate && d.dueDate && d.paidDate > d.dueDate).length;
       const score = lateDues * 3 + paidLate;
-      houseStats.push({ houseNo: house.houseNo, owner: house.owner?.name || 'N/A', score, lateDues, paidLate });
+      // 🤖 4th dimension: how often this house's residents file complaints.
+      // A house with frequent complaints alongside late payments is a very
+      // different resident profile from one that's just occasionally late —
+      // clustering on both gives a fuller behavior picture than payments alone.
+      const complaintCount = await Complaint.countDocuments({ house: house._id });
+      houseStats.push({ houseNo: house.houseNo, owner: house.owner?.name || 'N/A', score, lateDues, paidLate, complaintCount });
     }
-    const clusters = kMeansClustering(houseStats);
+    const clusters = kMeansClustering(houseStats, 3, ['score', 'complaintCount']);
     res.json({ success: true, data: clusters });
   } catch (err) {
     next(err);
@@ -441,9 +474,23 @@ exports.getDashboardStats = async (req, res, next) => {
     const month = now.getMonth() + 1;
     const year = now.getFullYear();
     const baseFilter = { month, year };
+    let houseIds = [];
+    let perHouse = null;
+
     if (req.user.role === 'resident') {
-      const houseIds = await getResidentHouseIds(req.user._id);
-      baseFilter.house = { $in: houseIds };
+      houseIds = await getResidentHouseIds(req.user._id);
+      if (req.query.houseId) {
+        // Only allow scoping to a house this resident is actually linked to
+        const allowed = houseIds.some(id => String(id) === String(req.query.houseId));
+        if (!allowed) {
+          return res.status(403).json({ success: false, message: 'You are not linked to this house.' });
+        }
+        baseFilter.house = req.query.houseId;
+      } else {
+        baseFilter.house = { $in: houseIds };
+      }
+    } else if (req.query.houseId) {
+      baseFilter.house = req.query.houseId;
     }
 
     const totalDues = await Due.countDocuments(baseFilter);
@@ -455,6 +502,28 @@ exports.getDashboardStats = async (req, res, next) => {
       { $group: { _id: null, total: { $sum: { $add: ['$amount', { $ifNull: ['$fine', 0] }] } } } }
     ]);
 
+    // Combined view for a multi-house resident: break the aggregate down per house
+    // so "All linked houses" isn't just one opaque total.
+    if (req.user.role === 'resident' && !req.query.houseId && houseIds.length > 1) {
+      const houses = await House.find({ _id: { $in: houseIds } }).select('houseNo section');
+      perHouse = await Promise.all(houses.map(async house => {
+        const filter = { month, year, house: house._id };
+        const [total, paid, pending] = await Promise.all([
+          Due.countDocuments(filter),
+          Due.countDocuments({ ...filter, status: 'paid' }),
+          Due.countDocuments({ ...filter, status: { $in: ['pending', 'overdue', 'verification_pending'] } })
+        ]);
+        return {
+          houseId: house._id,
+          houseNo: house.houseNo,
+          section: house.section,
+          totalDues: total,
+          paidDues: paid,
+          pendingDues: pending
+        };
+      }));
+    }
+
     res.json({
       success: true,
       data: {
@@ -463,7 +532,8 @@ exports.getDashboardStats = async (req, res, next) => {
         pendingDues,
         verificationPending,
         collectionRate: totalDues ? ((paidDues / totalDues) * 100).toFixed(1) : 0,
-        totalCollected: totalAmount[0]?.total || 0
+        totalCollected: totalAmount[0]?.total || 0,
+        perHouse
       }
     });
   } catch (err) {

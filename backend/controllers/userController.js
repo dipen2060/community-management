@@ -9,6 +9,7 @@ const Notification = require('../models/Notification');
 const Poll = require('../models/Poll');
 const Notice = require('../models/Notice');
 const { allowedExportSections } = require('../middleware/exportPermissions');
+const { setResidentHouseLink } = require('../utils/residentHouses');
 
 // GET /api/users?role=staff — list users, optionally filtered by role
 exports.getUsers = async (req, res) => {
@@ -38,12 +39,11 @@ exports.getUserById = async (req, res) => {
 
 // POST /api/users — Admin creates a new user.
 // username = auto-generated "firstname.lastname"
-// password = fixed default password (DEFAULT_USER_PASSWORD, see backend/utils/userCredentials.js);
-// user must change it on first login (mustChangePassword is always forced to true)
+// password = cryptographically random temporary password; user must change it on first login
 // email = required (unique login identifier — avoids username collision with duplicate names)
 exports.createUser = async (req, res) => {
   try {
-    const { name, email, phone, role, specialization, exportSection } = req.body;
+    const { name, email, phone, role, specialization, exportSection, houseId, relationshipType } = req.body;
     const validRoles = ['admin', 'staff', 'resident'];
     const validSpecializations = ['water', 'electric', 'lift', 'sanitation', 'security', 'general'];
     if (role !== undefined && !validRoles.includes(role)) {
@@ -61,6 +61,24 @@ exports.createUser = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Invalid export section' });
     }
 
+    const resultingRole = role || 'resident';
+    const relType = relationshipType || 'owner';
+
+    // House linking only applies to residents. Validate BEFORE creating the
+    // user so a bad/conflicting house choice never leaves an orphaned account.
+    let targetHouse = null;
+    if (resultingRole === 'resident' && houseId) {
+      if (!['owner', 'tenant'].includes(relType)) {
+        return res.status(400).json({ success: false, message: 'Relationship type must be owner or tenant' });
+      }
+      targetHouse = await House.findById(houseId);
+      if (!targetHouse) return res.status(404).json({ success: false, message: 'House not found' });
+      if (targetHouse[relType]) {
+        const label = relType === 'owner' ? 'an owner' : 'a tenant';
+        return res.status(409).json({ success: false, message: `This house already has ${label} assigned` });
+      }
+    }
+
     const emailExists = await User.findOne({ email: email.trim().toLowerCase() });
     if (emailExists) return res.status(400).json({ success: false, message: 'Email already in use' });
 
@@ -71,10 +89,17 @@ exports.createUser = async (req, res) => {
       name: name.trim(),
       email: email.trim().toLowerCase(),
       username, password, mustChangePassword: true, phone,
-      role: role || 'resident',
+      role: resultingRole,
       specialization: role === 'staff' ? specialization : null,
       exportSection: role === 'admin' ? 'all' : role === 'staff' ? (exportSection || null) : null
     });
+
+    if (targetHouse) {
+      targetHouse[relType] = user._id;
+      await targetHouse.save();
+      const { syncHouseRelationship } = require('../utils/residentHouses');
+      await syncHouseRelationship(targetHouse._id, user._id, relType, true);
+    }
 
     await logAudit(req.user._id, req.user.role, 'user_created', 'user', user._id, {
       newValues: {
@@ -83,17 +108,25 @@ exports.createUser = async (req, res) => {
         email: user.email,
         phone: user.phone,
         role: user.role,
-        specialization: user.specialization
+        specialization: user.specialization,
+        houseId: targetHouse ? targetHouse._id : undefined,
+        relationshipType: targetHouse ? relType : undefined
       }
     });
-    console.info(`Temporary password generated for ${user.email}; shown once to ${req.user.email} at creation time.`);
+    console.info(`Temporary password generated for ${user.email}; deliver it through a secure channel.`);
 
     res.status(201).json({
       success: true,
-      // temporaryPassword is only ever present in this one response — it is never stored in
-      // plaintext, never logged, and never retrievable again after this request.
-      data: { id: user._id, name: user.name, username: user.username, email: user.email, role: user.role, specialization: user.specialization, exportSection: user.exportSection, temporaryPassword: password },
-      message: 'User created. This temporary password is shown only once — copy it now and deliver it through a secure channel. It must be changed on first login.'
+      data: {
+        id: user._id, name: user.name, username: user.username, email: user.email, role: user.role,
+        specialization: user.specialization, exportSection: user.exportSection,
+        house: targetHouse ? { id: targetHouse._id, houseNo: targetHouse.houseNo, relationshipType: relType } : null
+      },
+      // Shown once, here, to the admin who just created the account — this is
+      // the ONLY point the plaintext temp password is ever available. It is
+      // never stored anywhere and never retrievable again after this response.
+      temporaryPassword: password,
+      message: 'User created. Save the temporary password now — it will not be shown again. Deliver it to the user through a secure channel; they must change it on first login.'
     });
   } catch (err) { res.status(500).json({ success: false, message: err.message }); }
 };
@@ -103,7 +136,7 @@ exports.createUser = async (req, res) => {
 // being used by residents/staff (frontend doesn't expose it to them).
 exports.updateUser = async (req, res) => {
   try {
-    const { name, phone, specialization, isActive, role, exportSection } = req.body;
+    const { name, phone, specialization, isActive, role, exportSection, houseId, relationshipType } = req.body;
     const update = {};
     if (name)   update.name = name;
     if (phone !== undefined)  update.phone = phone;
@@ -149,6 +182,35 @@ exports.updateUser = async (req, res) => {
       }
     }
 
+    // Existing resident whose house assignment is being added/changed/cleared
+    // (houseId === '' means "unlink"; a truthy houseId means "move them here").
+    // Validated up front, before any write, so a bad/conflicting choice never
+    // leaves the user half-updated.
+    const wantsHouseChange = resultingRole === 'resident' && houseId !== undefined;
+    const relType = relationshipType || 'owner';
+    if (wantsHouseChange) {
+      if (!['owner', 'tenant'].includes(relType)) {
+        return res.status(400).json({ success: false, message: 'Relationship type must be owner or tenant' });
+      }
+      if (houseId) {
+        const targetHouse = await House.findById(houseId);
+        if (!targetHouse) return res.status(404).json({ success: false, message: 'House not found' });
+        if (targetHouse[relType] && String(targetHouse[relType]) !== String(targetUser._id)) {
+          const label = relType === 'owner' ? 'an owner' : 'a tenant';
+          return res.status(409).json({ success: false, message: `This house already has ${label} assigned` });
+        }
+      }
+    }
+
+    // House linking (owner/tenant) only makes sense for residents. If this
+    // edit is moving the user OFF the resident role, drop any house links
+    // they held so the house doesn't keep pointing at a non-resident.
+    if (resultingRole !== 'resident' && targetUser.role === 'resident') {
+      await House.updateMany({ owner: targetUser._id }, { $set: { owner: null } });
+      await House.updateMany({ tenant: targetUser._id }, { $set: { tenant: null } });
+      await ResidentHouse.deleteMany({ resident_id: targetUser._id });
+    }
+
     const user = await User.findByIdAndUpdate(
       req.params.id,
       update,
@@ -159,6 +221,11 @@ exports.updateUser = async (req, res) => {
       user.exportSection = 'all';
       await user.save();
     }
+
+    if (wantsHouseChange) {
+      await setResidentHouseLink(user._id, houseId || null, relType);
+    }
+
     await logAudit(req.user._id, req.user.role, 'user_edited', 'user', user._id, {
       changedFields: Object.keys(update),
       oldValues: {
@@ -194,9 +261,8 @@ exports.resetPassword = async (req, res) => {
     });
     res.json({
       success: true,
-      // Same one-time-reveal pattern as createUser: returned once here, never stored or logged in plaintext.
-      data: { id: user._id, temporaryPassword: newPassword },
-      message: 'Password reset. This temporary password is shown only once — copy it now and deliver it through a secure channel. It must be changed on first login.'
+      temporaryPassword: newPassword,
+      message: 'Password reset. Save the new temporary password now — it will not be shown again.'
     });
   } catch (err) { res.status(500).json({ success: false, message: err.message }); }
 };

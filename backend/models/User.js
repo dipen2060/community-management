@@ -16,7 +16,9 @@ const userSchema = new mongoose.Schema({
   },
   specialization: { type: String, enum: ['water', 'electric', 'lift', 'sanitation', 'security', 'general', null], default: null },
   mustChangePassword: { type: Boolean, default: false },
-  isActive: { type: Boolean, default: true }
+  isActive: { type: Boolean, default: true },
+  resetPasswordToken:  { type: String, select: false },
+  resetPasswordExpire: { type: Date, select: false }
 }, { timestamps: true });
 
 userSchema.pre('save', async function (next) {

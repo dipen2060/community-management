@@ -4,6 +4,7 @@ const House = require('../models/House');
 const { getPagination, applyPagination, buildMeta } = require('../utils/paginate');
 const { createNotification, createNotificationForMany } = require('./notificationController');
 const { detectCategory } = require('../utils/categoryClassifier');
+const { detectPriority, maxSeverity } = require('../utils/priorityClassifier');
 const { findBestStaffForCategory } = require('../utils/autoAssign');
 const { logAudit } = require('../utils/auditLogger');
 const { getResidentHouseIds, isResidentLinkedToHouse } = require('../utils/residentHouses');
@@ -111,7 +112,17 @@ exports.createComplaint = async (req, res, next) => {
     if (req.user.role === 'resident' && ['high', 'urgent'].includes(req.body.priority)) {
       return res.status(403).json({ success: false, message: 'Residents may only submit low or medium priority complaints.' });
     }
-    const priority = req.body.priority || 'medium';
+    const requestedPriority = req.body.priority || 'medium';
+
+    // 🤖 ALGORITHM 3: Auto-detect urgency from wording (keyword scoring, same
+    // technique as category detection). A resident's own priority pick is
+    // capped at 'medium' above, but a genuinely dangerous report ("gas leak",
+    // "fire", "flooding") should never sit at low priority just because the
+    // person who filed it wasn't allowed to tick "urgent" themselves.
+    const { priority: detectedPriority, confidence: priorityConfidence } = detectPriority(title, description);
+    const priority = detectedPriority ? maxSeverity(requestedPriority, detectedPriority) : requestedPriority;
+    const priorityWasEscalated = priority !== requestedPriority;
+    const priorityNote = priorityWasEscalated ? ` — ⚠️ auto-flagged ${priority} priority by the system based on wording` : '';
 
     // 📍 Find the resident's house to auto-fill the section/area
     const linkedHouseIds = req.user.role === 'resident'
@@ -169,7 +180,7 @@ exports.createComplaint = async (req, res, next) => {
       await createNotification({
         user: assignedStaff._id,
         title: 'New Complaint Assigned to You 🔧',
-        message: `"${title}" (${category}, ${section}, ${priority} priority) auto-assigned to you based on your specialization.`,
+        message: `"${title}" (${category}, ${section}, ${priority} priority) auto-assigned to you based on your specialization.${priorityNote}`,
         type: 'complaint',
         link: '/complaints'
       });
@@ -341,4 +352,54 @@ exports.updateComplaint = async (req, res, next) => {
 
     res.json({ success: true, data: complaint });
   } catch (err) { next(err); }
+};
+
+// 🤖 ALGORITHM 4: Complaint SLA / auto-escalation.
+// Each priority level gets a resolution-time budget; anything still open past
+// its budget is bumped one severity level and admins are alerted, so nothing
+// silently sits forgotten in the queue. Called from a cron job in server.js.
+const SLA_HOURS = { urgent: 24, high: 48, medium: 96, low: 168 };
+const ESCALATE_TO = { low: 'medium', medium: 'high', high: 'urgent', urgent: 'urgent' };
+
+exports.escalateOverdueComplaints = async () => {
+  const openComplaints = await Complaint.find({
+    status: { $in: ['pending', 'inprogress'] },
+    escalated: false
+  });
+
+  const now = Date.now();
+  let escalatedCount = 0;
+  const admins = await User.find({ role: 'admin', isActive: true }).select('_id');
+
+  for (const complaint of openComplaints) {
+    const slaHours = SLA_HOURS[complaint.priority] ?? SLA_HOURS.medium;
+    const ageHours = (now - new Date(complaint.createdAt).getTime()) / (1000 * 60 * 60);
+    if (ageHours < slaHours) continue;
+
+    const oldPriority = complaint.priority;
+    complaint.priority = ESCALATE_TO[complaint.priority] || 'urgent';
+    complaint.escalated = true;
+    complaint.escalatedAt = new Date();
+    await complaint.save();
+    escalatedCount++;
+
+    await createNotificationForMany(admins.map(a => a._id), {
+      title: 'Complaint SLA Breached ⏰',
+      message: `"${complaint.title}" has been unresolved for ${Math.round(ageHours)}h (SLA: ${slaHours}h) and was auto-escalated from ${oldPriority} to ${complaint.priority}.`,
+      type: 'complaint',
+      link: '/complaints'
+    });
+
+    if (complaint.assignedTo) {
+      await createNotification({
+        user: complaint.assignedTo,
+        title: 'Complaint Escalated ⏰',
+        message: `"${complaint.title}" passed its ${slaHours}h SLA and is now ${complaint.priority} priority. Please prioritize it.`,
+        type: 'complaint',
+        link: '/complaints'
+      });
+    }
+  }
+
+  return { checked: openComplaints.length, escalated: escalatedCount };
 };

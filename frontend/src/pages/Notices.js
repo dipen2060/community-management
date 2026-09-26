@@ -97,7 +97,7 @@ export default function Notices() {
                 </select>
               </div>
               <div className="form-group">
-                <label>Target Sections (leave empty = send to everyone)</label>
+                <label>Target Sections</label>
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 6 }}>
                   {sections.length === 0 && <span style={{ fontSize: '0.8rem', color: '#9ca3af' }}>No sections found</span>}
                   {sections.map(s => (

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
 import { useAuth } from '../context/AuthContext';
+import { SkeletonStatsGrid, SkeletonCard, SkeletonTable } from '../components/Skeleton';
 
 export default function Dashboard() {
   const [stats,      setStats]      = useState(null);
@@ -9,6 +10,7 @@ export default function Dashboard() {
   const [complaints, setComplaints] = useState([]);
   const [houses,     setHouses]     = useState([]);
   const [selectedHouseId, setSelectedHouseId] = useState('');
+  const [loading, setLoading] = useState(true);
   const { user } = useAuth();
 
   useEffect(() => {
@@ -25,7 +27,7 @@ export default function Dashboard() {
 
   useEffect(() => {
     const houseParam = selectedHouseId ? `?houseId=${encodeURIComponent(selectedHouseId)}` : '';
-    axios.get(`/api/dues/stats${houseParam}`).then(r => setStats(r.data.data)).catch(err => console.error('Failed to fetch due stats:', err));
+    axios.get(`/api/dues/stats${houseParam}`).then(r => setStats(r.data.data)).catch(err => console.error('Failed to fetch due stats:', err)).finally(() => setLoading(false));
     axios.get('/api/notices').then(r => setNotices(r.data.data?.slice(0, 3) || [])).catch(err => console.error('Failed to fetch notices:', err));
     axios.get(`/api/complaints${houseParam}`).then(r => setComplaints(r.data.data?.slice(0, 5) || [])).catch(err => console.error('Failed to fetch complaints:', err));
   }, [selectedHouseId]);
@@ -37,7 +39,7 @@ export default function Dashboard() {
   const COLORS = ['#10b981', '#f59e0b'];
 
   return (
-    <div className="min-w-0 w-full">
+    <div>
       <h1 className="page-title">📊 Dashboard</h1>
       {user?.role === 'resident' && houses.length > 1 && (
         <div className="card" style={{ marginBottom: 20 }}>
@@ -48,17 +50,45 @@ export default function Dashboard() {
             onChange={event => setSelectedHouseId(event.target.value)}
             style={{ marginLeft: 10, padding: 8 }}
           >
-            <option value="">All linked houses</option>
-            {houses.map(house => (
-              <option key={house._id} value={house._id}>
-                {house.houseNo} · {house.section}
-              </option>
-            ))}
+            <option value="">All linked houses (combined)</option>
+            {houses.map(house => {
+              const relation = String(house.owner?._id) === String(user.id) ? 'Owner'
+                : String(house.tenant?._id) === String(user.id) ? 'Tenant' : '';
+              return (
+                <option key={house._id} value={house._id}>
+                  {house.houseNo} · {house.section}{relation ? ` (${relation})` : ''}
+                </option>
+              );
+            })}
           </select>
         </div>
       )}
 
+      {!selectedHouseId && stats?.perHouse?.length > 1 && (
+        <div className="card" style={{ marginBottom: 20 }}>
+          <div className="card-header"><h3>🏠 Breakdown by House</h3></div>
+          <table>
+            <thead><tr><th>House</th><th>Total Dues</th><th>Paid</th><th>Pending</th></tr></thead>
+            <tbody>
+              {stats.perHouse.map(h => (
+                <tr key={h.houseId}>
+                  <td>{h.houseNo} · {h.section}</td>
+                  <td>{h.totalDues}</td>
+                  <td>{h.paidDues}</td>
+                  <td>{h.pendingDues}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+
       <div className="stats-grid">
+        {loading ? (
+          <SkeletonStatsGrid count={5} />
+        ) : (
+          <>
         <div className="stat-card blue">
           <h3>Total Dues</h3>
           <div className="value">{stats?.totalDues ?? '—'}</div>
@@ -79,10 +109,18 @@ export default function Dashboard() {
           <h3>Total Collected</h3>
           <div className="value">Rs. {stats?.totalCollected ?? '—'}</div>
         </div>
+        </>
+        )}
       </div>
 
-      <div className="mb-5 grid min-w-0 grid-cols-1 gap-4 lg:grid-cols-2 lg:gap-5">
-        <div className="card min-w-0">
+      {loading ? (
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '20px' }}>
+          <SkeletonCard lines={4} />
+          <SkeletonCard lines={4} />
+        </div>
+      ) : (
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '20px' }}>
+        <div className="card">
           <div className="card-header"><h3>Due Status</h3></div>
           {pieData.length > 0 && (
             <ResponsiveContainer width="100%" height={200}>
@@ -95,7 +133,7 @@ export default function Dashboard() {
             </ResponsiveContainer>
           )}
         </div>
-        <div className="card min-w-0">
+        <div className="card">
           <div className="card-header"><h3>📢 Latest Notices</h3></div>
           {notices.map(n => (
             <div key={n._id} style={{ padding: '10px 0', borderBottom: '1px solid #f1f5f9' }}>
@@ -105,25 +143,28 @@ export default function Dashboard() {
           ))}
         </div>
       </div>
+      )}
 
+      {loading ? (
+        <SkeletonTable rows={4} columns={4} />
+      ) : (
       <div className="card">
         <div className="card-header"><h3>🔧 Recent Complaints</h3></div>
-        <div className="w-full overflow-x-auto">
-          <table className="min-w-[560px]">
-            <thead><tr><th>Title</th><th>Category</th><th>Priority</th><th>Status</th></tr></thead>
-            <tbody>
-              {complaints.map(c => (
-                <tr key={c._id}>
-                  <td>{c.title}</td>
-                  <td>{c.category}</td>
-                  <td><span className={`status status-${c.priority === 'urgent' ? 'overdue' : c.priority === 'high' ? 'pending' : 'paid'}`}>{c.priority}</span></td>
-                  <td><span className={`status status-${c.status}`}>{c.status}</span></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <table>
+          <thead><tr><th>Title</th><th>Category</th><th>Priority</th><th>Status</th></tr></thead>
+          <tbody>
+            {complaints.map(c => (
+              <tr key={c._id}>
+                <td>{c.title}</td>
+                <td>{c.category}</td>
+                <td><span className={`status status-${c.priority === 'urgent' ? 'overdue' : c.priority === 'high' ? 'pending' : 'paid'}`}>{c.priority}</span></td>
+                <td><span className={`status status-${c.status}`}>{c.status}</span></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
+      )}
     </div>
   );
 }

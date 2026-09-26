@@ -47,6 +47,27 @@ const loginValidation = [
   validate
 ];
 
+// Forgot / reset password validation
+const forgotPasswordValidation = [
+  body('email')
+    .trim()
+    .notEmpty()
+    .withMessage('Email is required')
+    .isEmail()
+    .withMessage('Invalid email format')
+    .normalizeEmail(),
+  validate
+];
+
+const resetPasswordValidation = [
+  body('password')
+    .notEmpty()
+    .withMessage('Password is required')
+    .isLength({ min: 6 })
+    .withMessage('Password must be at least 6 characters'),
+  validate
+];
+
 // User creation validation
 const createUserValidation = [
   body('name')
@@ -80,6 +101,14 @@ const createUserValidation = [
     .optional({ values: 'falsy' })
     .isMobilePhone('any')
     .withMessage('Invalid phone number'),
+  body('houseId')
+    .optional({ values: 'falsy' })
+    .isMongoId()
+    .withMessage('Invalid house'),
+  body('relationshipType')
+    .optional({ values: 'falsy' })
+    .isIn(['owner', 'tenant'])
+    .withMessage('Relationship type must be owner or tenant'),
   validate
 ];
 
@@ -342,6 +371,8 @@ const updateProfileValidation = [
 module.exports = {
   validate,
   loginValidation,
+  forgotPasswordValidation,
+  resetPasswordValidation,
   createUserValidation,
   updateUserValidation,
   createHouseValidation,
