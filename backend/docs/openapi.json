@@ -4670,6 +4670,9 @@
           "401": {
             "$ref": "#/components/responses/UnauthorizedResponse"
           },
+          "403": {
+            "$ref": "#/components/responses/ForbiddenResponse"
+          },
           "404": {
             "$ref": "#/components/responses/NotFoundResponse"
           },
@@ -4739,6 +4742,9 @@
           },
           "401": {
             "$ref": "#/components/responses/UnauthorizedResponse"
+          },
+          "403": {
+            "$ref": "#/components/responses/ForbiddenResponse"
           },
           "404": {
             "$ref": "#/components/responses/NotFoundResponse"

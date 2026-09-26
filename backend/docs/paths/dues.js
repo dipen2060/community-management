@@ -283,7 +283,7 @@ module.exports = {
           description: 'The payment was approved and a receipt was generated.',
           content: { 'application/json': { schema: dueEnvelope } }
         },
-        ...errors({ notFound: true, conflict: true })
+        ...errors({ notFound: true, conflict: true, forbidden: true })
       }
     })
   },
@@ -308,7 +308,7 @@ module.exports = {
           description: 'The proof was rejected and the resident may submit a new one.',
           content: { 'application/json': { schema: dueEnvelope } }
         },
-        ...errors({ badRequest: true, notFound: true, conflict: true })
+        ...errors({ badRequest: true, notFound: true, conflict: true, forbidden: true })
       }
     })
   }
