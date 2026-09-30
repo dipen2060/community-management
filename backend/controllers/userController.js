@@ -301,10 +301,6 @@ exports.resetPassword = async (req, res) => {
 
     res.json({
       success: true,
-<<<<<<< HEAD
-      temporaryPassword: newPassword,
-      message: 'Password reset. Save the new temporary password now — it will not be shown again.'
-=======
       data: {
         id: user._id,
         name: user.name,
@@ -312,8 +308,10 @@ exports.resetPassword = async (req, res) => {
         email: user.email,
         temporaryPassword: newPassword
       },
-      message: `Password reset successfully Email: ${user.email}, Password: ${newPassword}`
->>>>>>> c53e76b3ee128c9665eaa1ebde60318d3eb34fee
+      // Top-level copy matches the createUser response shape.
+      // Shown once, here, to the admin — never stored or retrievable again.
+      temporaryPassword: newPassword,
+      message: 'Password reset. Save the new temporary password now — it will not be shown again.'
     });
   } catch (err) {
     res.status(500).json({

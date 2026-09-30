@@ -1,5 +1,6 @@
 const { body, validationResult } = require('express-validator');
 const fs = require('fs');
+const mongoose = require('mongoose');
 const User = require('../models/User');
 
 // Validation middleware factory
