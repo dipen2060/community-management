@@ -6,6 +6,8 @@ const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
+const mongoose = require('mongoose');
+const { rateLimitResponse } = require('./middleware/rateLimitResponse');
 const cron = require('node-cron');
 
 const connectDB = require('./config/db');
@@ -15,6 +17,12 @@ const { getHouseResidentIds } = require('./utils/residentHouses');
 const { calculateFine } = require('./utils/fines');
 const { generateMonthlyDuesForCron } = require('./controllers/dueController');
 const { escalateOverdueComplaints } = require('./controllers/complaintController');
+const { DEFAULT_SLA_CHECK_CRON, getSlaCheckCron } = require('./utils/slaConfig');
+const { finalizeExpiredPolls } = require('./utils/pollFinalizer');
+const {
+    reportPollFinalizationConnectionError,
+    resetPollFinalizationConnectionWarning
+} = require('./utils/mongoConnectivity');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -113,13 +121,7 @@ app.use(
 const generalLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
     max: isDevelopment ? 2000 : 100,
-    message: 'Too many requests. Please try again later.'
-});
-
-const authLimiter = rateLimit({
-    windowMs: 15 * 60 * 1000,
-    max: isDevelopment ? 200 : 50,
-    message: 'Too many login attempts. Please try again later.'
+    handler: rateLimitResponse
 });
 
 app.use(generalLimiter);
@@ -140,7 +142,6 @@ app.use(
 
 app.use(
     '/api/auth',
-    authLimiter,
     require('./routes/auth')
 );
 
@@ -205,9 +206,147 @@ app.get('/', (req, res) => {
 // Error handling middleware
 app.use(require('./middleware/errorHandler'));
 
+/*
+ * ==================================================
+ * AUTOMATION
+ * ==================================================
+ */
+const startScheduledJobs = () => {
+    /*
+     * Generate monthly dues
+     * Runs at 8:00 AM on the first day of every month.
+     */
+    cron.schedule('0 8 1 * *', async () => {
+        if (mongoose.connection.readyState !== 1) {
+            return;
+        }
+
+        try {
+            console.log('Cron: Generating monthly dues...');
+            const result = await generateMonthlyDuesForCron();
+            console.log(`Monthly dues generated: ${result.created}`);
+        } catch (error) {
+            console.error(
+                'Monthly dues cron error:',
+                error
+            );
+        }
+    }, { timezone: process.env.TZ || 'Asia/Kathmandu' });
+
+    /*
+     * Update overdue fines
+     * Runs every day at midnight.
+     */
+    cron.schedule('0 0 * * *', async () => {
+        if (mongoose.connection.readyState !== 1) {
+            return;
+        }
+
+        try {
+            const now = new Date();
+
+            const overdueDues = await Due.find({
+                status: {
+                    $in: ['pending', 'overdue']
+                },
+                dueDate: {
+                    $lt: now
+                }
+            }).populate('house');
+
+            for (const due of overdueDues) {
+                due.fine = calculateFine(due.dueDate, now);
+                due.status = 'overdue';
+
+                await due.save();
+
+                const house = due.house;
+
+                if (!house) {
+                    continue;
+                }
+
+                const recipients = await getHouseResidentIds(house);
+
+                for (const userId of recipients) {
+                    await createNotification({
+                        user: userId,
+                        title: 'Payment Overdue',
+                        message:
+                            `Your due for ${house.houseNo || 'your house'} ` +
+                            `is overdue. Fine: Rs. ${due.fine}.`,
+                        type: 'overdue',
+                        link: '/dues'
+                    });
+                }
+            }
+
+            if (overdueDues.length > 0) {
+                console.log(
+                    `Updated ${overdueDues.length} overdue dues`
+                );
+            }
+        } catch (error) {
+            console.error(
+                'Daily fine update cron error:',
+                error
+            );
+        }
+    }, { timezone: process.env.TZ || 'Asia/Kathmandu' });
+
+    /*
+     * Complaint SLA auto-escalation
+     * Runs every 6 hours — checks for complaints that have sat open past their
+     * priority's resolution budget and bumps them up a severity level.
+     */
+    const configuredSlaCheckCron = process.env.SLA_CHECK_CRON;
+    const slaCheckCron = getSlaCheckCron(process.env, cron.validate);
+    if (configuredSlaCheckCron && slaCheckCron === DEFAULT_SLA_CHECK_CRON && configuredSlaCheckCron.trim() !== DEFAULT_SLA_CHECK_CRON) {
+        console.warn(`Invalid SLA_CHECK_CRON "${configuredSlaCheckCron}". Using default "${DEFAULT_SLA_CHECK_CRON}".`);
+    }
+
+    cron.schedule(slaCheckCron, async () => {
+        if (mongoose.connection.readyState !== 1) {
+            return;
+        }
+
+        try {
+            const result = await escalateOverdueComplaints();
+            if (result.escalated > 0) {
+                console.log(`Cron: escalated ${result.escalated}/${result.checked} open complaints past SLA`);
+            }
+        } catch (error) {
+            console.error(
+                'Complaint SLA escalation cron error:',
+                error
+            );
+        }
+    }, { timezone: process.env.TZ || 'Asia/Kathmandu' });
+
+    cron.schedule('* * * * *', async () => {
+        if (mongoose.connection.readyState !== 1) {
+            return;
+        }
+
+        try {
+            const result = await finalizeExpiredPolls();
+            resetPollFinalizationConnectionWarning();
+            if (result.finalized > 0) {
+                console.log(`Cron: finalized ${result.finalized}/${result.checked} expired polls`);
+            }
+        } catch (error) {
+            if (!reportPollFinalizationConnectionError(error)) {
+                console.error('Poll finalization cron error:', error);
+            }
+        }
+    }, { timezone: process.env.TZ || 'Asia/Kathmandu' });
+};
+
 const startServer = async () => {
     try {
         await connectDB();
+
+        startScheduledJobs();
 
         server = app.listen(PORT, () => {
             console.log(`Server running on port ${PORT}`);
@@ -217,107 +356,6 @@ const startServer = async () => {
         process.exit(1);
     }
 };
-
-startServer();
-
-/*
- * ==================================================
- * AUTOMATION
- * ==================================================
- */
-
-/*
- * Generate monthly dues
- * Runs at 8:00 AM on the first day of every month.
- */
-cron.schedule('0 8 1 * *', async () => {
-    try {
-        console.log('Cron: Generating monthly dues...');
-        const result = await generateMonthlyDuesForCron();
-        console.log(`Monthly dues generated: ${result.created}`);
-    } catch (error) {
-        console.error(
-            'Monthly dues cron error:',
-            error
-        );
-    }
-}, { timezone: process.env.TZ || 'Asia/Kathmandu' });
-
-/*
- * Update overdue fines
- * Runs every day at midnight.
- */
-cron.schedule('0 0 * * *', async () => {
-    try {
-        const now = new Date();
-
-        const overdueDues = await Due.find({
-            status: {
-                $in: ['pending', 'overdue']
-            },
-            dueDate: {
-                $lt: now
-            }
-        }).populate('house');
-
-        for (const due of overdueDues) {
-            due.fine = calculateFine(due.dueDate, now);
-            due.status = 'overdue';
-
-            await due.save();
-
-            const house = due.house;
-
-            if (!house) {
-                continue;
-            }
-
-            const recipients = await getHouseResidentIds(house);
-
-            for (const userId of recipients) {
-                await createNotification({
-                    user: userId,
-                    title: 'Payment Overdue',
-                    message:
-                        `Your due for ${house.houseNo || 'your house'} ` +
-                        `is overdue. Fine: Rs. ${due.fine}.`,
-                    type: 'overdue',
-                    link: '/dues'
-                }, { timezone: process.env.TZ || 'Asia/Kathmandu' });
-            }
-        }
-
-        if (overdueDues.length > 0) {
-            console.log(
-                `Updated ${overdueDues.length} overdue dues`
-            );
-        }
-    } catch (error) {
-        console.error(
-            'Daily fine update cron error:',
-            error
-        );
-    }
-});
-
-/*
- * Complaint SLA auto-escalation
- * Runs every 6 hours — checks for complaints that have sat open past their
- * priority's resolution budget and bumps them up a severity level.
- */
-cron.schedule('0 */6 * * *', async () => {
-    try {
-        const result = await escalateOverdueComplaints();
-        if (result.escalated > 0) {
-            console.log(`Cron: escalated ${result.escalated}/${result.checked} open complaints past SLA`);
-        }
-    } catch (error) {
-        console.error(
-            'Complaint SLA escalation cron error:',
-            error
-        );
-    }
-}, { timezone: process.env.TZ || 'Asia/Kathmandu' });
 
 /*
  * --------------------------------------------------
@@ -329,8 +367,6 @@ const gracefulShutdown = async (signal) => {
 
     const closeDatabase = async () => {
         try {
-            const mongoose = require('mongoose');
-
             await mongoose.connection.close();
 
             console.log('MongoDB connection closed');
@@ -367,3 +403,5 @@ process.on('SIGTERM', () => {
 process.on('SIGINT', () => {
     gracefulShutdown('SIGINT');
 });
+
+startServer();

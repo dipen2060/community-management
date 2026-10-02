@@ -96,7 +96,7 @@ module.exports = {
         '- Changing `name` also regenerates `username` (only when the name actually changed, so repeated saves do not ' +
         'inflate the username).\n' +
         '- To change the password, send **both** `currentPassword` and `newPassword`. A missing or wrong ' +
-        '`currentPassword` returns 400, as does a `newPassword` shorter than 6 characters.\n' +
+        '`currentPassword` returns 400, as does a `newPassword` that is not 8-64 characters with at least one letter and one number.\n' +
         '- Omitting `currentPassword`/`newPassword` leaves the password untouched.\n\n' +
         'Admins should prefer `PUT /users/{id}` for editing *other* people.',
       requestBody: body('UpdateMyProfileRequest', false, {
@@ -188,23 +188,23 @@ module.exports = {
       summary: 'Issue a new temporary password',
       description:
         'Generates a fresh random temporary password, stores its bcrypt hash, and sets `mustChangePassword=true` so the ' +
-        'user is forced to change it on next login.\n\n' +
-        '**The new password is not returned.** As with account creation, read the `message` and deliver the credential ' +
-        'through a secure channel. Only active users can be reset — an inactive or missing account returns 404.\n\n' +
-        'There is no self-service "forgot password" flow; this admin operation is the only recovery path.',
+        'user is forced to change it on next login. Password recovery is handled by an admin only. The temporary password is returned once in the top-level ' +
+        '`temporaryPassword` field for the admin to deliver through a secure channel. It is never logged or included in the audit entry. ' +
+        'Only active users can be reset — an inactive or missing account returns 404.',
       params: [param('IdPathParam')],
       responses: {
         200: {
-          description: 'The password was reset. **The new password is not included in the response.**',
+          description: 'The password was reset. The new temporary password is shown once to the admin.',
           content: {
             'application/json': {
               schema: {
                 type: 'object',
                 properties: {
                   success: { type: 'boolean', example: true },
+                  temporaryPassword: { type: 'string', example: 'one-time-random-password', description: 'Shown once; deliver securely. Must be changed on first login.' },
                   message: {
                     type: 'string',
-                    example: 'Password reset. Deliver the new temporary password through a secure channel; it must be changed on first login.'
+                    example: 'Password reset. Save the new temporary password now — it will not be shown again.'
                   }
                 }
               }

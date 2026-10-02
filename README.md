@@ -36,6 +36,11 @@ npm run seed        # ← Demo data create hune (IMPORTANT!)
 npm run dev         # ← Server start hune (port 5000)
 ```
 
+`backend/.env` may set `MAX_MONTHLY_DUE` to the maximum permitted monthly house due
+(defaults to `10000`). When overriding it, set the same value as
+`REACT_APP_MAX_MONTHLY_DUE` in `frontend/.env` so the house form uses the matching
+limit.
+
 Backend successfully started bhayo bhane dekhaucha:
 ```
 ✅ MongoDB Connected: localhost
@@ -174,7 +179,7 @@ section(s) — only residents in those sections get notified and see the notice.
 Admin gets a **User Management** page (`/staff`) with full CRUD for Staff and Residents:
 - **Create** — enter name + phone + role (+ specialization for staff). The email/login identifier and temporary password are generated and shown once to the admin.
 - **Edit** — update name, phone, specialization, role.
-- **Reset Password** — generates a new temporary password that must be delivered securely.
+- **Reset Password** — only an admin can reset a user's password from User Management. A new random temporary password is shown once to the admin and must be delivered securely; the user must change it at next login. Self-service password recovery is not available; contact the tole admin if you forget your password.
 - **Activate/Deactivate** — disable login without deleting the account.
 - **Delete** — permanently remove a user (admin cannot delete their own account).
 
@@ -284,6 +289,12 @@ npm start
 ```
 
 For production, replace the local `.env` values—especially `MONGO_URI` and `JWT_SECRET`—with secure production values and never expose them publicly.
+
+### Complaint SLA configuration
+
+Complaint auto-escalation thresholds are configurable in `backend/.env` with `SLA_URGENT_HOURS`, `SLA_HIGH_HOURS`, `SLA_MEDIUM_HOURS`, and `SLA_LOW_HOURS`. Defaults are 4, 12, 48, and 72 hours respectively; positive decimal values are supported. Invalid or non-positive values use the corresponding default. `SLA_CHECK_CRON` controls how often the escalation check runs and defaults to `*/30 * * * *` (every 30 minutes). Invalid cron expressions produce a warning and fall back to the default schedule.
+
+Poll tie-breaks can be configured with `POLL_RUNOFF_HOURS` (default 24) and `POLL_MAX_ROUNDS` (default 2, including the original poll). Invalid or non-positive values (or a non-integer max-round count) fall back to these defaults. Expired polls are finalized once per minute and also on poll reads and votes.
 
 ## Security model
 

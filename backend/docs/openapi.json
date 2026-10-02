@@ -216,6 +216,16 @@
         ],
         "description": "Closed polls reject votes and refuse option edits."
       },
+      "PollOutcome": {
+        "type": "string",
+        "enum": [
+          "open",
+          "winner",
+          "tie",
+          "no_votes"
+        ],
+        "description": "Final poll outcome; `open` while voting is active."
+      },
       "NotificationType": {
         "type": "string",
         "enum": [
@@ -271,6 +281,9 @@
           },
           "name": {
             "type": "string",
+            "minLength": 2,
+            "maxLength": 50,
+            "pattern": "^[A-Za-z][A-Za-z .'-]*$",
             "example": "Ram Bahadur"
           },
           "username": {
@@ -279,11 +292,14 @@
           },
           "phone": {
             "type": "string",
-            "example": "9800000000"
+            "pattern": "^(?:98[012456]|97[01456])\\d{7}$",
+            "example": "9841234567",
+            "description": "Optional. A 10-digit Nepal mobile number starting with 980, 981, 982, 984, 985, 986, 970, 971, 974, 975, or 976."
           },
           "email": {
             "type": "string",
             "format": "email",
+            "maxLength": 100,
             "example": "ram.bahadur@example.com"
           },
           "specialization": {
@@ -312,6 +328,9 @@
           },
           "name": {
             "type": "string",
+            "minLength": 2,
+            "maxLength": 50,
+            "pattern": "^[A-Za-z][A-Za-z .'-]*$",
             "example": "Ram Bahadur"
           },
           "username": {
@@ -322,12 +341,15 @@
           "email": {
             "type": "string",
             "format": "email",
+            "maxLength": 100,
             "example": "ram.bahadur@example.com",
             "description": "The login identifier. Must be unique."
           },
           "phone": {
             "type": "string",
-            "example": "9800000000"
+            "pattern": "^(?:98[012456]|97[01456])\\d{7}$",
+            "example": "9841234567",
+            "description": "Optional. A 10-digit Nepal mobile number starting with 980, 981, 982, 984, 985, 986, 970, 971, 974, 975, or 976."
           },
           "address": {
             "type": "string",
@@ -398,6 +420,9 @@
           },
           "name": {
             "type": "string",
+            "minLength": 2,
+            "maxLength": 50,
+            "pattern": "^[A-Za-z][A-Za-z .'-]*$",
             "example": "Ram Bahadur"
           },
           "username": {
@@ -407,6 +432,7 @@
           "email": {
             "type": "string",
             "format": "email",
+            "maxLength": 100,
             "example": "ram.bahadur@example.com"
           },
           "role": {
@@ -420,7 +446,9 @@
           },
           "phone": {
             "type": "string",
-            "example": "9800000000"
+            "pattern": "^(?:98[012456]|97[01456])\\d{7}$",
+            "example": "9841234567",
+            "description": "Optional. A 10-digit Nepal mobile number starting with 980, 981, 982, 984, 985, 986, 970, 971, 974, 975, or 976."
           },
           "address": {
             "type": "string",
@@ -474,7 +502,7 @@
           "password": {
             "type": "string",
             "format": "password",
-            "minLength": 6,
+            "maxLength": 128,
             "example": "sup3rSecret"
           }
         }
@@ -501,6 +529,9 @@
               },
               "name": {
                 "type": "string",
+                "minLength": 2,
+                "maxLength": 50,
+                "pattern": "^[A-Za-z][A-Za-z .'-]*$",
                 "example": "Ram Bahadur"
               },
               "username": {
@@ -510,6 +541,7 @@
               "email": {
                 "type": "string",
                 "format": "email",
+                "maxLength": 100,
                 "example": "ram.bahadur@example.com"
               },
               "role": {
@@ -523,7 +555,9 @@
               },
               "phone": {
                 "type": "string",
-                "example": "9800000000"
+                "pattern": "^(?:98[012456]|97[01456])\\d{7}$",
+                "example": "9841234567",
+                "description": "Optional. A 10-digit Nepal mobile number starting with 980, 981, 982, 984, 985, 986, 970, 971, 974, 975, or 976."
               },
               "address": {
                 "type": "string",
@@ -574,17 +608,20 @@
             "type": "string",
             "minLength": 2,
             "maxLength": 50,
+            "pattern": "^[A-Za-z][A-Za-z .'-]*$",
             "example": "Ram Bahadur"
           },
           "email": {
             "type": "string",
             "format": "email",
+            "maxLength": 100,
             "example": "ram.bahadur@example.com"
           },
           "phone": {
             "type": "string",
-            "example": "9800000000",
-            "description": "Optional. Validated as a mobile number when present."
+            "pattern": "^(?:98[012456]|97[01456])\\d{7}$",
+            "example": "9841234567",
+            "description": "Optional. A 10-digit Nepal mobile number starting with 980, 981, 982, 984, 985, 986, 970, 971, 974, 975, or 976."
           },
           "role": {
             "type": "string",
@@ -632,11 +669,14 @@
             "type": "string",
             "minLength": 2,
             "maxLength": 50,
+            "pattern": "^[A-Za-z][A-Za-z .'-]*$",
             "example": "Ram Bahadur Thapa"
           },
           "phone": {
             "type": "string",
-            "example": "9800000001"
+            "pattern": "^(?:98[012456]|97[01456])\\d{7}$",
+            "example": "9841234567",
+            "description": "Optional. A 10-digit Nepal mobile number starting with 980, 981, 982, 984, 985, 986, 970, 971, 974, 975, or 976."
           },
           "role": {
             "type": "string",
@@ -688,12 +728,15 @@
             "type": "string",
             "minLength": 2,
             "maxLength": 50,
+            "pattern": "^[A-Za-z][A-Za-z .'-]*$",
             "example": "Ram Bahadur Thapa",
             "description": "Changing the name also regenerates `username`."
           },
           "phone": {
             "type": "string",
-            "example": "9800000001"
+            "pattern": "^(?:98[012456]|97[01456])\\d{7}$",
+            "example": "9841234567",
+            "description": "Optional. A 10-digit Nepal mobile number starting with 980, 981, 982, 984, 985, 986, 970, 971, 974, 975, or 976."
           },
           "address": {
             "type": "string",
@@ -709,9 +752,11 @@
           "newPassword": {
             "type": "string",
             "format": "password",
-            "minLength": 6,
+            "minLength": 8,
+            "maxLength": 64,
+            "pattern": "^(?=.*[A-Za-z])(?=.*\\d)[\\s\\S]{8,64}$",
             "example": "evenBetterSecret",
-            "description": "Supplying this clears `mustChangePassword`."
+            "description": "Must be 8-64 characters and include at least one letter and one number. Supplying this clears `mustChangePassword`."
           }
         }
       },
@@ -724,18 +769,24 @@
           },
           "houseNo": {
             "type": "string",
+            "minLength": 1,
+            "maxLength": 20,
+            "pattern": "^[A-Z0-9][A-Z0-9\\-/ ]*$",
             "example": "A-101",
-            "description": "Unique across the community."
+            "description": "Stored uppercase and unique across the community, case-insensitively."
           },
           "section": {
             "type": "string",
-            "maxLength": 100,
+            "minLength": 1,
+            "maxLength": 50,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9 \\-]*$",
             "example": "Section 1",
             "description": "Used to target notices and polls to specific sections."
           },
           "floor": {
-            "type": "number",
-            "format": "float",
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 30,
             "example": 1
           },
           "type": {
@@ -757,6 +808,9 @@
               },
               "name": {
                 "type": "string",
+                "minLength": 2,
+                "maxLength": 50,
+                "pattern": "^[A-Za-z][A-Za-z .'-]*$",
                 "example": "Ram Bahadur"
               },
               "username": {
@@ -765,11 +819,14 @@
               },
               "phone": {
                 "type": "string",
-                "example": "9800000000"
+                "pattern": "^(?:98[012456]|97[01456])\\d{7}$",
+                "example": "9841234567",
+                "description": "Optional. A 10-digit Nepal mobile number starting with 980, 981, 982, 984, 985, 986, 970, 971, 974, 975, or 976."
               },
               "email": {
                 "type": "string",
                 "format": "email",
+                "maxLength": 100,
                 "example": "ram.bahadur@example.com"
               },
               "specialization": {
@@ -799,6 +856,9 @@
               },
               "name": {
                 "type": "string",
+                "minLength": 2,
+                "maxLength": 50,
+                "pattern": "^[A-Za-z][A-Za-z .'-]*$",
                 "example": "Ram Bahadur"
               },
               "username": {
@@ -807,11 +867,14 @@
               },
               "phone": {
                 "type": "string",
-                "example": "9800000000"
+                "pattern": "^(?:98[012456]|97[01456])\\d{7}$",
+                "example": "9841234567",
+                "description": "Optional. A 10-digit Nepal mobile number starting with 980, 981, 982, 984, 985, 986, 970, 971, 974, 975, or 976."
               },
               "email": {
                 "type": "string",
                 "format": "email",
+                "maxLength": 100,
                 "example": "ram.bahadur@example.com"
               },
               "specialization": {
@@ -833,8 +896,11 @@
           },
           "monthlyDue": {
             "type": "number",
+            "minimum": 0,
+            "maximum": 10000,
+            "multipleOf": 0.01,
             "example": 500,
-            "description": "Default monthly charge in NPR used when generating dues."
+            "description": "Default monthly charge in NPR used when generating dues. The default maximum is configurable with MAX_MONTHLY_DUE."
           },
           "isOccupied": {
             "type": "boolean",
@@ -872,16 +938,22 @@
         "properties": {
           "houseNo": {
             "type": "string",
+            "minLength": 1,
+            "maxLength": 20,
+            "pattern": "^[A-Z0-9][A-Z0-9\\-/ ]*$",
             "example": "A-101"
           },
           "section": {
             "type": "string",
-            "maxLength": 100,
+            "minLength": 1,
+            "maxLength": 50,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9 \\-]*$",
             "example": "Section 1"
           },
           "floor": {
-            "type": "number",
+            "type": "integer",
             "minimum": 0,
+            "maximum": 30,
             "example": 1
           },
           "type": {
@@ -906,6 +978,8 @@
           "monthlyDue": {
             "type": "number",
             "minimum": 0,
+            "maximum": 10000,
+            "multipleOf": 0.01,
             "default": 500,
             "example": 500
           },
@@ -926,16 +1000,22 @@
         "properties": {
           "houseNo": {
             "type": "string",
+            "minLength": 1,
+            "maxLength": 20,
+            "pattern": "^[A-Z0-9][A-Z0-9\\-/ ]*$",
             "example": "A-102"
           },
           "section": {
             "type": "string",
-            "maxLength": 100,
+            "minLength": 1,
+            "maxLength": 50,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9 \\-]*$",
             "example": "Section 2"
           },
           "floor": {
-            "type": "number",
+            "type": "integer",
             "minimum": 0,
+            "maximum": 30,
             "example": 2
           },
           "type": {
@@ -958,6 +1038,8 @@
           "monthlyDue": {
             "type": "number",
             "minimum": 0,
+            "maximum": 10000,
+            "multipleOf": 0.01,
             "example": 750
           },
           "isOccupied": {
@@ -1021,6 +1103,9 @@
               },
               "name": {
                 "type": "string",
+                "minLength": 2,
+                "maxLength": 50,
+                "pattern": "^[A-Za-z][A-Za-z .'-]*$",
                 "example": "Ram Bahadur"
               },
               "username": {
@@ -1029,11 +1114,14 @@
               },
               "phone": {
                 "type": "string",
-                "example": "9800000000"
+                "pattern": "^(?:98[012456]|97[01456])\\d{7}$",
+                "example": "9841234567",
+                "description": "Optional. A 10-digit Nepal mobile number starting with 980, 981, 982, 984, 985, 986, 970, 971, 974, 975, or 976."
               },
               "email": {
                 "type": "string",
                 "format": "email",
+                "maxLength": 100,
                 "example": "ram.bahadur@example.com"
               },
               "specialization": {
@@ -1132,6 +1220,9 @@
               },
               "name": {
                 "type": "string",
+                "minLength": 2,
+                "maxLength": 50,
+                "pattern": "^[A-Za-z][A-Za-z .'-]*$",
                 "example": "Ram Bahadur"
               },
               "username": {
@@ -1140,11 +1231,14 @@
               },
               "phone": {
                 "type": "string",
-                "example": "9800000000"
+                "pattern": "^(?:98[012456]|97[01456])\\d{7}$",
+                "example": "9841234567",
+                "description": "Optional. A 10-digit Nepal mobile number starting with 980, 981, 982, 984, 985, 986, 970, 971, 974, 975, or 976."
               },
               "email": {
                 "type": "string",
                 "format": "email",
+                "maxLength": 100,
                 "example": "ram.bahadur@example.com"
               },
               "specialization": {
@@ -1242,6 +1336,9 @@
               },
               "name": {
                 "type": "string",
+                "minLength": 2,
+                "maxLength": 50,
+                "pattern": "^[A-Za-z][A-Za-z .'-]*$",
                 "example": "Ram Bahadur"
               },
               "username": {
@@ -1250,11 +1347,14 @@
               },
               "phone": {
                 "type": "string",
-                "example": "9800000000"
+                "pattern": "^(?:98[012456]|97[01456])\\d{7}$",
+                "example": "9841234567",
+                "description": "Optional. A 10-digit Nepal mobile number starting with 980, 981, 982, 984, 985, 986, 970, 971, 974, 975, or 976."
               },
               "email": {
                 "type": "string",
                 "format": "email",
+                "maxLength": 100,
                 "example": "ram.bahadur@example.com"
               },
               "specialization": {
@@ -1283,6 +1383,9 @@
               },
               "name": {
                 "type": "string",
+                "minLength": 2,
+                "maxLength": 50,
+                "pattern": "^[A-Za-z][A-Za-z .'-]*$",
                 "example": "Ram Bahadur"
               },
               "username": {
@@ -1291,11 +1394,14 @@
               },
               "phone": {
                 "type": "string",
-                "example": "9800000000"
+                "pattern": "^(?:98[012456]|97[01456])\\d{7}$",
+                "example": "9841234567",
+                "description": "Optional. A 10-digit Nepal mobile number starting with 980, 981, 982, 984, 985, 986, 970, 971, 974, 975, or 976."
               },
               "email": {
                 "type": "string",
                 "format": "email",
+                "maxLength": 100,
                 "example": "ram.bahadur@example.com"
               },
               "specialization": {
@@ -1385,6 +1491,9 @@
               },
               "name": {
                 "type": "string",
+                "minLength": 2,
+                "maxLength": 50,
+                "pattern": "^[A-Za-z][A-Za-z .'-]*$",
                 "example": "Ram Bahadur"
               },
               "username": {
@@ -1393,11 +1502,14 @@
               },
               "phone": {
                 "type": "string",
-                "example": "9800000000"
+                "pattern": "^(?:98[012456]|97[01456])\\d{7}$",
+                "example": "9841234567",
+                "description": "Optional. A 10-digit Nepal mobile number starting with 980, 981, 982, 984, 985, 986, 970, 971, 974, 975, or 976."
               },
               "email": {
                 "type": "string",
                 "format": "email",
+                "maxLength": 100,
                 "example": "ram.bahadur@example.com"
               },
               "specialization": {
@@ -1488,6 +1600,133 @@
             "type": "number",
             "example": 21450,
             "description": "Sum of amount + fine across paid dues this month, in NPR."
+          },
+          "allTimeOutstandingAmount": {
+            "type": "number",
+            "example": 18400,
+            "description": "All-time amount + effective fine across unpaid due rows."
+          },
+          "housesWithArrears": {
+            "type": "integer",
+            "example": 12,
+            "description": "Number of houses with one or more unpaid due rows."
+          }
+        }
+      },
+      "OutstandingDueBreakdown": {
+        "type": "object",
+        "properties": {
+          "dueId": {
+            "type": "string"
+          },
+          "month": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 12
+          },
+          "year": {
+            "type": "integer",
+            "example": 2026
+          },
+          "amount": {
+            "type": "number",
+            "example": 500
+          },
+          "fine": {
+            "type": "number",
+            "example": 100,
+            "description": "Effective per-row fine, capped by MAX_FINE."
+          },
+          "total": {
+            "type": "number",
+            "example": 600
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "overdue",
+              "verification_pending",
+              "paid"
+            ],
+            "description": "Payment lifecycle. `pending` -> (resident submits proof) -> `verification_pending` -> (admin approves) -> `paid`, or (admin rejects) -> back to `pending`/`overdue`. A daily cron flips `pending` -> `overdue` and accrues fines."
+          },
+          "dueDate": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "daysOverdue": {
+            "type": "integer",
+            "example": 4
+          }
+        }
+      },
+      "OutstandingHouse": {
+        "type": "object",
+        "properties": {
+          "houseId": {
+            "type": "string"
+          },
+          "houseNo": {
+            "type": "string",
+            "example": "A-101"
+          },
+          "section": {
+            "type": "string",
+            "example": "Section 1"
+          },
+          "ownerName": {
+            "type": "string",
+            "nullable": true
+          },
+          "tenantName": {
+            "type": "string",
+            "nullable": true
+          },
+          "dueSince": {
+            "type": "object",
+            "properties": {
+              "month": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 12
+              },
+              "year": {
+                "type": "integer",
+                "example": 2026
+              }
+            }
+          },
+          "monthsUnpaid": {
+            "type": "integer",
+            "example": 3
+          },
+          "currentMonthAmount": {
+            "type": "number",
+            "example": 500
+          },
+          "previousBalance": {
+            "type": "number",
+            "example": 1000
+          },
+          "totalFine": {
+            "type": "number",
+            "example": 150
+          },
+          "totalPayable": {
+            "type": "number",
+            "example": 1650
+          },
+          "hasVerificationPending": {
+            "type": "boolean",
+            "example": true
+          },
+          "breakdown": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OutstandingDueBreakdown"
+            }
           }
         }
       },
@@ -1657,6 +1896,9 @@
               },
               "name": {
                 "type": "string",
+                "minLength": 2,
+                "maxLength": 50,
+                "pattern": "^[A-Za-z][A-Za-z .'-]*$",
                 "example": "Ram Bahadur"
               },
               "username": {
@@ -1665,11 +1907,14 @@
               },
               "phone": {
                 "type": "string",
-                "example": "9800000000"
+                "pattern": "^(?:98[012456]|97[01456])\\d{7}$",
+                "example": "9841234567",
+                "description": "Optional. A 10-digit Nepal mobile number starting with 980, 981, 982, 984, 985, 986, 970, 971, 974, 975, or 976."
               },
               "email": {
                 "type": "string",
                 "format": "email",
+                "maxLength": 100,
                 "example": "ram.bahadur@example.com"
               },
               "specialization": {
@@ -1698,6 +1943,9 @@
               },
               "name": {
                 "type": "string",
+                "minLength": 2,
+                "maxLength": 50,
+                "pattern": "^[A-Za-z][A-Za-z .'-]*$",
                 "example": "Ram Bahadur"
               },
               "username": {
@@ -1706,11 +1954,14 @@
               },
               "phone": {
                 "type": "string",
-                "example": "9800000000"
+                "pattern": "^(?:98[012456]|97[01456])\\d{7}$",
+                "example": "9841234567",
+                "description": "Optional. A 10-digit Nepal mobile number starting with 980, 981, 982, 984, 985, 986, 970, 971, 974, 975, or 976."
               },
               "email": {
                 "type": "string",
                 "format": "email",
+                "maxLength": 100,
                 "example": "ram.bahadur@example.com"
               },
               "specialization": {
@@ -1746,6 +1997,9 @@
               },
               "name": {
                 "type": "string",
+                "minLength": 2,
+                "maxLength": 50,
+                "pattern": "^[A-Za-z][A-Za-z .'-]*$",
                 "example": "Ram Bahadur"
               },
               "username": {
@@ -1754,11 +2008,14 @@
               },
               "phone": {
                 "type": "string",
-                "example": "9800000000"
+                "pattern": "^(?:98[012456]|97[01456])\\d{7}$",
+                "example": "9841234567",
+                "description": "Optional. A 10-digit Nepal mobile number starting with 980, 981, 982, 984, 985, 986, 970, 971, 974, 975, or 976."
               },
               "email": {
                 "type": "string",
                 "format": "email",
+                "maxLength": 100,
                 "example": "ram.bahadur@example.com"
               },
               "specialization": {
@@ -1777,6 +2034,12 @@
               }
             },
             "nullable": true
+          },
+          "startedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "description": "When work most recently started; set on auto-assignment or transition to `inprogress`."
           },
           "resolvedAt": {
             "type": "string",
@@ -1800,7 +2063,8 @@
           },
           "createdAt": {
             "type": "string",
-            "format": "date-time"
+            "format": "date-time",
+            "description": "Submission timestamp."
           },
           "updatedAt": {
             "type": "string",
@@ -1885,6 +2149,9 @@
               },
               "name": {
                 "type": "string",
+                "minLength": 2,
+                "maxLength": 50,
+                "pattern": "^[A-Za-z][A-Za-z .'-]*$",
                 "example": "Ram Bahadur"
               },
               "username": {
@@ -1893,11 +2160,14 @@
               },
               "phone": {
                 "type": "string",
-                "example": "9800000000"
+                "pattern": "^(?:98[012456]|97[01456])\\d{7}$",
+                "example": "9841234567",
+                "description": "Optional. A 10-digit Nepal mobile number starting with 980, 981, 982, 984, 985, 986, 970, 971, 974, 975, or 976."
               },
               "email": {
                 "type": "string",
                 "format": "email",
+                "maxLength": 100,
                 "example": "ram.bahadur@example.com"
               },
               "specialization": {
@@ -1981,6 +2251,18 @@
             ],
             "description": "Notice classification; also selects the emoji prefix on the pushed notification."
           },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "example": "2026-12-31T00:00:00.000Z",
+            "description": "Null means the notice never expires."
+          },
+          "expired": {
+            "type": "boolean",
+            "example": false,
+            "description": "True when the notice expiry has passed. Included on notice list responses."
+          },
           "targetSections": {
             "type": "array",
             "items": {
@@ -2001,6 +2283,9 @@
               },
               "name": {
                 "type": "string",
+                "minLength": 2,
+                "maxLength": 50,
+                "pattern": "^[A-Za-z][A-Za-z .'-]*$",
                 "example": "Ram Bahadur"
               },
               "username": {
@@ -2009,11 +2294,14 @@
               },
               "phone": {
                 "type": "string",
-                "example": "9800000000"
+                "pattern": "^(?:98[012456]|97[01456])\\d{7}$",
+                "example": "9841234567",
+                "description": "Optional. A 10-digit Nepal mobile number starting with 980, 981, 982, 984, 985, 986, 970, 971, 974, 975, or 976."
               },
               "email": {
                 "type": "string",
                 "format": "email",
+                "maxLength": 100,
                 "example": "ram.bahadur@example.com"
               },
               "specialization": {
@@ -2086,6 +2374,13 @@
               "Section 1"
             ],
             "description": "Optional. Omit or pass `[]` to broadcast to everyone. Every entry must match an existing house section, otherwise 400."
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date",
+            "nullable": true,
+            "example": "2026-12-31",
+            "description": "Optional expiry date; if supplied it must be valid and in the future. Omit or leave empty for no expiry."
           }
         }
       },
@@ -2157,52 +2452,47 @@
           },
           "text": {
             "type": "string",
+            "minLength": 1,
+            "maxLength": 100,
             "example": "Morning (6-9 AM)"
           },
           "votes": {
             "type": "array",
             "items": {
-              "type": "object",
-              "description": "Trimmed user object as returned by Mongoose `populate()` projections.",
-              "properties": {
-                "_id": {
-                  "type": "string",
-                  "example": "65f1a2b3c4d5e6f7a8b9c0d1"
+              "oneOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "_id": {
+                      "type": "string",
+                      "example": "65f1a2b3c4d5e6f7a8b9c0d1"
+                    },
+                    "name": {
+                      "type": "string",
+                      "example": "Ram Bahadur"
+                    }
+                  }
                 },
-                "name": {
-                  "type": "string",
-                  "example": "Ram Bahadur"
-                },
-                "username": {
-                  "type": "string",
-                  "example": "ram.bahadur"
-                },
-                "phone": {
-                  "type": "string",
-                  "example": "9800000000"
-                },
-                "email": {
-                  "type": "string",
-                  "format": "email",
-                  "example": "ram.bahadur@example.com"
-                },
-                "specialization": {
-                  "type": "string",
-                  "nullable": true,
-                  "enum": [
-                    "water",
-                    "electric",
-                    "lift",
-                    "sanitation",
-                    "security",
-                    "general",
-                    null
-                  ],
-                  "description": "Only populated in projections that select it."
+                {
+                  "type": "object",
+                  "properties": {
+                    "_id": {
+                      "type": "string",
+                      "enum": [
+                        "anonymous"
+                      ]
+                    },
+                    "name": {
+                      "type": "string",
+                      "enum": [
+                        "Anonymous"
+                      ]
+                    }
+                  }
                 }
-              }
+              ]
             },
-            "description": "Populated voter list. For `anonymous` polls every entry is replaced with `{ _id: \"anonymous\", name: \"Anonymous\" }`."
+            "description": "Populated voter names only; phone numbers are never returned. For `anonymous` polls every entry is replaced with `{ _id: \"anonymous\", name: \"Anonymous\" }`."
           }
         }
       },
@@ -2229,7 +2519,8 @@
             "items": {
               "$ref": "#/components/schemas/PollOption"
             },
-            "minItems": 2
+            "minItems": 2,
+            "maxItems": 10
           },
           "type": {
             "type": "string",
@@ -2246,6 +2537,53 @@
               "closed"
             ],
             "description": "Closed polls reject votes and refuse option edits."
+          },
+          "outcome": {
+            "type": "string",
+            "enum": [
+              "open",
+              "winner",
+              "tie",
+              "no_votes"
+            ],
+            "description": "Final poll outcome; `open` while voting is active."
+          },
+          "winnerOptionIndexes": {
+            "type": "array",
+            "items": {
+              "type": "integer"
+            },
+            "example": [
+              1
+            ]
+          },
+          "closedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "closedReason": {
+            "type": "string",
+            "enum": [
+              "expired",
+              "manual"
+            ],
+            "nullable": true
+          },
+          "round": {
+            "type": "integer",
+            "minimum": 1,
+            "example": 1
+          },
+          "parentPoll": {
+            "type": "string",
+            "nullable": true,
+            "description": "Original poll id for a re-vote."
+          },
+          "runoffPoll": {
+            "type": "string",
+            "nullable": true,
+            "description": "Re-vote poll id created to resolve a tie."
           },
           "targetSections": {
             "type": "array",
@@ -2267,6 +2605,9 @@
               },
               "name": {
                 "type": "string",
+                "minLength": 2,
+                "maxLength": 50,
+                "pattern": "^[A-Za-z][A-Za-z .'-]*$",
                 "example": "Ram Bahadur"
               },
               "username": {
@@ -2275,11 +2616,14 @@
               },
               "phone": {
                 "type": "string",
-                "example": "9800000000"
+                "pattern": "^(?:98[012456]|97[01456])\\d{7}$",
+                "example": "9841234567",
+                "description": "Optional. A 10-digit Nepal mobile number starting with 980, 981, 982, 984, 985, 986, 970, 971, 974, 975, or 976."
               },
               "email": {
                 "type": "string",
                 "format": "email",
+                "maxLength": 100,
                 "example": "ram.bahadur@example.com"
               },
               "specialization": {
@@ -2327,7 +2671,8 @@
         "type": "object",
         "required": [
           "title",
-          "options"
+          "options",
+          "endDate"
         ],
         "properties": {
           "title": {
@@ -2344,14 +2689,17 @@
           "options": {
             "type": "array",
             "items": {
-              "type": "string"
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100
             },
             "minItems": 2,
+            "maxItems": 10,
             "example": [
               "Morning (6-9 AM)",
               "Evening (6-9 PM)"
             ],
-            "description": "At least 2 non-empty option labels."
+            "description": "2-10 trimmed non-empty option labels of at most 100 characters each; labels must be unique ignoring case."
           },
           "type": {
             "type": "string",
@@ -2375,7 +2723,8 @@
           "endDate": {
             "type": "string",
             "format": "date-time",
-            "description": "Optional, but must be in the future."
+            "example": "2026-12-01T12:00:00Z",
+            "description": "Required. Must be in the future and no more than one year ahead."
           }
         }
       },
@@ -2392,6 +2741,17 @@
             "type": "string",
             "maxLength": 500
           },
+          "options": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100
+            },
+            "minItems": 2,
+            "maxItems": 10,
+            "description": "When supplied, 2-10 trimmed unique option labels; duplicate labels are compared ignoring case."
+          },
           "status": {
             "type": "string",
             "enum": [
@@ -2403,7 +2763,7 @@
           "endDate": {
             "type": "string",
             "format": "date-time",
-            "description": "Must be in the future."
+            "description": "Must be in the future. Existing update behavior does not impose a one-year maximum."
           }
         }
       },
@@ -2440,47 +2800,36 @@
           "voters": {
             "type": "array",
             "items": {
-              "type": "object",
-              "description": "Trimmed user object as returned by Mongoose `populate()` projections.",
-              "properties": {
-                "_id": {
-                  "type": "string",
-                  "example": "65f1a2b3c4d5e6f7a8b9c0d1"
+              "oneOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string",
+                      "example": "Ram Bahadur"
+                    }
+                  }
                 },
-                "name": {
-                  "type": "string",
-                  "example": "Ram Bahadur"
-                },
-                "username": {
-                  "type": "string",
-                  "example": "ram.bahadur"
-                },
-                "phone": {
-                  "type": "string",
-                  "example": "9800000000"
-                },
-                "email": {
-                  "type": "string",
-                  "format": "email",
-                  "example": "ram.bahadur@example.com"
-                },
-                "specialization": {
-                  "type": "string",
-                  "nullable": true,
-                  "enum": [
-                    "water",
-                    "electric",
-                    "lift",
-                    "sanitation",
-                    "security",
-                    "general",
-                    null
-                  ],
-                  "description": "Only populated in projections that select it."
+                {
+                  "type": "object",
+                  "properties": {
+                    "_id": {
+                      "type": "string",
+                      "enum": [
+                        "anonymous"
+                      ]
+                    },
+                    "name": {
+                      "type": "string",
+                      "enum": [
+                        "Anonymous"
+                      ]
+                    }
+                  }
                 }
-              }
+              ]
             },
-            "description": "Masked to anonymous placeholders for `anonymous` polls."
+            "description": "Named polls expose voter names only. For `anonymous` polls every entry is `{ _id: \"anonymous\", name: \"Anonymous\" }`."
           }
         }
       },
@@ -2517,6 +2866,39 @@
                   "named"
                 ],
                 "description": "`anonymous` masks every voter as `{ _id: \"anonymous\", name: \"Anonymous\" }` in all responses."
+              },
+              "outcome": {
+                "type": "string",
+                "enum": [
+                  "open",
+                  "winner",
+                  "tie",
+                  "no_votes"
+                ],
+                "description": "Final poll outcome; `open` while voting is active."
+              },
+              "winnerOptionIndexes": {
+                "type": "array",
+                "items": {
+                  "type": "integer"
+                }
+              },
+              "closedAt": {
+                "type": "string",
+                "format": "date-time",
+                "nullable": true
+              },
+              "round": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "parentPoll": {
+                "type": "string",
+                "nullable": true
+              },
+              "runoffPoll": {
+                "type": "string",
+                "nullable": true
               }
             }
           },
@@ -2550,6 +2932,9 @@
               },
               "name": {
                 "type": "string",
+                "minLength": 2,
+                "maxLength": 50,
+                "pattern": "^[A-Za-z][A-Za-z .'-]*$",
                 "example": "Ram Bahadur"
               },
               "username": {
@@ -2558,11 +2943,14 @@
               },
               "phone": {
                 "type": "string",
-                "example": "9800000000"
+                "pattern": "^(?:98[012456]|97[01456])\\d{7}$",
+                "example": "9841234567",
+                "description": "Optional. A 10-digit Nepal mobile number starting with 980, 981, 982, 984, 985, 986, 970, 971, 974, 975, or 976."
               },
               "email": {
                 "type": "string",
                 "format": "email",
+                "maxLength": 100,
                 "example": "ram.bahadur@example.com"
               },
               "specialization": {
@@ -2641,6 +3029,9 @@
               },
               "name": {
                 "type": "string",
+                "minLength": 2,
+                "maxLength": 50,
+                "pattern": "^[A-Za-z][A-Za-z .'-]*$",
                 "example": "Ram Bahadur"
               },
               "username": {
@@ -2649,11 +3040,14 @@
               },
               "phone": {
                 "type": "string",
-                "example": "9800000000"
+                "pattern": "^(?:98[012456]|97[01456])\\d{7}$",
+                "example": "9841234567",
+                "description": "Optional. A 10-digit Nepal mobile number starting with 980, 981, 982, 984, 985, 986, 970, 971, 974, 975, or 976."
               },
               "email": {
                 "type": "string",
                 "format": "email",
+                "maxLength": 100,
                 "example": "ram.bahadur@example.com"
               },
               "specialization": {
@@ -2753,6 +3147,11 @@
           "message": {
             "type": "string",
             "example": "Access denied"
+          },
+          "code": {
+            "type": "string",
+            "example": "RATE_LIMITED",
+            "description": "Machine-readable error code when provided."
           }
         }
       },
@@ -3004,6 +3403,28 @@
           "example": "Section 1"
         }
       },
+      "OutstandingSectionQuery": {
+        "name": "section",
+        "in": "query",
+        "required": false,
+        "description": "Filter outstanding houses by their section.",
+        "schema": {
+          "type": "string",
+          "minLength": 1,
+          "example": "Section 1"
+        }
+      },
+      "OutstandingHouseIdPathParam": {
+        "name": "houseId",
+        "in": "path",
+        "required": true,
+        "description": "MongoDB ObjectId of the house.",
+        "schema": {
+          "type": "string",
+          "pattern": "^[0-9a-fA-F]{24}$",
+          "example": "65f1a2b3c4d5e6f7a8b9c0d2"
+        }
+      },
       "CategoryQuery": {
         "name": "category",
         "in": "query",
@@ -3020,6 +3441,20 @@
         "description": "Filter notices by type.",
         "schema": {
           "$ref": "#/components/schemas/NoticeType"
+        }
+      },
+      "IncludeExpiredQuery": {
+        "name": "includeExpired",
+        "in": "query",
+        "required": false,
+        "description": "Admins may pass `true` to include expired active notices. Residents and staff always receive unexpired notices only.",
+        "schema": {
+          "type": "string",
+          "enum": [
+            "true",
+            "false"
+          ],
+          "example": "true"
         }
       },
       "PollStatusQuery": {
@@ -3295,18 +3730,17 @@
         }
       },
       "RateLimitResponse": {
-        "description": "Too many requests. Limits: 2000 req / 15 min globally in development (100 in production), 200 / 50 on the `/api/auth` mount, and 10 / 15 min on `POST /api/auth/login`. **The global and `/api/auth` limiters reply with a plain-text body, not JSON** — only the login limiter returns JSON.",
+        "description": "The request limit was exceeded. The global limiter allows 2000 requests per 15 minutes in development (100 in production); the login-specific limiter allows 100 failed attempts per 15 minutes in development (10 in production). Successful login requests do not count. Every rate-limit response is JSON and includes a retry time in minutes.",
         "content": {
           "application/json": {
             "schema": {
               "$ref": "#/components/schemas/ErrorResponse"
-            }
-          },
-          "text/plain": {
-            "schema": {
-              "type": "string"
             },
-            "example": "Too many requests. Please try again later."
+            "example": {
+              "success": false,
+              "message": "Too many attempts. Please try again in 15 minutes.",
+              "code": "RATE_LIMITED"
+            }
           }
         }
       },
@@ -3449,7 +3883,7 @@
       "post": {
         "operationId": "login",
         "summary": "Log in with email and password",
-        "description": "Exchanges credentials for a JWT. **Login is by email**, not username — usernames are auto-generated from the full name and can collide, so email is the unique identifier.\n\n**Rate limited:** 10 attempts per 15 minutes per IP (a second, coarser limiter also covers the whole `/api/auth` mount). After 10 failures the endpoint answers `429` until the window resets.\n\nOn success the response includes `mustChangePassword`. When that is `true` the account still uses an admin-generated temporary password, so the frontend should force the user through `PUT /users/me/profile` with `currentPassword` and `newPassword` before allowing normal use.",
+        "description": "Exchanges credentials for a JWT. **Login is by email**, not username — usernames are auto-generated from the full name and can collide, so email is the unique identifier.\n\n**Rate limited:** failed login attempts are limited to 10 per 15 minutes per IP in production and 100 in development. Successful logins do not count, and `GET /auth/me` does not use the login-specific limiter. Rate-limit responses are JSON.\n\nOn success the response includes `mustChangePassword`. When that is `true` the account still uses an admin-generated temporary password, so the frontend should force the user through `PUT /users/me/profile` with `currentPassword` and `newPassword` before allowing normal use.",
         "tags": [
           "Auth"
         ],
@@ -3480,19 +3914,46 @@
             "$ref": "#/components/responses/ValidationFailedResponse"
           },
           "401": {
-            "description": "Invalid email or password. The message is deliberately identical for unknown-email, wrong-password and deactivated-account cases so the endpoint cannot be used to enumerate accounts.",
+            "description": "No account was found for the email, or the password was incorrect.",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "userNotFound": {
+                    "value": {
+                      "success": false,
+                      "message": "No account found with this email.",
+                      "code": "USER_NOT_FOUND"
+                    }
+                  },
+                  "wrongPassword": {
+                    "value": {
+                      "success": false,
+                      "message": "Incorrect password.",
+                      "code": "WRONG_PASSWORD"
+                    }
+                  }
                 }
               }
-            },
-            "examples": {
-              "invalid": {
-                "value": {
-                  "success": false,
-                  "message": "Invalid email or password"
+            }
+          },
+          "403": {
+            "description": "The account exists but is deactivated.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "disabled": {
+                    "value": {
+                      "success": false,
+                      "message": "This account is deactivated. Please contact the admin.",
+                      "code": "ACCOUNT_DISABLED"
+                    }
+                  }
                 }
               }
             }
@@ -3673,7 +4134,7 @@
       "put": {
         "operationId": "updateMyProfile",
         "summary": "Update my own profile",
-        "description": "Lets any authenticated user edit their own profile. This is the only way to change your own password, and the only way to clear `mustChangePassword`.\n\n- Changing `name` also regenerates `username` (only when the name actually changed, so repeated saves do not inflate the username).\n- To change the password, send **both** `currentPassword` and `newPassword`. A missing or wrong `currentPassword` returns 400, as does a `newPassword` shorter than 6 characters.\n- Omitting `currentPassword`/`newPassword` leaves the password untouched.\n\nAdmins should prefer `PUT /users/{id}` for editing *other* people.",
+        "description": "Lets any authenticated user edit their own profile. This is the only way to change your own password, and the only way to clear `mustChangePassword`.\n\n- Changing `name` also regenerates `username` (only when the name actually changed, so repeated saves do not inflate the username).\n- To change the password, send **both** `currentPassword` and `newPassword`. A missing or wrong `currentPassword` returns 400, as does a `newPassword` that is not 8-64 characters with at least one letter and one number.\n- Omitting `currentPassword`/`newPassword` leaves the password untouched.\n\nAdmins should prefer `PUT /users/{id}` for editing *other* people.",
         "tags": [
           "Users"
         ],
@@ -3901,7 +4362,7 @@
       "put": {
         "operationId": "resetUserPassword",
         "summary": "Issue a new temporary password",
-        "description": "Generates a fresh random temporary password, stores its bcrypt hash, and sets `mustChangePassword=true` so the user is forced to change it on next login.\n\n**The new password is not returned.** As with account creation, read the `message` and deliver the credential through a secure channel. Only active users can be reset — an inactive or missing account returns 404.\n\nThere is no self-service \"forgot password\" flow; this admin operation is the only recovery path.",
+        "description": "Generates a fresh random temporary password, stores its bcrypt hash, and sets `mustChangePassword=true` so the user is forced to change it on next login. Password recovery is handled by an admin only. The temporary password is returned once in the top-level `temporaryPassword` field for the admin to deliver through a secure channel. It is never logged or included in the audit entry. Only active users can be reset — an inactive or missing account returns 404.",
         "tags": [
           "Users"
         ],
@@ -3917,7 +4378,7 @@
         ],
         "responses": {
           "200": {
-            "description": "The password was reset. **The new password is not included in the response.**",
+            "description": "The password was reset. The new temporary password is shown once to the admin.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3927,9 +4388,14 @@
                       "type": "boolean",
                       "example": true
                     },
+                    "temporaryPassword": {
+                      "type": "string",
+                      "example": "one-time-random-password",
+                      "description": "Shown once; deliver securely. Must be changed on first login."
+                    },
                     "message": {
                       "type": "string",
-                      "example": "Password reset. Deliver the new temporary password through a secure channel; it must be changed on first login."
+                      "example": "Password reset. Save the new temporary password now — it will not be shown again."
                     }
                   }
                 }
@@ -4190,6 +4656,137 @@
         }
       }
     },
+    "/dues/outstanding": {
+      "get": {
+        "operationId": "listOutstandingDues",
+        "summary": "List outstanding balances by house",
+        "description": "Returns one row per house with unpaid `pending`, `overdue` and `verification_pending` dues. Each row includes the oldest unpaid month, current-month amount, prior-month principal, effective fines, and total payable. Fine values are calculated per due using `effectiveFine` and remain capped per row. Staff must have the existing `dues` or `all` export permission; `section` narrows their result set. Pagination uses the shared metadata helper.",
+        "tags": [
+          "Dues"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/OutstandingSectionQuery"
+          },
+          {
+            "$ref": "#/components/parameters/HouseIdQuery"
+          },
+          {
+            "$ref": "#/components/parameters/PageParam"
+          },
+          {
+            "$ref": "#/components/parameters/LimitParam"
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paged per-house outstanding summaries.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "count": {
+                      "type": "integer",
+                      "example": 20
+                    },
+                    "total": {
+                      "type": "integer",
+                      "example": 27
+                    },
+                    "page": {
+                      "type": "integer",
+                      "example": 1
+                    },
+                    "pages": {
+                      "type": "integer",
+                      "example": 2
+                    },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/OutstandingHouse"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedResponse"
+          },
+          "403": {
+            "$ref": "#/components/responses/ForbiddenResponse"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerErrorResponse"
+          }
+        }
+      }
+    },
+    "/dues/outstanding/{houseId}": {
+      "get": {
+        "operationId": "getHouseOutstandingBreakdown",
+        "summary": "Get one house's outstanding balance and monthly breakdown",
+        "description": "Returns the same per-house summary plus one breakdown row per unpaid month, sorted oldest first. Residents may call this only for a house linked to them; other residents receive 403. Management callers must have dues export permission.",
+        "tags": [
+          "Dues"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/OutstandingHouseIdPathParam"
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Outstanding summary with all unpaid monthly dues.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/OutstandingHouse"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedResponse"
+          },
+          "403": {
+            "$ref": "#/components/responses/ForbiddenResponse"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFoundResponse"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerErrorResponse"
+          }
+        }
+      }
+    },
     "/dues": {
       "get": {
         "operationId": "listDues",
@@ -4287,7 +4884,7 @@
       "get": {
         "operationId": "getDuesDashboardStats",
         "summary": "Get this month's dashboard statistics",
-        "description": "Aggregates for the **current calendar month only** — this endpoint takes no filters, so it is a straight read of what the Dues page header shows.\n\nResidents receive the same figures scoped to their own linked houses, so a resident's `totalCollected` reflects their own payments rather than the community total. `collectionRate` is returned as a **percentage string** with one decimal place, not a number.",
+        "description": "Aggregates for the **current calendar month only** — this endpoint takes no filters, so it is a straight read of what the Dues page header shows.\n\nIt also returns `allTimeOutstandingAmount` and `housesWithArrears`, computed from all unpaid rows (including `verification_pending`) with live per-row effective fines. These two values are scoped to the resident's linked houses.\n\nResidents receive the same figures scoped to their own linked houses, so a resident's `totalCollected` reflects their own payments rather than the community total. `collectionRate` is returned as a **percentage string** with one decimal place, not a number.",
         "tags": [
           "Dues"
         ],
@@ -4762,7 +5359,7 @@
       "get": {
         "operationId": "listComplaints",
         "summary": "List complaints",
-        "description": "Returns complaints, newest first, with `submittedBy`, `assignedTo` and `resolvedBy` populated as `name`/`phone` (plus `specialization` for `assignedTo`).\n\n**Who sees what:**\n\n- **Residents** see only their own complaints.\n- **Staff** see all complaints; adding `mine=true` narrows the list to those assigned to them.\n- **Admins** see everything.\n\n`search` matches the title or description case-insensitively (regex-escaped, max 100 characters). By default, complaints belonging to archived houses are excluded — pass `history=true` to include them.\n\n**Pagination is opt-in** — omit `page` for the full list.",
+        "description": "Returns complaints, newest first, with `submittedBy`, `assignedTo` and `resolvedBy` populated as `name`/`phone` (plus `specialization` for `assignedTo`).\n\nEach complaint includes `createdAt` (submitted), `startedAt` (when work began, if started), and `resolvedAt` (when resolved, if resolved).\n\n**Who sees what:**\n\n- **Residents** see only their own complaints.\n- **Staff** see all complaints; adding `mine=true` narrows the list to those assigned to them.\n- **Admins** see everything.\n\n`search` matches the title or description case-insensitively (regex-escaped, max 100 characters). By default, complaints belonging to archived houses are excluded — pass `history=true` to include them.\n\n**Pagination is opt-in** — omit `page` for the full list.",
         "tags": [
           "Complaints"
         ],
@@ -4853,7 +5450,7 @@
       "post": {
         "operationId": "createComplaint",
         "summary": "File a complaint",
-        "description": "Files a complaint, optionally with photo/PDF evidence.\n\n**Evidence:** send `multipart/form-data` and repeat the `attachments` field for each file — up to **5** files, each a JPEG/PNG/GIF image or PDF, 5 MB per file. Types are detected from the file's actual bytes, so renaming a `.exe` to `.jpg` will not help.\n\n**Priority:** residents may only file `low` or `medium`; `high`/`urgent` returns 403. Staff and admins may file any priority.\n\n**Section and house:** residents must have a house linked to their account (otherwise 400) and may only file against their own linked houses. `section` is normally auto-filled from that house.\n\n**What the response tells you.** Creating a complaint triggers three server-side analyses, and all three are returned so the UI can surface them:\n\n1. `autoDetected` — the `category` inferred from the text by keyword scoring, with a `confidence` value.\n2. `autoAssigned` — the staff member picked by specialisation match and current workload, or `null` if nobody matched. A `null` here means the complaint is still `pending` and waiting for manual assignment.\n3. `similarComplaints` — up to 3 previously resolved/closed complaints in the same category, ranked by TF-IDF cosine similarity, so the submitter can see how similar issues were handled.",
+        "description": "Files a complaint, optionally with photo/PDF evidence.\n\n**Evidence:** send `multipart/form-data` and repeat the `attachments` field for each file — up to **5** files, each a JPEG/PNG/GIF image or PDF, 5 MB per file. Types are detected from the file's actual bytes, so renaming a `.exe` to `.jpg` will not help.\n\n**Priority:** residents may only file `low` or `medium`; `high`/`urgent` returns 403. Staff and admins may file any priority.\n\n**Section and house:** residents must have a house linked to their account (otherwise 400) and may only file against their own linked houses. `section` is normally auto-filled from that house.\n\n**What the response tells you.** Creating a complaint triggers three server-side analyses, and all three are returned so the UI can surface them:\n\n1. `autoDetected` — the `category` inferred from the text by keyword scoring, with a `confidence` value.\n2. `autoAssigned` — the staff member picked by specialisation match and current workload, or `null` if nobody matched. A `null` here means the complaint is still `pending` and waiting for manual assignment.\n3. `similarComplaints` — up to 3 previously resolved/closed complaints in the same category, ranked by TF-IDF cosine similarity, so the submitter can see how similar issues were handled. Auto-assigned complaints start as `inprogress` with `startedAt` set.",
         "tags": [
           "Complaints"
         ],
@@ -5050,7 +5647,7 @@
       "get": {
         "operationId": "listNotices",
         "summary": "List notices",
-        "description": "Returns active notices, newest first. `search` matches the title or content case-insensitively (regex-escaped, max 100 characters).\n\n**Residents only see notices addressed to their own section**, plus any notice with an empty `targetSections` array (a broadcast). Admins and staff see every notice.\n\n**Pagination is opt-in** — omit `page` to receive the full list, which the frontend section pickers depend on.",
+        "description": "Returns active, unexpired notices, newest first. `search` matches the title or content case-insensitively (regex-escaped, max 100 characters).\n\n**Residents only see notices addressed to their own section**, plus any notice with an empty `targetSections` array (a broadcast). Residents and staff never receive expired notices. Admins may pass `includeExpired=true` to include expired active notices; those rows have `expired: true`. Expired notices are retained and never auto-deleted.\n\n**Pagination is opt-in** — omit `page` to receive the full list, which the frontend section pickers depend on.",
         "tags": [
           "Notices"
         ],
@@ -5060,6 +5657,9 @@
           },
           {
             "$ref": "#/components/parameters/NoticeTypeQuery"
+          },
+          {
+            "$ref": "#/components/parameters/IncludeExpiredQuery"
           },
           {
             "$ref": "#/components/parameters/PageParam"
@@ -5126,7 +5726,7 @@
       "post": {
         "operationId": "createNotice",
         "summary": "Create a notice and notify residents",
-        "description": "Publishes a notice and immediately pushes an in-app notification to the affected residents.\n\n**Targeting:** omit `targetSections` (or send `[]`) to notify every active resident. When sections are supplied, every entry must match an existing house section — an unknown name returns 400 — and only residents linked to a house in those sections are notified.\n\nThe notification step is best-effort: the notice is saved even if delivery fails, in which case `notificationDelivered` is `false` and a `warning` explains why.",
+        "description": "Publishes a notice and immediately pushes an in-app notification to the affected residents.\n\nAn optional `expiresAt` must be a valid date in the future; omit it or leave it empty for a notice that never expires.\n\n**Targeting:** omit `targetSections` (or send `[]`) to notify every active resident. When sections are supplied, every entry must match an existing house section — an unknown name returns 400 — and only residents linked to a house in those sections are notified.\n\nThe notification step is best-effort: the notice is saved even if delivery fails, in which case `notificationDelivered` is `false` and a `warning` explains why.",
         "tags": [
           "Notices"
         ],
@@ -5374,7 +5974,7 @@
       "get": {
         "operationId": "listPolls",
         "summary": "List polls",
-        "description": "Returns polls, newest first. Each item carries a computed `hasVoted` flag for the caller.\n\n**Residents only see polls addressed to their own section**, plus any poll with an empty `targetSections` array. Admins and staff see every poll.\n\nFor `anonymous` polls every voter is replaced with `{ _id: \"anonymous\", name: \"Anonymous\" }` before the response is sent, so identities are never leaked regardless of role.\n\n**Pagination is opt-in** — omit `page` to receive all polls, which the frontend section pickers rely on.",
+        "description": "Returns polls, newest first. Each item carries a computed `hasVoted` flag for the caller.\n\n**Residents only see polls addressed to their own section**, plus any poll with an empty `targetSections` array. Admins and staff see every poll. Expired polls are finalized before this response is assembled.\n\nFor `anonymous` polls every voter is replaced with `{ _id: \"anonymous\", name: \"Anonymous\" }` before the response is sent, so identities are never leaked regardless of role.\n\n**Pagination is opt-in** — omit `page` to receive all polls, which the frontend section pickers rely on.",
         "tags": [
           "Polls"
         ],
@@ -5571,7 +6171,7 @@
       "put": {
         "operationId": "updatePoll",
         "summary": "Update a poll",
-        "description": "Partial update of `title`, `description`, `status` and `endDate`.\n\nOnly **active** polls accept votes, and only while `endDate` is in the future.\nEach user may vote **once** per poll. A second attempt returns 409.\nOptions cannot be edited once `totalVotes > 0`.\nA `closed` poll can never be modified or deleted-and-recreated meaningfully; it accepts no further changes.\n\nA `closed` poll cannot be modified at all (400), and a new `endDate` must always be in the future.",
+        "description": "Partial update of `title`, `description`, `status` and `endDate`.\n\nOnly **active** polls accept votes, and only while `endDate` is in the future.\nEach user may vote **once** per poll. A second attempt returns 409.\nOptions cannot be edited once `totalVotes > 0`.\nA `closed` poll can never be modified or deleted-and-recreated meaningfully; it accepts no further changes.\n\nSetting `status: \"closed\"` runs the same finalization, outcome calculation, notification, and tie-break flow as automatic expiry. Other edits to a closed poll are rejected (400), and a new `endDate` must always be in the future.",
         "tags": [
           "Polls"
         ],
@@ -5683,7 +6283,7 @@
       "post": {
         "operationId": "votePoll",
         "summary": "Cast a vote",
-        "description": "Records a vote for the option at `optionIndex`.\n\nOnly **active** polls accept votes, and only while `endDate` is in the future.\nEach user may vote **once** per poll. A second attempt returns 409.\nOptions cannot be edited once `totalVotes > 0`.\nA `closed` poll can never be modified or deleted-and-recreated meaningfully; it accepts no further changes.\n\n**Eligibility:** residents may only vote on polls addressed to their own section (or on broadcasts). A vote is recorded atomically against the poll's current state, so concurrent double submissions cannot both succeed.\n\nThe response returns the whole poll with the vote list masked appropriately for its `type`.",
+        "description": "Records a vote for the option at `optionIndex`.\n\nOnly **active** polls accept votes, and only while `endDate` is in the future.\nEach user may vote **once** per poll. A second attempt returns 409.\nOptions cannot be edited once `totalVotes > 0`.\nA `closed` poll can never be modified or deleted-and-recreated meaningfully; it accepts no further changes.\n\n**Eligibility:** residents may only vote on polls addressed to their own section (or on broadcasts). A vote is recorded atomically against the poll's current state, so concurrent double submissions cannot both succeed.\n\nThe response returns the whole poll with the vote list masked appropriately for its `type`. Expired polls are finalized before the vote is attempted.",
         "tags": [
           "Polls"
         ],
@@ -5756,7 +6356,7 @@
       "get": {
         "operationId": "getPollResults",
         "summary": "Get poll results",
-        "description": "Returns per-option tallies with a `percentage` share of `totalVotes`, plus the voter list. For `anonymous` polls each voter is replaced with an `{ _id: \"anonymous\", name: \"Anonymous\" }` placeholder, so the tally is public but the identities are not.\n\nThe embedded `poll` object is a summary (title, description, totalVotes, status, type) — fetch `GET /polls/{id}` if you need the options and `endDate` too.",
+        "description": "Returns per-option tallies with a `percentage` share of `totalVotes`, plus the voter list. For `anonymous` polls each voter is replaced with an `{ _id: \"anonymous\", name: \"Anonymous\" }` placeholder; named polls return voter names only, never phone numbers. Admins and staff may always view results. Residents may view results only for polls matching their section, and only after closure; an active poll returns 403. Expired polls are finalized before this response is assembled.\n\nThe poll summary includes `outcome`, `winnerOptionIndexes`, `closedAt`, `round`, and parent/runoff poll ids. Expired polls are finalized before results are assembled.",
         "tags": [
           "Polls"
         ],
@@ -5792,6 +6392,9 @@
           },
           "401": {
             "$ref": "#/components/responses/UnauthorizedResponse"
+          },
+          "403": {
+            "$ref": "#/components/responses/ForbiddenResponse"
           },
           "404": {
             "$ref": "#/components/responses/NotFoundResponse"
@@ -5880,6 +6483,98 @@
           },
           {
             "$ref": "#/components/parameters/ExportSectionQuery"
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/PdfFileResponse"
+          },
+          "400": {
+            "$ref": "#/components/responses/ExportFilterErrorResponse"
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedResponse"
+          },
+          "403": {
+            "$ref": "#/components/responses/ForbiddenResponse"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerErrorResponse"
+          }
+        }
+      }
+    },
+    "/exports/outstanding/excel": {
+      "get": {
+        "operationId": "exportOutstandingExcel",
+        "summary": "Export outstanding balances to Excel",
+        "description": "Streams a workbook with a per-house `Summary` sheet and unpaid-month `Breakdown` sheet. An optional `houseId` exports only that house. **Auditing.** Every export is recorded in the audit log before the file is streamed, together with the filters used. Denied attempts are recorded as `export_denied`.\n\n**Permissions.** Admins may export anything. A staff member may export only the dataset matching their `exportSection` (or `all`); otherwise the request is refused with 403 and the refusal is audited.\n\n**Columns depend on your role.** Admins receive the full financial and contact columns; staff receive a reduced, non-sensitive set. There is no separate \"staff export\" endpoint.\n\n**Response is a binary download** — Swagger UI cannot preview it, so use the \"Download file\" button.",
+        "tags": [
+          "Exports"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ExportPageParam"
+          },
+          {
+            "$ref": "#/components/parameters/ExportLimitParam"
+          },
+          {
+            "$ref": "#/components/parameters/ExportSectionQuery"
+          },
+          {
+            "$ref": "#/components/parameters/HouseIdQuery"
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/XlsxFileResponse"
+          },
+          "400": {
+            "$ref": "#/components/responses/ExportFilterErrorResponse"
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedResponse"
+          },
+          "403": {
+            "$ref": "#/components/responses/ForbiddenResponse"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerErrorResponse"
+          }
+        }
+      }
+    },
+    "/exports/outstanding/pdf": {
+      "get": {
+        "operationId": "exportOutstandingPdf",
+        "summary": "Export outstanding balances to PDF",
+        "description": "Streams the per-house outstanding summary and, when `houseId` is supplied, includes that house's month-by-month detail. Admins receive a total-payable subtotal; staff receive the existing reduced column set. **Auditing.** Every export is recorded in the audit log before the file is streamed, together with the filters used. Denied attempts are recorded as `export_denied`.\n\n**Permissions.** Admins may export anything. A staff member may export only the dataset matching their `exportSection` (or `all`); otherwise the request is refused with 403 and the refusal is audited.\n\n**Columns depend on your role.** Admins receive the full financial and contact columns; staff receive a reduced, non-sensitive set. There is no separate \"staff export\" endpoint.\n\n**Response is a binary download** — Swagger UI cannot preview it, so use the \"Download file\" button.",
+        "tags": [
+          "Exports"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ExportPageParam"
+          },
+          {
+            "$ref": "#/components/parameters/ExportLimitParam"
+          },
+          {
+            "$ref": "#/components/parameters/ExportSectionQuery"
+          },
+          {
+            "$ref": "#/components/parameters/HouseIdQuery"
           }
         ],
         "security": [

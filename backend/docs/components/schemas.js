@@ -108,6 +108,12 @@ const PollStatus = {
   description: 'Closed polls reject votes and refuse option edits.'
 };
 
+const PollOutcome = {
+  type: 'string',
+  enum: ['open', 'winner', 'tie', 'no_votes'],
+  description: 'Final poll outcome; `open` while voting is active.'
+};
+
 const NotificationType = {
   type: 'string',
   enum: ['due', 'overdue', 'complaint', 'notice', 'general'],
@@ -146,15 +152,22 @@ const PaginationMeta = {
  * Users
  * ------------------------------------------------------------------ */
 
+const NepalMobilePhone = {
+  type: 'string',
+  pattern: '^(?:98[012456]|97[01456])\\d{7}$',
+  example: '9841234567',
+  description: 'Optional. A 10-digit Nepal mobile number starting with 980, 981, 982, 984, 985, 986, 970, 971, 974, 975, or 976.'
+};
+
 const UserSummary = {
   type: 'object',
   description: 'Trimmed user object as returned by Mongoose `populate()` projections.',
   properties: {
     _id: { type: 'string', example: '65f1a2b3c4d5e6f7a8b9c0d1' },
-    name: { type: 'string', example: 'Ram Bahadur' },
+    name: { type: 'string', minLength: 2, maxLength: 50, pattern: "^[A-Za-z][A-Za-z .'-]*$", example: 'Ram Bahadur' },
     username: { type: 'string', example: 'ram.bahadur' },
-    phone: { type: 'string', example: '9800000000' },
-    email: { type: 'string', format: 'email', example: 'ram.bahadur@example.com' },
+    phone: { ...NepalMobilePhone },
+    email: { type: 'string', format: 'email', maxLength: 100, example: 'ram.bahadur@example.com' },
     specialization: { ...Specialization, description: 'Only populated in projections that select it.' }
   }
 };
@@ -166,14 +179,14 @@ const User = {
     'Accounts are soft-deleted: `isActive=false` instead of removal.',
   properties: {
     _id: { type: 'string', example: '65f1a2b3c4d5e6f7a8b9c0d1' },
-    name: { type: 'string', example: 'Ram Bahadur' },
+    name: { type: 'string', minLength: 2, maxLength: 50, pattern: "^[A-Za-z][A-Za-z .'-]*$", example: 'Ram Bahadur' },
     username: {
       type: 'string',
       example: 'ram.bahadur',
       description: 'Auto-generated from the name at creation time (`firstname.lastname`, de-duplicated with a numeric suffix). Display identifier only — login is by email.'
     },
-    email: { type: 'string', format: 'email', example: 'ram.bahadur@example.com', description: 'The login identifier. Must be unique.' },
-    phone: { type: 'string', example: '9800000000' },
+    email: { type: 'string', format: 'email', maxLength: 100, example: 'ram.bahadur@example.com', description: 'The login identifier. Must be unique.' },
+    phone: { ...NepalMobilePhone },
     address: { type: 'string', example: 'Lalitpur, Nepal' },
     role: UserRole,
     exportSection: ExportSection,
@@ -198,11 +211,11 @@ const UserProfile = {
     'Assembled field-by-field by the controller, so it uses `id` (not `_id`) and always includes every key.',
   properties: {
     id: { type: 'string', example: '65f1a2b3c4d5e6f7a8b9c0d1' },
-    name: { type: 'string', example: 'Ram Bahadur' },
+    name: { type: 'string', minLength: 2, maxLength: 50, pattern: "^[A-Za-z][A-Za-z .'-]*$", example: 'Ram Bahadur' },
     username: { type: 'string', example: 'ram.bahadur' },
-    email: { type: 'string', format: 'email', example: 'ram.bahadur@example.com' },
+    email: { type: 'string', format: 'email', maxLength: 100, example: 'ram.bahadur@example.com' },
     role: UserRole,
-    phone: { type: 'string', example: '9800000000' },
+    phone: { ...NepalMobilePhone },
     address: { type: 'string', example: 'Lalitpur, Nepal' },
     specialization: Specialization,
     exportSection: {
@@ -218,7 +231,7 @@ const LoginRequest = {
   required: ['email', 'password'],
   properties: {
     email: { type: 'string', format: 'email', example: 'admin@example.com', description: 'Case-insensitive.' },
-    password: { type: 'string', format: 'password', minLength: 6, example: 'sup3rSecret' }
+    password: { type: 'string', format: 'password', maxLength: 128, example: 'sup3rSecret' }
   }
 };
 
@@ -239,9 +252,9 @@ const CreateUserRequest = {
   type: 'object',
   required: ['name', 'email'],
   properties: {
-    name: { type: 'string', minLength: 2, maxLength: 50, example: 'Ram Bahadur' },
-    email: { type: 'string', format: 'email', example: 'ram.bahadur@example.com' },
-    phone: { type: 'string', example: '9800000000', description: 'Optional. Validated as a mobile number when present.' },
+    name: { type: 'string', minLength: 2, maxLength: 50, pattern: "^[A-Za-z][A-Za-z .'-]*$", example: 'Ram Bahadur' },
+    email: { type: 'string', format: 'email', maxLength: 100, example: 'ram.bahadur@example.com' },
+    phone: { ...NepalMobilePhone },
     role: { ...UserRole, default: 'resident' },
     specialization: { ...Specialization, description: 'Mandatory when `role` is `staff`.' },
     exportSection: ExportSection
@@ -252,8 +265,8 @@ const UpdateUserRequest = {
   type: 'object',
   description: 'All fields optional — only supplied keys are applied.',
   properties: {
-    name: { type: 'string', minLength: 2, maxLength: 50, example: 'Ram Bahadur Thapa' },
-    phone: { type: 'string', example: '9800000001' },
+    name: { type: 'string', minLength: 2, maxLength: 50, pattern: "^[A-Za-z][A-Za-z .'-]*$", example: 'Ram Bahadur Thapa' },
+    phone: { ...NepalMobilePhone },
     role: UserRole,
     specialization: Specialization,
     isActive: { type: 'boolean', example: true, description: 'Setting to `false` deactivates the account (soft delete).' },
@@ -269,10 +282,11 @@ const UpdateMyProfileRequest = {
       type: 'string',
       minLength: 2,
       maxLength: 50,
+      pattern: "^[A-Za-z][A-Za-z .'-]*$",
       example: 'Ram Bahadur Thapa',
       description: 'Changing the name also regenerates `username`.'
     },
-    phone: { type: 'string', example: '9800000001' },
+    phone: { ...NepalMobilePhone },
     address: { type: 'string', maxLength: 200, example: 'Lalitpur, Nepal' },
     currentPassword: {
       type: 'string',
@@ -283,9 +297,11 @@ const UpdateMyProfileRequest = {
     newPassword: {
       type: 'string',
       format: 'password',
-      minLength: 6,
+      minLength: 8,
+      maxLength: 64,
+      pattern: '^(?=.*[A-Za-z])(?=.*\\d)[\\s\\S]{8,64}$',
       example: 'evenBetterSecret',
-      description: 'Supplying this clears `mustChangePassword`.'
+      description: 'Must be 8-64 characters and include at least one letter and one number. Supplying this clears `mustChangePassword`.'
     }
   }
 };
@@ -298,9 +314,9 @@ const House = {
   type: 'object',
   properties: {
     _id: { type: 'string', example: '65f1a2b3c4d5e6f7a8b9c0d2' },
-    houseNo: { type: 'string', example: 'A-101', description: 'Unique across the community.' },
-    section: { type: 'string', maxLength: 100, example: 'Section 1', description: 'Used to target notices and polls to specific sections.' },
-    floor: { type: 'number', format: 'float', example: 1 },
+    houseNo: { type: 'string', minLength: 1, maxLength: 20, pattern: '^[A-Z0-9][A-Z0-9\\-/ ]*$', example: 'A-101', description: 'Stored uppercase and unique across the community, case-insensitively.' },
+    section: { type: 'string', minLength: 1, maxLength: 50, pattern: '^[A-Za-z0-9][A-Za-z0-9 \\-]*$', example: 'Section 1', description: 'Used to target notices and polls to specific sections.' },
+    floor: { type: 'integer', minimum: 0, maximum: 30, example: 1 },
     type: HouseType,
     owner: {
       ...UserSummary,
@@ -312,7 +328,7 @@ const House = {
       nullable: true,
       description: 'Populated resident. `null` when unassigned. A resident may tenant at most one house.'
     },
-    monthlyDue: { type: 'number', example: 500, description: 'Default monthly charge in NPR used when generating dues.' },
+    monthlyDue: { type: 'number', minimum: 0, maximum: 10000, multipleOf: 0.01, example: 500, description: 'Default monthly charge in NPR used when generating dues. The default maximum is configurable with MAX_MONTHLY_DUE.' },
     isOccupied: { type: 'boolean', example: true, description: 'Only occupied, non-archived houses get dues generated.' },
     status: HouseStatus,
     address: { type: 'string', maxLength: 200, example: 'Lalitpur, Ward 4' },
@@ -325,13 +341,13 @@ const CreateHouseRequest = {
   type: 'object',
   required: ['houseNo'],
   properties: {
-    houseNo: { type: 'string', example: 'A-101' },
-    section: { type: 'string', maxLength: 100, example: 'Section 1' },
-    floor: { type: 'number', minimum: 0, example: 1 },
+    houseNo: { type: 'string', minLength: 1, maxLength: 20, pattern: '^[A-Z0-9][A-Z0-9\\-/ ]*$', example: 'A-101' },
+    section: { type: 'string', minLength: 1, maxLength: 50, pattern: '^[A-Za-z0-9][A-Za-z0-9 \\-]*$', example: 'Section 1' },
+    floor: { type: 'integer', minimum: 0, maximum: 30, example: 1 },
     type: HouseType,
     owner: { type: 'string', description: 'User ID of an active resident. Omit or pass an empty string for none.', example: '65f1a2b3c4d5e6f7a8b9c0d1' },
     tenant: { type: 'string', description: 'User ID of an active resident. Omit or pass an empty string for none.', example: '65f1a2b3c4d5e6f7a8b9c0d3' },
-    monthlyDue: { type: 'number', minimum: 0, default: 500, example: 500 },
+    monthlyDue: { type: 'number', minimum: 0, maximum: 10000, multipleOf: 0.01, default: 500, example: 500 },
     isOccupied: { type: 'boolean', default: true },
     address: { type: 'string', maxLength: 200, example: 'Lalitpur, Ward 4' }
   }
@@ -342,13 +358,13 @@ const UpdateHouseRequest = {
   description:
     'Partial update. To unassign an owner or tenant send an empty string (`""`) for that key — omitting the key leaves it untouched.',
   properties: {
-    houseNo: { type: 'string', example: 'A-102' },
-    section: { type: 'string', maxLength: 100, example: 'Section 2' },
-    floor: { type: 'number', minimum: 0, example: 2 },
+    houseNo: { type: 'string', minLength: 1, maxLength: 20, pattern: '^[A-Z0-9][A-Z0-9\\-/ ]*$', example: 'A-102' },
+    section: { type: 'string', minLength: 1, maxLength: 50, pattern: '^[A-Za-z0-9][A-Za-z0-9 \\-]*$', example: 'Section 2' },
+    floor: { type: 'integer', minimum: 0, maximum: 30, example: 2 },
     type: HouseType,
     owner: { type: 'string', example: '' },
     tenant: { type: 'string', example: '' },
-    monthlyDue: { type: 'number', minimum: 0, example: 750 },
+    monthlyDue: { type: 'number', minimum: 0, maximum: 10000, multipleOf: 0.01, example: 750 },
     isOccupied: { type: 'boolean', example: true },
     address: { type: 'string', maxLength: 200, example: 'Lalitpur, Ward 4' }
   }
@@ -442,7 +458,49 @@ const DashboardStats = {
     pendingDues: { type: 'integer', example: 7, description: 'Includes `pending`, `overdue` and `verification_pending`.' },
     verificationPending: { type: 'integer', example: 2 },
     collectionRate: { type: 'number', example: '85.4', description: '`paidDues / totalDues` as a percentage string, one decimal place.' },
-    totalCollected: { type: 'number', example: 21450, description: 'Sum of amount + fine across paid dues this month, in NPR.' }
+    totalCollected: { type: 'number', example: 21450, description: 'Sum of amount + fine across paid dues this month, in NPR.' },
+    allTimeOutstandingAmount: { type: 'number', example: 18400, description: 'All-time amount + effective fine across unpaid due rows.' },
+    housesWithArrears: { type: 'integer', example: 12, description: 'Number of houses with one or more unpaid due rows.' }
+  }
+};
+
+const OutstandingDueBreakdown = {
+  type: 'object',
+  properties: {
+    dueId: { type: 'string' },
+    month: { type: 'integer', minimum: 1, maximum: 12 },
+    year: { type: 'integer', example: 2026 },
+    amount: { type: 'number', example: 500 },
+    fine: { type: 'number', example: 100, description: 'Effective per-row fine, capped by MAX_FINE.' },
+    total: { type: 'number', example: 600 },
+    status: DueStatus,
+    dueDate: { type: 'string', format: 'date-time', nullable: true },
+    daysOverdue: { type: 'integer', example: 4 }
+  }
+};
+
+const OutstandingHouse = {
+  type: 'object',
+  properties: {
+    houseId: { type: 'string' },
+    houseNo: { type: 'string', example: 'A-101' },
+    section: { type: 'string', example: 'Section 1' },
+    ownerName: { type: 'string', nullable: true },
+    tenantName: { type: 'string', nullable: true },
+    dueSince: {
+      type: 'object',
+      properties: {
+        month: { type: 'integer', minimum: 1, maximum: 12 },
+        year: { type: 'integer', example: 2026 }
+      }
+    },
+    monthsUnpaid: { type: 'integer', example: 3 },
+    currentMonthAmount: { type: 'number', example: 500 },
+    previousBalance: { type: 'number', example: 1000 },
+    totalFine: { type: 'number', example: 150 },
+    totalPayable: { type: 'number', example: 1650 },
+    hasVerificationPending: { type: 'boolean', example: true },
+    breakdown: { type: 'array', items: { $ref: '#/components/schemas/OutstandingDueBreakdown' } }
   }
 };
 
@@ -509,6 +567,7 @@ const Complaint = {
     assignedTo: { ...UserSummary, nullable: true, description: 'Populated with `name phone specialization`. Assigned automatically by category.' },
     resolution: { type: 'string', nullable: true, example: 'Pump replaced and supply restored.', description: 'Mandatory when transitioning to `resolved`.' },
     resolvedBy: { ...UserSummary, nullable: true },
+    startedAt: { type: 'string', format: 'date-time', nullable: true, description: 'When work most recently started; set on auto-assignment or transition to `inprogress`.' },
     resolvedAt: { type: 'string', format: 'date-time', nullable: true },
     reopenCount: { type: 'integer', example: 0, description: 'Incremented each time a resolved complaint is reopened. At 2 the complaint is forced to `closed`.' },
     attachments: {
@@ -517,7 +576,7 @@ const Complaint = {
       example: ['/api/complaints/65f1a2b3c4d5e6f7a8b9c0d5/attachments/1735680000000-48291355.jpg'],
       description: 'Download URLs. Fetch them through `GET /complaints/{id}/attachments/{filename}` so access control is applied.'
     },
-    createdAt: { type: 'string', format: 'date-time' },
+    createdAt: { type: 'string', format: 'date-time', description: 'Submission timestamp.' },
     updatedAt: { type: 'string', format: 'date-time' }
   }
 };
@@ -578,6 +637,8 @@ const Notice = {
     title: { type: 'string', minLength: 5, maxLength: 100, example: 'Water supply interruption on Friday' },
     content: { type: 'string', minLength: 10, maxLength: 1000, example: 'Supply will be interrupted from 9 AM to 2 PM for tank maintenance.' },
     type: NoticeType,
+    expiresAt: { type: 'string', format: 'date-time', nullable: true, example: '2026-12-31T00:00:00.000Z', description: 'Null means the notice never expires.' },
+    expired: { type: 'boolean', example: false, description: 'True when the notice expiry has passed. Included on notice list responses.' },
     targetSections: {
       type: 'array',
       items: { type: 'string' },
@@ -603,7 +664,8 @@ const CreateNoticeRequest = {
       items: { type: 'string' },
       example: ['Section 1'],
       description: 'Optional. Omit or pass `[]` to broadcast to everyone. Every entry must match an existing house section, otherwise 400.'
-    }
+    },
+    expiresAt: { type: 'string', format: 'date', nullable: true, example: '2026-12-31', description: 'Optional expiry date; if supplied it must be valid and in the future. Omit or leave empty for no expiry.' }
   }
 };
 
@@ -636,11 +698,28 @@ const PollOption = {
   type: 'object',
   properties: {
     _id: { type: 'string', example: '65f1a2b3c4d5e6f7a8b9c0d8' },
-    text: { type: 'string', example: 'Morning (6-9 AM)' },
+    text: { type: 'string', minLength: 1, maxLength: 100, example: 'Morning (6-9 AM)' },
     votes: {
       type: 'array',
-      items: UserSummary,
-      description: 'Populated voter list. For `anonymous` polls every entry is replaced with `{ _id: "anonymous", name: "Anonymous" }`.'
+      items: {
+        oneOf: [
+          {
+            type: 'object',
+            properties: {
+              _id: { type: 'string', example: '65f1a2b3c4d5e6f7a8b9c0d1' },
+              name: { type: 'string', example: 'Ram Bahadur' }
+            }
+          },
+          {
+            type: 'object',
+            properties: {
+              _id: { type: 'string', enum: ['anonymous'] },
+              name: { type: 'string', enum: ['Anonymous'] }
+            }
+          }
+        ]
+      },
+      description: 'Populated voter names only; phone numbers are never returned. For `anonymous` polls every entry is replaced with `{ _id: "anonymous", name: "Anonymous" }`.'
     }
   }
 };
@@ -651,9 +730,16 @@ const Poll = {
     _id: { type: 'string', example: '65f1a2b3c4d5e6f7a8b9c0d8' },
     title: { type: 'string', minLength: 5, maxLength: 100, example: 'Preferred water supply timing?' },
     description: { type: 'string', maxLength: 500, example: 'Help us schedule the tank cleaning.' },
-    options: { type: 'array', items: { $ref: '#/components/schemas/PollOption' }, minItems: 2 },
+    options: { type: 'array', items: { $ref: '#/components/schemas/PollOption' }, minItems: 2, maxItems: 10 },
     type: PollType,
     status: PollStatus,
+    outcome: PollOutcome,
+    winnerOptionIndexes: { type: 'array', items: { type: 'integer' }, example: [1] },
+    closedAt: { type: 'string', format: 'date-time', nullable: true },
+    closedReason: { type: 'string', enum: ['expired', 'manual'], nullable: true },
+    round: { type: 'integer', minimum: 1, example: 1 },
+    parentPoll: { type: 'string', nullable: true, description: 'Original poll id for a re-vote.' },
+    runoffPoll: { type: 'string', nullable: true, description: 'Re-vote poll id created to resolve a tie.' },
     targetSections: {
       type: 'array',
       items: { type: 'string' },
@@ -671,20 +757,21 @@ const Poll = {
 
 const CreatePollRequest = {
   type: 'object',
-  required: ['title', 'options'],
+  required: ['title', 'options', 'endDate'],
   properties: {
     title: { type: 'string', minLength: 5, maxLength: 100, example: 'Preferred water supply timing?' },
     description: { type: 'string', maxLength: 500, example: 'Help us schedule the tank cleaning.' },
     options: {
       type: 'array',
-      items: { type: 'string' },
+      items: { type: 'string', minLength: 1, maxLength: 100 },
       minItems: 2,
+      maxItems: 10,
       example: ['Morning (6-9 AM)', 'Evening (6-9 PM)'],
-      description: 'At least 2 non-empty option labels.'
+      description: '2-10 trimmed non-empty option labels of at most 100 characters each; labels must be unique ignoring case.'
     },
     type: { ...PollType, default: 'anonymous' },
     targetSections: { type: 'array', items: { type: 'string' }, example: ['Section 1'], description: 'Optional. Omit or pass `[]` to target everyone.' },
-    endDate: { type: 'string', format: 'date-time', description: 'Optional, but must be in the future.' }
+    endDate: { type: 'string', format: 'date-time', example: '2026-12-01T12:00:00Z', description: 'Required. Must be in the future and no more than one year ahead.' }
   }
 };
 
@@ -694,8 +781,15 @@ const UpdatePollRequest = {
   properties: {
     title: { type: 'string', minLength: 5, maxLength: 100 },
     description: { type: 'string', maxLength: 500 },
+    options: {
+      type: 'array',
+      items: { type: 'string', minLength: 1, maxLength: 100 },
+      minItems: 2,
+      maxItems: 10,
+      description: 'When supplied, 2-10 trimmed unique option labels; duplicate labels are compared ignoring case.'
+    },
     status: { ...PollStatus, enum: ['active', 'closed'], description: 'Any other value is rejected with 400.' },
-    endDate: { type: 'string', format: 'date-time', description: 'Must be in the future.' }
+    endDate: { type: 'string', format: 'date-time', description: 'Must be in the future. Existing update behavior does not impose a one-year maximum.' }
   }
 };
 
@@ -718,7 +812,22 @@ const PollResultRow = {
     text: { type: 'string', example: 'Morning (6-9 AM)' },
     votes: { type: 'integer', example: 30 },
     percentage: { type: 'string', example: '71.4', description: 'Share of `totalVotes` as a percentage string, one decimal place.' },
-    voters: { type: 'array', items: UserSummary, description: 'Masked to anonymous placeholders for `anonymous` polls.' }
+    voters: {
+      type: 'array',
+      items: {
+        oneOf: [
+          { type: 'object', properties: { name: { type: 'string', example: 'Ram Bahadur' } } },
+          {
+            type: 'object',
+            properties: {
+              _id: { type: 'string', enum: ['anonymous'] },
+              name: { type: 'string', enum: ['Anonymous'] }
+            }
+          }
+        ]
+      },
+      description: 'Named polls expose voter names only. For `anonymous` polls every entry is `{ _id: "anonymous", name: "Anonymous" }`.'
+    }
   }
 };
 
@@ -732,7 +841,13 @@ const PollResults = {
         description: { type: 'string', example: 'Help us schedule the tank cleaning.' },
         totalVotes: { type: 'integer', example: 42 },
         status: PollStatus,
-        type: PollType
+        type: PollType,
+        outcome: PollOutcome,
+        winnerOptionIndexes: { type: 'array', items: { type: 'integer' } },
+        closedAt: { type: 'string', format: 'date-time', nullable: true },
+        round: { type: 'integer', minimum: 1 },
+        parentPoll: { type: 'string', nullable: true },
+        runoffPoll: { type: 'string', nullable: true }
       }
     },
     results: { type: 'array', items: { $ref: '#/components/schemas/PollResultRow' } }
@@ -826,7 +941,8 @@ const ErrorResponse = {
   required: ['success', 'message'],
   properties: {
     success: { type: 'boolean', example: false },
-    message: { type: 'string', example: 'Access denied' }
+    message: { type: 'string', example: 'Access denied' },
+    code: { type: 'string', example: 'RATE_LIMITED', description: 'Machine-readable error code when provided.' }
   }
 };
 
@@ -875,6 +991,7 @@ module.exports = {
   NoticeType,
   PollType,
   PollStatus,
+  PollOutcome,
   NotificationType,
   RelationshipType,
   PaginationMeta,
@@ -894,6 +1011,8 @@ module.exports = {
   Due,
   DuesSummary,
   DashboardStats,
+  OutstandingDueBreakdown,
+  OutstandingHouse,
   PaymentClusterHouse,
   PaymentCluster,
   SubmitPaymentRequest,

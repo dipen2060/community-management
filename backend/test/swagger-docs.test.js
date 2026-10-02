@@ -111,6 +111,13 @@ const actualRoutes = () => {
 };
 
 describe('OpenAPI document', () => {
+  it('omits public self-service password reset operations', () => {
+    expect(spec.paths['/auth/forgot-password']).toBeUndefined();
+    expect(spec.paths['/auth/reset-password/{token}']).toBeUndefined();
+    expect(spec.components.schemas.ForgotPasswordRequest).toBeUndefined();
+    expect(spec.components.schemas.ResetPasswordRequest).toBeUndefined();
+  });
+
   it('is a valid OpenAPI 3.0.x document with a bearer security scheme', () => {
     expect(spec.openapi).toMatch(/^3\.0\.\d+$/);
     expect(spec.info.title).toBeTruthy();
@@ -199,8 +206,8 @@ describe('OpenAPI document', () => {
     // Every one of these routes passes through authorize(...roles) in
     // backend/routes/*.js, so all of them can legitimately answer 403. This list
     // was missing 403 across the board at one point, which made the docs
-    // under-report failure modes. Endpoints that are open to any authenticated
-    // user (e.g. GET /dues, GET /polls/{id}/results) are deliberately absent.
+    // under-report failure modes. Endpoints with role or record-level access
+    // checks are covered below, including controller-checked poll result access.
     const roleGated = [
       ['/users', 'post'],
       ['/users/{id}', 'get'],
@@ -281,8 +288,8 @@ describe('Spec / route parity', () => {
     expect(orphans).toEqual([]);
   });
 
-  it('covers all 48 API endpoints plus the health check', () => {
-    expect(specOperations().length).toBe(49);
+  it('covers all 52 API endpoints plus the health check', () => {
+    expect(specOperations().length).toBe(53);
   });
 });
 

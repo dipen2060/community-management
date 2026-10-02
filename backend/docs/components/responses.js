@@ -108,12 +108,18 @@ const ExportFilterErrorResponse = {
 
 const RateLimitResponse = {
   description:
-    'Too many requests. Limits: 2000 req / 15 min globally in development (100 in production), 200 / 50 on the ' +
-    '`/api/auth` mount, and 10 / 15 min on `POST /api/auth/login`. ' +
-    '**The global and `/api/auth` limiters reply with a plain-text body, not JSON** — only the login limiter returns JSON.',
+    'The request limit was exceeded. The global limiter allows 2000 requests per 15 minutes in development (100 in production); ' +
+    'the login-specific limiter allows 100 failed attempts per 15 minutes in development (10 in production). ' +
+    'Successful login requests do not count. Every rate-limit response is JSON and includes a retry time in minutes.',
   content: {
-    'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } },
-    'text/plain': { schema: { type: 'string' }, example: 'Too many requests. Please try again later.' }
+    'application/json': {
+      schema: { $ref: '#/components/schemas/ErrorResponse' },
+      example: {
+        success: false,
+        message: 'Too many attempts. Please try again in 15 minutes.',
+        code: 'RATE_LIMITED'
+      }
+    }
   }
 };
 

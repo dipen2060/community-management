@@ -3,6 +3,12 @@ import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
 import Pagination from '../components/Pagination';
 import { SkeletonTable } from '../components/Skeleton';
+import {
+  MAX_MONTHLY_DUE,
+  normalizeHouseNo,
+  normalizeSection,
+  validateHouseForm
+} from '../utils/validation';
 
 export function Houses() {
   const [houses, setHouses] = useState([]);
@@ -10,6 +16,8 @@ export function Houses() {
   const [showModal, setShowModal] = useState(false);
   const [editHouse, setEditHouse] = useState(null); // house being edited, null = creating new
   const [form, setForm] = useState({ houseNo: '', section: 'Section 1', floor: 0, type: 'apartment', monthlyDue: 500, owner: '', tenant: '' });
+  const [touchedFields, setTouchedFields] = useState({});
+  const [submitAttempted, setSubmitAttempted] = useState(false);
   const [page, setPage] = useState(1);
   const [pages, setPages] = useState(1);
   const [total, setTotal] = useState(0);
@@ -32,6 +40,8 @@ export function Houses() {
   const openCreate = () => {
     setEditHouse(null);
     setForm({ houseNo: '', section: 'Section 1', floor: 0, type: 'apartment', monthlyDue: 500, owner: '', tenant: '' });
+    setTouchedFields({});
+    setSubmitAttempted(false);
     setShowModal(true);
   };
 
@@ -41,23 +51,37 @@ export function Houses() {
       houseNo: h.houseNo, section: h.section, floor: h.floor, type: h.type,
       monthlyDue: h.monthlyDue, owner: h.owner?._id || '', tenant: h.tenant?._id || ''
     });
+    setTouchedFields({});
+    setSubmitAttempted(false);
     setShowModal(true);
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setSubmitAttempted(true);
+    const errors = validateHouseForm(form, houses, editHouse?._id);
+    if (Object.values(errors).some(Boolean)) return;
+
+    const payload = {
+      ...form,
+      houseNo: normalizeHouseNo(form.houseNo),
+      section: normalizeSection(form.section),
+      floor: form.floor === '' ? undefined : Number(form.floor),
+      monthlyDue: Number(form.monthlyDue)
+    };
     try {
       if (editHouse) {
         // '' clears the link (unassign), a real id (re)assigns it — updateHouse
         // handles both and keeps the resident_houses table in sync either way.
-        await axios.put(`/api/houses/${editHouse._id}`, { ...form, owner: form.owner ?? '', tenant: form.tenant ?? '' });
+        await axios.put(`/api/houses/${editHouse._id}`, { ...payload, owner: form.owner ?? '', tenant: form.tenant ?? '' });
       } else {
-        const payload = { ...form, owner: form.owner || undefined };
-        await axios.post('/api/houses', payload);
+        await axios.post('/api/houses', { ...payload, owner: form.owner || undefined });
       }
       setShowModal(false);
       setEditHouse(null);
       setForm({ houseNo: '', section: 'Section 1', floor: 0, type: 'apartment', monthlyDue: 500, owner: '', tenant: '' });
+      setTouchedFields({});
+      setSubmitAttempted(false);
       fetchHouses(page);
     } catch (err) {
       alert(err.response?.data?.message || `Could not ${editHouse ? 'update' : 'add'} house`);
@@ -100,19 +124,47 @@ export function Houses() {
         <div className="modal-overlay" onClick={() => { setShowModal(false); setEditHouse(null); }}>
           <div className="modal" onClick={e => e.stopPropagation()}>
             <h3>{editHouse ? `Edit House ${editHouse.houseNo}` : 'Add House'}</h3>
-            <form onSubmit={handleSubmit}>
-              <div className="form-group"><label>House No</label><input value={form.houseNo} onChange={e => setForm({ ...form, houseNo: e.target.value })} required /></div>
+            <form onSubmit={handleSubmit} noValidate>
+              <div className="form-group">
+                <label>House No</label>
+                <input
+                  type="text"
+                  maxLength={20}
+                  value={form.houseNo}
+                  onChange={e => setForm({ ...form, houseNo: normalizeHouseNo(e.target.value) })}
+                  onBlur={() => setTouchedFields({ ...touchedFields, houseNo: true })}
+                  required
+                />
+                {(touchedFields.houseNo || submitAttempted) && validateHouseForm(form, houses, editHouse?._id).houseNo && (
+                  <p role="alert" className="mt-1 text-sm text-red-600">{validateHouseForm(form, houses, editHouse?._id).houseNo}</p>
+                )}
+              </div>
               <div className="form-group"><label>Section</label>
-                <select value={form.section} onChange={e => setForm({ ...form, section: e.target.value })}>
+                <select value={form.section} onChange={e => setForm({ ...form, section: normalizeSection(e.target.value) })} onBlur={() => setTouchedFields({ ...touchedFields, section: true })}>
                   <option value="Section 1">Section 1</option>
                   <option value="Section 2">Section 2</option>
                   <option value="Section 3">Section 3</option>
                   <option value="Section 4">Section 4</option>
                 </select>
+                {(touchedFields.section || submitAttempted) && validateHouseForm(form, houses, editHouse?._id).section && (
+                  <p role="alert" className="mt-1 text-sm text-red-600">{validateHouseForm(form, houses, editHouse?._id).section}</p>
+                )}
               </div>
-              <div className="form-group"><label>Floor</label><input type="number" value={form.floor} onChange={e => setForm({ ...form, floor: e.target.value })} /></div>
+              <div className="form-group">
+                <label>Floor</label>
+                <input type="number" min={0} max={30} step={1} value={form.floor} onChange={e => setForm({ ...form, floor: e.target.value })} onBlur={() => setTouchedFields({ ...touchedFields, floor: true })} />
+                {(touchedFields.floor || submitAttempted) && validateHouseForm(form, houses, editHouse?._id).floor && (
+                  <p role="alert" className="mt-1 text-sm text-red-600">{validateHouseForm(form, houses, editHouse?._id).floor}</p>
+                )}
+              </div>
               <div className="form-group"><label>Type</label><select value={form.type} onChange={e => setForm({ ...form, type: e.target.value })}><option value="apartment">Apartment</option><option value="house">House</option><option value="shop">Shop</option></select></div>
-              <div className="form-group"><label>Monthly Due (Rs.)</label><input type="number" value={form.monthlyDue} onChange={e => setForm({ ...form, monthlyDue: e.target.value })} /></div>
+              <div className="form-group">
+                <label>Monthly Due (Rs.)</label>
+                <input type="number" min={0} max={MAX_MONTHLY_DUE} step="0.01" value={form.monthlyDue} onChange={e => setForm({ ...form, monthlyDue: e.target.value })} onBlur={() => setTouchedFields({ ...touchedFields, monthlyDue: true })} />
+                {(touchedFields.monthlyDue || submitAttempted) && validateHouseForm(form, houses, editHouse?._id).monthlyDue && (
+                  <p role="alert" className="mt-1 text-sm text-red-600">{validateHouseForm(form, houses, editHouse?._id).monthlyDue}</p>
+                )}
+              </div>
               <div className="form-group">
                 <label>Owner (resident) — links them to this house & section</label>
                 <select value={form.owner} onChange={e => setForm({ ...form, owner: e.target.value })}>

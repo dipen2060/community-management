@@ -3,6 +3,7 @@ import axios from 'axios';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
 import { useAuth } from '../context/AuthContext';
 import { SkeletonStatsGrid, SkeletonCard, SkeletonTable } from '../components/Skeleton';
+import { formatDateTime } from '../utils/dateTime';
 
 export default function Dashboard() {
   const [stats,      setStats]      = useState(null);
@@ -86,7 +87,7 @@ export default function Dashboard() {
 
       <div className="stats-grid">
         {loading ? (
-          <SkeletonStatsGrid count={5} />
+          <SkeletonStatsGrid count={7} />
         ) : (
           <>
         <div className="stat-card blue">
@@ -108,6 +109,14 @@ export default function Dashboard() {
         <div className="stat-card green">
           <h3>Total Collected</h3>
           <div className="value">Rs. {stats?.totalCollected ?? '—'}</div>
+        </div>
+        <div className="stat-card orange">
+          <h3>All-time Outstanding</h3>
+          <div className="value">Rs. {Number(stats?.allTimeOutstandingAmount || 0).toLocaleString('en-IN')}</div>
+        </div>
+        <div className="stat-card red">
+          <h3>Houses with Arrears</h3>
+          <div className="value">{stats?.housesWithArrears ?? '—'}</div>
         </div>
         </>
         )}
@@ -138,7 +147,7 @@ export default function Dashboard() {
           {notices.map(n => (
             <div key={n._id} style={{ padding: '10px 0', borderBottom: '1px solid #f1f5f9' }}>
               <div style={{ fontWeight: 600, fontSize: '0.875rem' }}>{n.title}</div>
-              <div style={{ fontSize: '0.78rem', color: '#6b7280', marginTop: 2 }}>{n.type} • {new Date(n.createdAt).toLocaleDateString()}</div>
+              <div style={{ fontSize: '0.78rem', color: '#6b7280', marginTop: 2 }}>{n.type} • {formatDateTime(n.createdAt)}</div>
             </div>
           ))}
         </div>

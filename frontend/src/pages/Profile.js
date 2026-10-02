@@ -1,11 +1,15 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
+import { normalizeUserName, validateProfileForm } from '../utils/validation';
 
 const Profile = () => {
   const { user, setUser } = useAuth();
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState({ type: '', text: '' });
+  const [phoneTouched, setPhoneTouched] = useState(false);
+  const [touchedFields, setTouchedFields] = useState({});
+  const [submitAttempted, setSubmitAttempted] = useState(false);
 
   const [formData, setFormData] = useState({
     name: user?.name || '',
@@ -26,40 +30,34 @@ const Profile = () => {
         newPassword: '',
         confirmPassword: ''
       });
+      setPhoneTouched(false);
+      setTouchedFields({});
+      setSubmitAttempted(false);
     }
   }, [user]);
 
   const handleChange = (e) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
+    const value = e.target.name === 'phone'
+      ? e.target.value.replace(/\D/g, '').slice(0, 10)
+      : e.target.value;
+    setFormData({ ...formData, [e.target.name]: value });
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setSubmitAttempted(true);
+    const errors = validateProfileForm(formData);
+    const currentPasswordError = formData.newPassword && !formData.currentPassword
+      ? 'Current password is required to change password'
+      : '';
+    if (Object.values(errors).some(Boolean) || currentPasswordError) return;
+
     setLoading(true);
     setMessage({ type: '', text: '' });
 
-    // Password validation
-    if (formData.newPassword) {
-      if (!formData.currentPassword) {
-        setMessage({ type: 'error', text: 'Current password is required to change password' });
-        setLoading(false);
-        return;
-      }
-      if (formData.newPassword !== formData.confirmPassword) {
-        setMessage({ type: 'error', text: 'New passwords do not match' });
-        setLoading(false);
-        return;
-      }
-      if (formData.newPassword.length < 6) {
-        setMessage({ type: 'error', text: 'New password must be at least 6 characters' });
-        setLoading(false);
-        return;
-      }
-    }
-
     try {
       const updateData = {
-        name: formData.name,
+        name: normalizeUserName(formData.name),
         phone: formData.phone,
         address: formData.address
       };
@@ -92,6 +90,11 @@ const Profile = () => {
       setLoading(false);
     }
   };
+
+  const formErrors = validateProfileForm(formData);
+  const currentPasswordError = formData.newPassword && !formData.currentPassword
+    ? 'Current password is required to change password'
+    : '';
 
   return (
     <div className="mx-auto w-full min-w-0 max-w-4xl p-3 sm:p-5 lg:p-6">
@@ -159,18 +162,21 @@ const Profile = () => {
               </div>
             )}
 
-            <form onSubmit={handleSubmit} className="min-w-0 space-y-6">
+            <form onSubmit={handleSubmit} noValidate className="min-w-0 space-y-6">
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">Full Name</label>
                 <input
                   type="text"
                   name="name"
+                  maxLength={50}
                   value={formData.name}
                   onChange={handleChange}
+                  onBlur={() => setTouchedFields({ ...touchedFields, name: true })}
                   className="w-full border-2 border-gray-200 rounded-xl p-4 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none"
                   placeholder="Enter your full name"
                   required
                 />
+                {(touchedFields.name || submitAttempted) && formErrors.name && <p role="alert" className="mt-2 text-sm text-red-600">{formErrors.name}</p>}
               </div>
 
               <div>
@@ -188,11 +194,17 @@ const Profile = () => {
                 <input
                   type="tel"
                   name="phone"
+                  inputMode="numeric"
+                  maxLength={10}
                   value={formData.phone}
                   onChange={handleChange}
+                  onBlur={() => { setPhoneTouched(true); setTouchedFields({ ...touchedFields, phone: true }); }}
                   className="w-full border-2 border-gray-200 rounded-xl p-4 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none"
-                  placeholder="Enter your phone number"
+                  placeholder="98XXXXXXXX"
                 />
+                {formErrors.phone && (phoneTouched || submitAttempted || formData.phone.length === 10) && (
+                  <p role="alert" className="mt-2 text-sm text-red-600">{formErrors.phone}</p>
+                )}
               </div>
 
               <div>
@@ -216,11 +228,14 @@ const Profile = () => {
                     <input
                       type="password"
                       name="currentPassword"
+                      maxLength={128}
                       value={formData.currentPassword}
                       onChange={handleChange}
+                      onBlur={() => setTouchedFields({ ...touchedFields, currentPassword: true })}
                       className="w-full border-2 border-gray-200 rounded-xl p-4 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none"
                       placeholder="Enter current password"
                     />
+                    {(touchedFields.currentPassword || submitAttempted) && currentPasswordError && <p role="alert" className="mt-2 text-sm text-red-600">{currentPasswordError}</p>}
                   </div>
 
                   <div>
@@ -228,11 +243,14 @@ const Profile = () => {
                     <input
                       type="password"
                       name="newPassword"
+                      maxLength={64}
                       value={formData.newPassword}
                       onChange={handleChange}
+                      onBlur={() => setTouchedFields({ ...touchedFields, newPassword: true })}
                       className="w-full border-2 border-gray-200 rounded-xl p-4 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none"
-                      placeholder="Enter new password (min 6 characters)"
+                      placeholder="Enter new password"
                     />
+                    {(touchedFields.newPassword || submitAttempted) && formErrors.newPassword && <p role="alert" className="mt-2 text-sm text-red-600">{formErrors.newPassword}</p>}
                   </div>
 
                   <div>
@@ -240,11 +258,14 @@ const Profile = () => {
                     <input
                       type="password"
                       name="confirmPassword"
+                      maxLength={64}
                       value={formData.confirmPassword}
                       onChange={handleChange}
+                      onBlur={() => setTouchedFields({ ...touchedFields, confirmPassword: true })}
                       className="w-full border-2 border-gray-200 rounded-xl p-4 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none"
                       placeholder="Confirm new password required"
                     />
+                    {(touchedFields.confirmPassword || submitAttempted) && formErrors.confirmPassword && <p role="alert" className="mt-2 text-sm text-red-600">{formErrors.confirmPassword}</p>}
                   </div>
                 </div>
               </div>
@@ -268,6 +289,8 @@ const Profile = () => {
                       newPassword: '',
                       confirmPassword: ''
                     });
+                    setTouchedFields({});
+                    setSubmitAttempted(false);
                     setMessage({ type: '', text: '' });
                   }}
                   className="px-6 py-4 bg-gray-100 text-gray-700 rounded-xl hover:bg-gray-200 transition-colors font-semibold"

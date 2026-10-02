@@ -7,6 +7,7 @@ const { getPagination, applyPagination, buildMeta } = require('../utils/paginate
 const { logAudit } = require('../utils/auditLogger');
 const { getResidentHouseIds, isResidentLinkedToHouse, getHouseResidentIds } = require('../utils/residentHouses');
 const { calculateFine, effectiveFine } = require('../utils/fines');
+const { getOutstandingByHouse } = require('../utils/outstanding');
 const Complaint = require('../models/Complaint');
 
 
@@ -118,11 +119,10 @@ exports.getDues = async (req, res, next) => {
     const now = new Date();
     const summaryDocs = await Due.find(filter).select('amount fine dueDate status').lean();
     const summary = summaryDocs.reduce((acc, d) => {
-      if (['pending', 'overdue'].includes(d.status)) {
+      if (['pending', 'overdue', 'verification_pending'].includes(d.status)) {
         const fine = effectiveFine(d.fine, d.dueDate, now);
         acc.outstanding += Number(d.amount || 0) + fine;
-      } else if (d.status === 'verification_pending') {
-        acc.verification += 1;
+        if (d.status === 'verification_pending') acc.verification += 1;
       } else if (d.status === 'paid') {
         acc.paid += 1;
       }
@@ -389,60 +389,114 @@ async function generateMonthlyDues(now = new Date()) {
     const year = now.getFullYear();
     const houses = await House.find({ isOccupied: true, status: { $ne: 'archived' } });
     let created = 0;
+    let backfilled = 0;
 
     for (const house of houses) {
       try {
-        const dueDate = new Date(year, month - 1, 10, 23, 59, 59, 999);
-        const overdue = dueDate < now;
-        const result = await Due.updateOne(
-          { house: house._id, month, year },
-          {
-            $setOnInsert: {
-              amount: house.monthlyDue,
-              fine: calculateFine(dueDate, now),
-              status: overdue ? 'overdue' : 'pending',
-              dueDate
+        const earliestDue = await Due.findOne({ house: house._id })
+          .sort({ year: 1, month: 1 })
+          .select('month year')
+          .lean();
+        const firstMonth = earliestDue
+          ? new Date(earliestDue.year, earliestDue.month - 1, 1)
+          : new Date(year, month - 1, 1);
+        const currentMonth = new Date(year, month - 1, 1);
+
+        for (const dueMonth = new Date(firstMonth); dueMonth <= currentMonth; dueMonth.setMonth(dueMonth.getMonth() + 1)) {
+          const dueMonthNumber = dueMonth.getMonth() + 1;
+          const dueYear = dueMonth.getFullYear();
+          const dueDate = new Date(dueYear, dueMonthNumber - 1, 10, 23, 59, 59, 999);
+          const result = await Due.updateOne(
+            { house: house._id, month: dueMonthNumber, year: dueYear },
+            {
+              $setOnInsert: {
+                amount: house.monthlyDue,
+                fine: calculateFine(dueDate, now),
+                status: dueDate < now ? 'overdue' : 'pending',
+                dueDate
+              }
+            },
+            { upsert: true }
+          );
+
+          if (!result.upsertedCount) continue;
+          if (dueMonthNumber === month && dueYear === year) {
+            created++;
+            const recipients = await getHouseResidentIds(house);
+            for (const userId of recipients) {
+              await createNotification({
+                user: userId,
+                title: 'New Due Generated',
+                message: `Rs. ${house.monthlyDue} due generated for ${house.houseNo} (${month}/${year}). Please pay before the 10th to avoid fine.`,
+                type: 'due',
+                link: '/dues'
+              });
             }
-          },
-          { upsert: true }
-        );
-
-        if (!result.upsertedCount) continue;
-        created++;
-
-        const recipients = await getHouseResidentIds(house);
-        for (const userId of recipients) {
-          await createNotification({
-            user: userId,
-            title: 'New Due Generated',
-            message: `Rs. ${house.monthlyDue} due generated for ${house.houseNo} (${month}/${year}). Please pay before the 10th to avoid fine.`,
-            type: 'due',
-            link: '/dues'
-          });
+          } else {
+            backfilled++;
+          }
         }
       } catch (err) {
         if (err && err.code === 11000) {
-          console.warn(`Skipping duplicate due for house ${house._id} (${month}/${year}).`);
+          console.warn(`Skipping duplicate due for house ${house._id}.`);
           continue;
         }
         throw err;
       }
     }
 
-    return { created, month, year };
+    return { created, backfilled, month, year };
 }
 
 // Auto generate monthly dues
 exports.generateMonthlyDues = async (req, res, next) => {
   try {
     const result = await generateMonthlyDues();
-    res.json({ success: true, message: `${result.created} dues generated for ${result.month}/${result.year}` });
+    res.json({
+      success: true,
+      message: `${result.created} current-month dues generated and ${result.backfilled} prior dues backfilled for ${result.month}/${result.year}`,
+      data: { created: result.created, backfilled: result.backfilled, month: result.month, year: result.year }
+    });
   } catch (err) {
     next(err);
   }
 };
 
 exports.generateMonthlyDuesForCron = generateMonthlyDues;
+
+exports.getOutstandingDues = async (req, res, next) => {
+  try {
+    const { page, limit } = getPagination(req);
+    const outstanding = await getOutstandingByHouse({
+      section: req.query.section,
+      houseId: req.query.houseId
+    });
+    const resultPage = page || 1;
+    const data = page
+      ? outstanding.slice((page - 1) * limit, page * limit)
+      : outstanding;
+    const summaries = data.map(({ breakdown, ...summary }) => summary);
+    res.json({ success: true, ...buildMeta(outstanding.length, resultPage, limit, summaries.length), data: summaries });
+  } catch (err) {
+    next(err);
+  }
+};
+
+exports.getHouseOutstanding = async (req, res, next) => {
+  try {
+    const { houseId } = req.params;
+    if (req.user.role === 'resident' && !(await isResidentLinkedToHouse(req.user._id, houseId))) {
+      return res.status(403).json({ success: false, message: 'You are not linked to this house.' });
+    }
+    const outstanding = await getOutstandingByHouse({ houseId });
+    if (!outstanding.length) {
+      return res.status(404).json({ success: false, message: 'No outstanding dues found for this house.' });
+    }
+    res.json({ success: true, data: outstanding[0] });
+  } catch (err) {
+    next(err);
+  }
+};
 
 // Payment behavior clustering
 exports.getPaymentClusters = async (req, res, next) => {
@@ -493,6 +547,12 @@ exports.getDashboardStats = async (req, res, next) => {
       baseFilter.house = req.query.houseId;
     }
 
+    const allTimeOutstanding = await getOutstandingByHouse({
+      houseIds: req.user.role === 'resident' && !req.query.houseId ? houseIds : undefined,
+      houseId: req.query.houseId,
+      now
+    });
+
     const totalDues = await Due.countDocuments(baseFilter);
     const paidDues = await Due.countDocuments({ ...baseFilter, status: 'paid' });
     const pendingDues = await Due.countDocuments({ ...baseFilter, status: { $in: ['pending', 'overdue', 'verification_pending'] } });
@@ -533,6 +593,8 @@ exports.getDashboardStats = async (req, res, next) => {
         verificationPending,
         collectionRate: totalDues ? ((paidDues / totalDues) * 100).toFixed(1) : 0,
         totalCollected: totalAmount[0]?.total || 0,
+        allTimeOutstandingAmount: allTimeOutstanding.reduce((sum, house) => sum + house.totalPayable, 0),
+        housesWithArrears: allTimeOutstanding.length,
         perHouse
       }
     });

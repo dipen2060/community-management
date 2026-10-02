@@ -49,6 +49,7 @@ module.exports = {
       description:
         'Returns complaints, newest first, with `submittedBy`, `assignedTo` and `resolvedBy` populated as ' +
         '`name`/`phone` (plus `specialization` for `assignedTo`).\n\n' +
+        'Each complaint includes `createdAt` (submitted), `startedAt` (when work began, if started), and `resolvedAt` (when resolved, if resolved).\n\n' +
         '**Who sees what:**\n\n' +
         '- **Residents** see only their own complaints.\n' +
         '- **Staff** see all complaints; adding `mine=true` narrows the list to those assigned to them.\n' +
@@ -92,7 +93,7 @@ module.exports = {
         '2. `autoAssigned` — the staff member picked by specialisation match and current workload, or `null` if nobody ' +
         'matched. A `null` here means the complaint is still `pending` and waiting for manual assignment.\n' +
         '3. `similarComplaints` — up to 3 previously resolved/closed complaints in the same category, ranked by TF-IDF ' +
-        'cosine similarity, so the submitter can see how similar issues were handled.',
+        'cosine similarity, so the submitter can see how similar issues were handled. Auto-assigned complaints start as `inprogress` with `startedAt` set.',
       requestBody: multipart('CreateComplaintRequest', true, {
         description: 'Text fields plus up to 5 optional attachments. Use this endpoint\'s "Try it out" form, not raw JSON.'
       }),

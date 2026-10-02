@@ -1,11 +1,12 @@
 const { logAudit } = require('../utils/auditLogger');
 
-const allowedExportSections = new Set(['dues', 'complaints', 'residents', 'all']);
+const allowedExportSections = new Set(['dues', 'complaints', 'residents', 'outstanding', 'all']);
 
 function canExport(user, resource) {
   if (!user) return false;
   if (user.role === 'admin') return true;
-  return user.role === 'staff' && (user.exportSection === resource || user.exportSection === 'all');
+  const permission = resource === 'outstanding' ? 'dues' : resource;
+  return user.role === 'staff' && (user.exportSection === permission || user.exportSection === 'all');
 }
 
 function exportPermission(resource) {

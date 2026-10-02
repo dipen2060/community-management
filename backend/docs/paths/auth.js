@@ -1,5 +1,5 @@
 // docs/paths/auth.js — POST /auth/login, GET /auth/me
-const { op, body, json, errors, param, bearer, publicApi } = require('../lib/helpers');
+const { op, body, json, errors, bearer, publicApi } = require('../lib/helpers');
 
 module.exports = {
   '/auth/login': {
@@ -10,8 +10,8 @@ module.exports = {
       description:
         'Exchanges credentials for a JWT. **Login is by email**, not username — usernames are auto-generated from the ' +
         'full name and can collide, so email is the unique identifier.\n\n' +
-        '**Rate limited:** 10 attempts per 15 minutes per IP (a second, coarser limiter also covers the whole `/api/auth` ' +
-        'mount). After 10 failures the endpoint answers `429` until the window resets.\n\n' +
+        '**Rate limited:** failed login attempts are limited to 10 per 15 minutes per IP in production and 100 in development. ' +
+        'Successful logins do not count, and `GET /auth/me` does not use the login-specific limiter. Rate-limit responses are JSON.\n\n' +
         'On success the response includes `mustChangePassword`. When that is `true` the account still uses an admin-generated ' +
         'temporary password, so the frontend should force the user through `PUT /users/me/profile` with `currentPassword` ' +
         'and `newPassword` before allowing normal use.',
@@ -24,12 +24,26 @@ module.exports = {
         },
         400: { $ref: '#/components/responses/ValidationFailedResponse' },
         401: {
-          description:
-            'Invalid email or password. The message is deliberately identical for unknown-email, wrong-password and ' +
-            'deactivated-account cases so the endpoint cannot be used to enumerate accounts.',
-          content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } },
-          examples: {
-            invalid: { value: { success: false, message: 'Invalid email or password' } }
+          description: 'No account was found for the email, or the password was incorrect.',
+          content: {
+            'application/json': {
+              schema: { $ref: '#/components/schemas/ErrorResponse' },
+              examples: {
+                userNotFound: { value: { success: false, message: 'No account found with this email.', code: 'USER_NOT_FOUND' } },
+                wrongPassword: { value: { success: false, message: 'Incorrect password.', code: 'WRONG_PASSWORD' } }
+              }
+            }
+          }
+        },
+        403: {
+          description: 'The account exists but is deactivated.',
+          content: {
+            'application/json': {
+              schema: { $ref: '#/components/schemas/ErrorResponse' },
+              examples: {
+                disabled: { value: { success: false, message: 'This account is deactivated. Please contact the admin.', code: 'ACCOUNT_DISABLED' } }
+              }
+            }
           }
         },
         429: { $ref: '#/components/responses/RateLimitResponse' },

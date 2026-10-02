@@ -44,6 +44,65 @@ const WORKFLOW = [
 ].join('\n');
 
 module.exports = {
+  '/dues/outstanding': {
+    get: op({
+      operationId: 'listOutstandingDues',
+      tags: ['Dues'],
+      summary: 'List outstanding balances by house',
+      description:
+        'Returns one row per house with unpaid `pending`, `overdue` and `verification_pending` dues. Each row includes ' +
+        'the oldest unpaid month, current-month amount, prior-month principal, effective fines, and total payable. ' +
+        'Fine values are calculated per due using `effectiveFine` and remain capped per row. Staff must have the existing ' +
+        '`dues` or `all` export permission; `section` narrows their result set. Pagination uses the shared metadata helper.',
+      params: [
+        param('OutstandingSectionQuery'),
+        param('HouseIdQuery'),
+        param('PageParam'),
+        param('LimitParam')
+      ],
+      responses: {
+        200: {
+          description: 'Paged per-house outstanding summaries.',
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                properties: {
+                  success: { type: 'boolean', example: true },
+                  count: { type: 'integer', example: 20 },
+                  total: { type: 'integer', example: 27 },
+                  page: { type: 'integer', example: 1 },
+                  pages: { type: 'integer', example: 2 },
+                  data: { type: 'array', items: schema('OutstandingHouse') }
+                }
+              }
+            }
+          }
+        },
+        ...errors({ forbidden: true })
+      }
+    })
+  },
+
+  '/dues/outstanding/{houseId}': {
+    get: op({
+      operationId: 'getHouseOutstandingBreakdown',
+      tags: ['Dues'],
+      summary: 'Get one house\'s outstanding balance and monthly breakdown',
+      description:
+        'Returns the same per-house summary plus one breakdown row per unpaid month, sorted oldest first. Residents may ' +
+        'call this only for a house linked to them; other residents receive 403. Management callers must have dues export permission.',
+      params: [param('OutstandingHouseIdPathParam')],
+      responses: {
+        200: {
+          description: 'Outstanding summary with all unpaid monthly dues.',
+          content: { 'application/json': { schema: { type: 'object', properties: { success: { type: 'boolean', example: true }, data: schema('OutstandingHouse') } } } }
+        },
+        ...errors({ forbidden: true, notFound: true })
+      }
+    })
+  },
+
   '/dues': {
     get: op({
       operationId: 'listDues',
@@ -80,6 +139,8 @@ module.exports = {
       description:
         'Aggregates for the **current calendar month only** — this endpoint takes no filters, so it is a straight ' +
         'read of what the Dues page header shows.\n\n' +
+        'It also returns `allTimeOutstandingAmount` and `housesWithArrears`, computed from all unpaid rows (including ' +
+        '`verification_pending`) with live per-row effective fines. These two values are scoped to the resident\'s linked houses.\n\n' +
         'Residents receive the same figures scoped to their own linked houses, so a resident\'s `totalCollected` reflects ' +
         'their own payments rather than the community total. `collectionRate` is returned as a **percentage string** with ' +
         'one decimal place, not a number.',

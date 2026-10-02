@@ -60,7 +60,7 @@ Legend for **Access**: `P` = public, `A` = any authenticated, `R` = resident, `S
 | 5 | POST | `/api/users` | Ad | `createUserValidation`. Username auto-generated, **temporary password auto-generated and never returned** — deliver out-of-band. Returns 201 |
 | 6 | PUT | `/api/users/me/profile` | A | `updateProfileValidation`. Self-edit. Password change requires `currentPassword`; clears `mustChangePassword` |
 | 7 | PUT | `/api/users/:id` | Ad | Partial update. **Blocks deactivating/demoting the last active admin** (400) |
-| 8 | PUT | `/api/users/:id/reset-password` | Ad | Issues a new temporary password, sets `mustChangePassword=true`. Password not returned |
+| 8 | PUT | `/api/users/:id/reset-password` | Ad | Issues a random temporary password, sets `mustChangePassword=true`, and returns it once to the admin |
 | 9 | DELETE | `/api/users/:id` | Ad | **Soft delete** (`isActive=false`) + cascades (unlinks houses, nulls complaint/due refs, deletes notifications, pulls poll votes). Cannot delete own account; cannot delete last admin |
 
 #### Houses — `/api/houses` (4)

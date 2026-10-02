@@ -20,12 +20,13 @@ module.exports = {
       tags: ['Notices'],
       summary: 'List notices',
       description:
-        'Returns active notices, newest first. `search` matches the title or content case-insensitively (regex-escaped, ' +
+        'Returns active, unexpired notices, newest first. `search` matches the title or content case-insensitively (regex-escaped, ' +
         'max 100 characters).\n\n' +
         '**Residents only see notices addressed to their own section**, plus any notice with an empty `targetSections` ' +
-        'array (a broadcast). Admins and staff see every notice.\n\n' +
+        'array (a broadcast). Residents and staff never receive expired notices. Admins may pass `includeExpired=true` ' +
+        'to include expired active notices; those rows have `expired: true`. Expired notices are retained and never auto-deleted.\n\n' +
         '**Pagination is opt-in** — omit `page` to receive the full list, which the frontend section pickers depend on.',
-      params: [param('SearchQuery'), param('NoticeTypeQuery'), param('PageParam'), param('LimitParam')],
+      params: [param('SearchQuery'), param('NoticeTypeQuery'), param('IncludeExpiredQuery'), param('PageParam'), param('LimitParam')],
       responses: {
         200: { description: 'Matching notices with pagination metadata.', content: { 'application/json': { schema: noticeList } } },
         ...errors({ badRequest: true })
@@ -38,6 +39,7 @@ module.exports = {
       summary: 'Create a notice and notify residents',
       description:
         'Publishes a notice and immediately pushes an in-app notification to the affected residents.\n\n' +
+        'An optional `expiresAt` must be a valid date in the future; omit it or leave it empty for a notice that never expires.\n\n' +
         '**Targeting:** omit `targetSections` (or send `[]`) to notify every active resident. When sections are supplied, ' +
         'every entry must match an existing house section — an unknown name returns 400 — and only residents linked to a ' +
         'house in those sections are notified.\n\n' +

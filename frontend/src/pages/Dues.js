@@ -48,6 +48,15 @@ export default function Dues() {
   const [pages, setPages] = useState(1);
   const [total, setTotal] = useState(0);
   const [summary, setSummary] = useState({ outstanding: 0, verification: 0, paid: 0 });
+  const [activeTab, setActiveTab] = useState('dues');
+  const [outstandingRows, setOutstandingRows] = useState([]);
+  const [outstandingLoading, setOutstandingLoading] = useState(false);
+  const [outstandingSection, setOutstandingSection] = useState('');
+  const [outstandingPage, setOutstandingPage] = useState(1);
+  const [outstandingPages, setOutstandingPages] = useState(1);
+  const [outstandingTotal, setOutstandingTotal] = useState(0);
+  const [outstandingModal, setOutstandingModal] = useState(null);
+  const [residentOutstanding, setResidentOutstanding] = useState([]);
 
   const isResident = user?.role === 'resident';
   const isAdmin = user?.role === 'admin';
@@ -77,6 +86,45 @@ export default function Dues() {
   useEffect(() => { fetchDues(page); }, [page, filter]);
 
   const stats = summary;
+
+  const fetchOutstanding = async (p = outstandingPage) => {
+    setOutstandingLoading(true);
+    try {
+      const params = new URLSearchParams({ page: String(p), limit: '20' });
+      if (outstandingSection.trim()) params.set('section', outstandingSection.trim());
+      const response = await axios.get(`/api/dues/outstanding?${params.toString()}`);
+      setOutstandingRows(response.data.data || []);
+      setOutstandingPages(response.data.pages || 1);
+      setOutstandingTotal(response.data.total || 0);
+    } catch (err) {
+      setError(err.response?.data?.message || 'Could not load outstanding dues.');
+    } finally {
+      setOutstandingLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (isManagement && activeTab === 'outstanding') fetchOutstanding(outstandingPage);
+  }, [activeTab, outstandingPage, outstandingSection]);
+
+  useEffect(() => {
+    if (!isResident) return;
+    axios.get('/api/houses')
+      .then(response => {
+        const houses = response.data.data || [];
+        return Promise.all(houses.map(async house => {
+          try {
+            const result = await axios.get(`/api/dues/outstanding/${house._id}`);
+            return result.data.data;
+          } catch (err) {
+            if (err.response?.status === 404) return null;
+            throw err;
+          }
+        }));
+      })
+      .then(rows => setResidentOutstanding((rows || []).filter(Boolean)))
+      .catch(err => setError(err.response?.data?.message || 'Could not load outstanding balances.'));
+  }, [isResident]);
 
   const openPaymentModal = (due) => {
     setPaymentDue(due);
@@ -197,6 +245,39 @@ export default function Dues() {
     }
   };
 
+  const downloadOutstanding = async (type, houseId) => {
+    try {
+      const params = new URLSearchParams();
+      if (houseId) params.set('houseId', houseId);
+      if (outstandingSection.trim() && !houseId) params.set('section', outstandingSection.trim());
+      const query = params.toString() ? `?${params.toString()}` : '';
+      const response = await axios.get(`/api/exports/outstanding/${type}${query}`, { responseType: 'blob' });
+      const url = URL.createObjectURL(new Blob([response.data], {
+        type: type === 'excel'
+          ? 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+          : 'application/pdf'
+      }));
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = `outstanding-report-${new Date().toISOString().split('T')[0]}${houseId ? `-${houseId}` : ''}.${type === 'excel' ? 'xlsx' : 'pdf'}`;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setError(err.response?.data?.message || `Could not export outstanding dues ${type.toUpperCase()}.`);
+    }
+  };
+
+  const openOutstandingDetail = async (house) => {
+    try {
+      const response = await axios.get(`/api/dues/outstanding/${house.houseId}`);
+      setOutstandingModal(response.data.data);
+    } catch (err) {
+      setError(err.response?.data?.message || 'Could not load the month-by-month breakdown.');
+    }
+  };
+
   const residentName = (d) => {
     const owner = d.house?.owner;
     const tenant = d.house?.tenant;
@@ -249,6 +330,59 @@ export default function Dues() {
         </div>
       )}
 
+      {isManagement && (
+        <div className="flex flex-wrap items-center gap-2" style={{ marginBottom: 16 }}>
+          <button type="button" className={`btn btn-sm ${activeTab === 'dues' ? 'btn-primary' : 'btn-cancel'}`} onClick={() => setActiveTab('dues')}>Dues</button>
+          <button type="button" className={`btn btn-sm ${activeTab === 'outstanding' ? 'btn-primary' : 'btn-cancel'}`} onClick={() => { setActiveTab('outstanding'); setOutstandingPage(1); }}>Outstanding</button>
+          {activeTab === 'outstanding' && canExportDues && (
+            <>
+              <button type="button" className="btn btn-sm" style={{ background: '#10b981', color: 'white' }} onClick={() => downloadOutstanding('excel')}>Download Outstanding Excel</button>
+              <button type="button" className="btn btn-sm" style={{ background: '#ef4444', color: 'white' }} onClick={() => downloadOutstanding('pdf')}>Download Outstanding PDF</button>
+            </>
+          )}
+        </div>
+      )}
+
+      {isResident && residentOutstanding.length > 0 && (
+        <div className="grid gap-4 md:grid-cols-2" style={{ marginBottom: 20 }}>
+          {residentOutstanding.map(house => (
+            <div className="card" key={String(house.houseId)}>
+              <div className="card-header">
+                <h3>{house.houseNo} · {house.section}</h3>
+                {house.hasVerificationPending && <span className="status status-verification_pending">Payment under verification</span>}
+              </div>
+              <div className="overflow-x-auto">
+                <div className="flex min-w-[620px] items-center justify-between gap-2 rounded-lg bg-slate-50 p-3 text-sm">
+                  <span>Current month<br /><strong>{money(house.currentMonthAmount)}</strong></span>
+                  <span>+</span>
+                  <span>Previous balance<br /><strong>{money(house.previousBalance)}</strong></span>
+                  <span>+</span>
+                  <span>Fines<br /><strong>{money(house.totalFine)}</strong></span>
+                  <span>=</span>
+                  <span>Total payable<br /><strong>{money(house.totalPayable)}</strong></span>
+                </div>
+              </div>
+              <div className="table-scroll" style={{ marginTop: 12 }}>
+                <table>
+                  <thead><tr><th>Month/Year</th><th>Amount</th><th>Fine</th><th>Total</th><th>Status</th></tr></thead>
+                  <tbody>
+                    {house.breakdown.map(due => (
+                      <tr key={String(due.dueId)}>
+                        <td>{String(due.month).padStart(2, '0')}/{due.year}</td>
+                        <td>{money(due.amount)}</td>
+                        <td>{money(due.fine)}</td>
+                        <td><strong>{money(due.total)}</strong></td>
+                        <td><span className={`status status-${due.status}`}>{statusLabel(due.status)}</span></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
       <div className="dues-summary-grid">
         <div className="due-summary-card">
           <span className="summary-label">Outstanding</span>
@@ -267,7 +401,48 @@ export default function Dues() {
         </div>
       </div>
 
-      <div className="filter-bar">
+      {isManagement && activeTab === 'outstanding' && (
+        <>
+          <div className="filter-bar">
+            <input
+              type="text"
+              aria-label="Filter outstanding dues by section"
+              placeholder="Filter section (e.g. Section 1)"
+              value={outstandingSection}
+              onChange={event => { setOutstandingSection(event.target.value); setOutstandingPage(1); }}
+              className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
+            />
+          </div>
+          <div className="card dues-table-card">
+            <div className="table-scroll">
+              <table className="dues-table">
+                <thead><tr><th>House</th><th>Resident</th><th>Due Since</th><th>Months Unpaid</th><th>Previous Balance</th><th>Fines</th><th>Total Payable</th><th>Status</th></tr></thead>
+                <tbody>
+                  {outstandingLoading ? (
+                    <tr><td colSpan={8} className="table-empty">Loading outstanding balances...</td></tr>
+                  ) : outstandingRows.length === 0 ? (
+                    <tr><td colSpan={8} className="table-empty">No outstanding dues found.</td></tr>
+                  ) : outstandingRows.map(house => (
+                    <tr key={String(house.houseId)} onClick={() => openOutstandingDetail(house)} style={{ cursor: 'pointer' }}>
+                      <td><strong>{house.houseNo}</strong><small className="cell-subtitle">{house.section}</small></td>
+                      <td>{[house.ownerName, house.tenantName].filter(Boolean).join(' / ') || 'Not linked'}</td>
+                      <td>{String(house.dueSince.month).padStart(2, '0')}/{house.dueSince.year}</td>
+                      <td>{house.monthsUnpaid}</td>
+                      <td>{money(house.previousBalance)}</td>
+                      <td className={house.totalFine > 0 ? 'fine-value' : ''}>{money(house.totalFine)}</td>
+                      <td><strong>{money(house.totalPayable)}</strong></td>
+                      <td>{house.hasVerificationPending ? <span className="status status-verification_pending">Payment under verification</span> : 'Unpaid'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <Pagination page={outstandingPage} pages={outstandingPages} total={outstandingTotal} onChange={setOutstandingPage} />
+          </div>
+        </>
+      )}
+
+      {(!isManagement || activeTab === 'dues') && <div className="filter-bar">
         <select value={filter} onChange={e => { setFilter(e.target.value); setPage(1); }} style={{ padding: '8px 12px', border: '1px solid #d1d5db', borderRadius: '8px', fontSize: '0.875rem' }}>
           <option value="">All Status</option>
           <option value="pending">Pending</option>
@@ -275,8 +450,9 @@ export default function Dues() {
           <option value="verification_pending">Awaiting Verification</option>
           <option value="paid">Paid</option>
         </select>
-      </div>
+      </div>}
 
+      {(!isManagement || activeTab === 'dues') && (
       <div className="card dues-table-card">
         <div className="table-scroll">
           <table className="dues-table">
@@ -366,6 +542,47 @@ export default function Dues() {
           </div>
         )}
       </div>
+      )}
+
+      {outstandingModal && (
+        <div className="modal-overlay" onClick={() => setOutstandingModal(null)}>
+          <div className="modal dues-modal !max-h-[calc(100vh_-_2rem)] !w-[calc(100%_-_2rem)] !overflow-y-auto sm:!w-[900px]" onClick={event => event.stopPropagation()}>
+            <div className="modal-top-row">
+              <div>
+                <h3>Outstanding Breakdown · {outstandingModal.houseNo}</h3>
+                <p className="modal-subtitle">{outstandingModal.section} · Due since {String(outstandingModal.dueSince.month).padStart(2, '0')}/{outstandingModal.dueSince.year}</p>
+              </div>
+              <button className="modal-close" type="button" onClick={() => setOutstandingModal(null)}>×</button>
+            </div>
+            <div className="flex flex-wrap gap-2" style={{ marginBottom: 12 }}>
+              <button type="button" className="btn btn-sm" style={{ background: '#10b981', color: 'white' }} onClick={() => downloadOutstanding('excel', String(outstandingModal.houseId))}>Download Excel</button>
+              <button type="button" className="btn btn-sm" style={{ background: '#ef4444', color: 'white' }} onClick={() => downloadOutstanding('pdf', String(outstandingModal.houseId))}>Download PDF</button>
+            </div>
+            <div className="table-scroll">
+              <table>
+                <thead><tr><th>Month/Year</th><th>Amount</th><th>Fine</th><th>Total</th><th>Status</th><th>Due Date</th><th>Days Overdue</th></tr></thead>
+                <tbody>
+                  {outstandingModal.breakdown.map(due => (
+                    <tr key={String(due.dueId)}>
+                      <td>{String(due.month).padStart(2, '0')}/{due.year}</td>
+                      <td>{money(due.amount)}</td>
+                      <td>{money(due.fine)}</td>
+                      <td><strong>{money(due.total)}</strong></td>
+                      <td><span className={`status status-${due.status}`}>{statusLabel(due.status)}</span></td>
+                      <td>{formatDate(due.dueDate)}</td>
+                      <td>{due.daysOverdue}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="payment-detail-box" style={{ marginTop: 12 }}>
+              <span>Current month + Previous balance + Fines</span>
+              <strong>{money(outstandingModal.currentMonthAmount)} + {money(outstandingModal.previousBalance)} + {money(outstandingModal.totalFine)} = {money(outstandingModal.totalPayable)}</strong>
+            </div>
+          </div>
+        </div>
+      )}
 
       {paymentDue && (
         <div className="modal-overlay" onClick={() => !submitting && setPaymentDue(null)}>

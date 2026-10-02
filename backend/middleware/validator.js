@@ -1,7 +1,30 @@
-const { body, validationResult } = require('express-validator');
+const { body, query, param, validationResult } = require('express-validator');
 const fs = require('fs');
 const mongoose = require('mongoose');
 const User = require('../models/User');
+const { isValidNepalMobile, normalizeNepalPhone } = require('../utils/phone');
+const {
+  MAX_MONTHLY_DUE,
+  isValidHouseNo,
+  isValidSection,
+  isValidUserName,
+  isValidMonthlyDue,
+  isValidPollOptions,
+  isValidNewPassword,
+  isWithinOneYear,
+  normalizeHouseNo,
+  normalizeSection,
+  normalizeWhitespace
+} = require('../utils/inputValidation');
+
+const nepalPhoneValidationMessage =
+  'Enter a valid 10-digit Nepal mobile number starting with 97 or 98 (e.g. 98XXXXXXXX)';
+
+const phoneValidation = () => body('phone')
+  .optional({ values: 'falsy' })
+  .custom(isValidNepalMobile)
+  .withMessage(nepalPhoneValidationMessage)
+  .customSanitizer(value => normalizeNepalPhone(value) || value);
 
 // Validation middleware factory
 const cleanupUploadedFiles = async (req) => {
@@ -35,56 +58,42 @@ const validate = async (req, res, next) => {
 const loginValidation = [
   body('email')
     .trim()
+    .toLowerCase()
     .notEmpty()
     .withMessage('Email is required')
     .isEmail()
-    .withMessage('Invalid email format')
-    .normalizeEmail(),
+    .withMessage('Invalid email format'),
   body('password')
     .notEmpty()
     .withMessage('Password is required')
-    .isLength({ min: 6 })
-    .withMessage('Password must be at least 6 characters'),
-  validate
-];
-
-// Forgot / reset password validation
-const forgotPasswordValidation = [
-  body('email')
-    .trim()
-    .notEmpty()
-    .withMessage('Email is required')
-    .isEmail()
-    .withMessage('Invalid email format')
-    .normalizeEmail(),
-  validate
-];
-
-const resetPasswordValidation = [
-  body('password')
-    .notEmpty()
-    .withMessage('Password is required')
-    .isLength({ min: 6 })
-    .withMessage('Password must be at least 6 characters'),
+    .isLength({ max: 128 })
+    .withMessage('Password must be 128 characters or fewer'),
   validate
 ];
 
 // User creation validation
 const createUserValidation = [
   body('name')
+    .isString()
+    .bail()
     .trim()
+    .customSanitizer(normalizeWhitespace)
     .notEmpty()
     .withMessage('Name is required')
-    .isLength({ min: 2, max: 50 })
-    .withMessage('Name must be between 2 and 50 characters'),
+    .custom(isValidUserName)
+    .withMessage('Name must be 2-50 characters and contain only Latin letters, spaces, dots, apostrophes, or hyphens'),
   body('email')
+    .isString()
+    .bail()
     .trim()
+    .customSanitizer(value => value.toLowerCase())
     .notEmpty()
     .withMessage('Email is required')
+    .isLength({ max: 100 })
+    .withMessage('Email must be 100 characters or fewer')
     .isEmail()
-    .withMessage('Invalid email format')
-    .normalizeEmail(),
-  body('role')
+    .withMessage('Invalid email format'),
+    body('role')
     .optional()
     .isIn(['admin', 'staff', 'resident'])
     .withMessage('Invalid role'),
@@ -98,10 +107,7 @@ const createUserValidation = [
     .optional({ values: 'null' })
     .isIn(['dues', 'complaints', 'residents', 'all'])
     .withMessage('Invalid export section'),
-  body('phone')
-    .optional({ values: 'falsy' })
-    .isMobilePhone('any')
-    .withMessage('Invalid phone number'),
+  phoneValidation(),
   body('houseId')
     .optional({ values: 'falsy' })
     .isMongoId()
@@ -116,9 +122,22 @@ const createUserValidation = [
 const updateUserValidation = [
   body('name')
     .optional()
+    .isString()
+    .bail()
     .trim()
-    .isLength({ min: 2, max: 50 })
-    .withMessage('Name must be between 2 and 50 characters'),
+    .customSanitizer(normalizeWhitespace)
+    .custom(isValidUserName)
+    .withMessage('Name must be 2-50 characters and contain only Latin letters, spaces, dots, apostrophes, or hyphens'),
+  body('email')
+    .optional()
+    .isString()
+    .bail()
+    .trim()
+    .customSanitizer(value => value.toLowerCase())
+    .isLength({ max: 100 })
+    .withMessage('Email must be 100 characters or fewer')
+    .isEmail()
+    .withMessage('Invalid email format'),
   body('role')
     .optional()
     .isIn(['admin', 'staff', 'resident'])
@@ -129,10 +148,7 @@ const updateUserValidation = [
     .withMessage('Specialization is required when changing a user to staff')
     .isIn(['water', 'electric', 'lift', 'sanitation', 'security', 'general'])
     .withMessage('Invalid specialization'),
-  body('phone')
-    .optional({ values: 'falsy' })
-    .isMobilePhone('any')
-    .withMessage('Invalid phone number'),
+  phoneValidation(),
   body('isActive')
     .optional()
     .isBoolean()
@@ -140,18 +156,42 @@ const updateUserValidation = [
   validate
 ];
 
+const houseNoValidation = (required = false) => {
+  let validation = body('houseNo');
+  if (required) {
+    validation = validation
+      .exists()
+      .withMessage('House number is required')
+      .bail();
+  } else {
+    validation = validation.optional();
+  }
+
+  return validation
+    .isString()
+    .bail()
+    .customSanitizer(normalizeHouseNo)
+    .custom(isValidHouseNo)
+    .withMessage('House number must be 1-20 characters and start with a letter or number');
+};
+
 const houseFieldsValidation = [
+  houseNoValidation(),
   body('section')
     .optional()
+    .isString()
+    .bail()
     .trim()
+    .customSanitizer(normalizeSection)
     .notEmpty()
     .withMessage('Section cannot be empty')
-    .isLength({ max: 100 })
-    .withMessage('Section must be 100 characters or fewer'),
+    .custom(isValidSection)
+    .withMessage('Section must be 1-50 characters and contain only letters, numbers, spaces, or hyphens'),
   body('floor')
     .optional()
-    .isFloat({ min: 0 })
-    .withMessage('Floor must be a non-negative number'),
+    .isInt({ min: 0, max: 30 })
+    .withMessage('Floor must be an integer between 0 and 30')
+    .toInt(),
   body('type')
     .optional()
     .isIn(['apartment', 'house', 'shop'])
@@ -176,12 +216,16 @@ const houseFieldsValidation = [
     .withMessage('Address must be 200 characters or fewer'),
   body('monthlyDue')
     .optional()
-    .isFloat({ min: 0 })
-    .withMessage('Monthly due must be a non-negative number'),
+    .custom(isValidMonthlyDue)
+    .withMessage(`Monthly due must be a number between 0 and ${MAX_MONTHLY_DUE} with at most 2 decimal places`)
+    .toFloat(),
   validate
 ];
 
-const createHouseValidation = [...houseFieldsValidation];
+const createHouseValidation = [
+  houseNoValidation(true),
+  ...houseFieldsValidation.slice(1)
+];
 const updateHouseValidation = [...houseFieldsValidation];
 
 // Complaint creation validation
@@ -262,6 +306,23 @@ const createNoticeValidation = [
       }
       return true;
     }),
+  body('expiresAt')
+    .optional({ values: 'falsy' })
+    .isISO8601({ strict: true })
+    .withMessage('Expiration date must be a valid date')
+    .bail()
+    .custom(value => {
+      if (new Date(value) <= new Date()) throw new Error('Expiration date must be in the future');
+      return true;
+    }),
+  validate
+];
+
+const includeExpiredQueryValidation = [
+  query('includeExpired')
+    .optional()
+    .isIn(['true', 'false'])
+    .withMessage('includeExpired must be true or false'),
   validate
 ];
 
@@ -279,25 +340,30 @@ const createPollValidation = [
     .isLength({ max: 500 })
     .withMessage('Description must not exceed 500 characters'),
   body('options')
-    .isArray({ min: 2 })
-    .withMessage('At least 2 options are required')
-    .custom((options) => {
-      if (!options.every(opt => typeof opt === 'string' && opt.trim().length > 0)) {
-        throw new Error('All options must be non-empty strings');
-      }
-      return true;
-    }),
+    .isArray({ min: 2, max: 10 })
+    .withMessage('Poll must have between 2 and 10 options')
+    .bail()
+    .customSanitizer(options => options.map(option =>
+      typeof option === 'string' ? option.trim() : option
+    ))
+    .custom(isValidPollOptions)
+    .withMessage('Options must be 1-100 characters and unique ignoring case'),
   body('type')
     .optional()
     .isIn(['anonymous', 'named'])
     .withMessage('Invalid voting type'),
   body('endDate')
-    .optional({ values: 'falsy' })
+    .exists()
+    .withMessage('End date is required')
+    .bail()
+    .notEmpty()
+    .withMessage('End date is required')
+    .bail()
     .isISO8601()
     .withMessage('Invalid end date format')
     .custom((date) => {
-      if (new Date(date) <= new Date()) {
-        throw new Error('End date must be in the future');
+      if (!isWithinOneYear(new Date(date))) {
+        throw new Error('End date must be in the future and no more than 1 year ahead');
       }
       return true;
     }),
@@ -315,6 +381,16 @@ const updatePollValidation = [
     .trim()
     .isLength({ max: 500 })
     .withMessage('Description must not exceed 500 characters'),
+  body('options')
+    .optional()
+    .isArray({ min: 2, max: 10 })
+    .withMessage('Poll must have between 2 and 10 options')
+    .bail()
+    .customSanitizer(options => options.map(option =>
+      typeof option === 'string' ? option.trim() : option
+    ))
+    .custom(isValidPollOptions)
+    .withMessage('Options must be 1-100 characters and unique ignoring case'),
   body('status')
     .optional()
     .isIn(['active', 'closed'])
@@ -342,17 +418,70 @@ const votePollValidation = [
   validate
 ];
 
+const outstandingQueryValidation = [
+  query('section')
+    .optional()
+    .isString()
+    .trim()
+    .notEmpty()
+    .withMessage('Section must be a non-empty string'),
+  query('houseId')
+    .optional()
+    .isMongoId()
+    .withMessage('Invalid house ID'),
+  query('page')
+    .optional()
+    .isInt({ min: 1 })
+    .withMessage('Page must be a positive integer')
+    .toInt(),
+  query('limit')
+    .optional()
+    .isInt({ min: 1, max: 100 })
+    .withMessage('Limit must be an integer between 1 and 100')
+    .toInt(),
+  validate
+];
+
+const outstandingHouseIdValidation = [
+  param('houseId')
+    .isMongoId()
+    .withMessage('Invalid house ID'),
+  validate
+];
+
+const outstandingExportQueryValidation = [
+  query('section')
+    .optional()
+    .isString()
+    .trim()
+    .notEmpty()
+    .withMessage('Section must be a non-empty string'),
+  query('houseId')
+    .optional()
+    .isMongoId()
+    .withMessage('Invalid house ID'),
+  query('page')
+    .optional()
+    .isInt({ min: 1 })
+    .withMessage('Page must be a positive integer'),
+  query('limit')
+    .optional()
+    .isInt({ min: 1, max: 1000 })
+    .withMessage('Limit must be a positive integer within the export maximum'),
+  validate
+];
+
 // Profile update validation
 const updateProfileValidation = [
   body('name')
     .optional()
+    .isString()
+    .bail()
     .trim()
-    .isLength({ min: 2, max: 50 })
-    .withMessage('Name must be between 2 and 50 characters'),
-  body('phone')
-    .optional({ values: 'falsy' })
-    .isMobilePhone('any')
-    .withMessage('Invalid phone number'),
+    .customSanitizer(normalizeWhitespace)
+    .custom(isValidUserName)
+    .withMessage('Name must be 2-50 characters and contain only Latin letters, spaces, dots, apostrophes, or hyphens'),
+  phoneValidation(),
   body('address')
     .optional({ values: 'falsy' })
     .trim()
@@ -360,8 +489,8 @@ const updateProfileValidation = [
     .withMessage('Address must be under 200 characters'),
   body('newPassword')
     .optional({ values: 'falsy' })
-    .isLength({ min: 6 })
-    .withMessage('New password must be at least 6 characters'),
+    .custom(isValidNewPassword)
+    .withMessage('New password must be 8-64 characters and include at least one letter and one number'),
   body('currentPassword')
     .if(body('newPassword').notEmpty())
     .notEmpty()
@@ -372,8 +501,6 @@ const updateProfileValidation = [
 module.exports = {
   validate,
   loginValidation,
-  forgotPasswordValidation,
-  resetPasswordValidation,
   createUserValidation,
   updateUserValidation,
   createHouseValidation,
@@ -381,8 +508,12 @@ module.exports = {
   createComplaintValidation,
   updateComplaintValidation,
   createNoticeValidation,
+  includeExpiredQueryValidation,
   createPollValidation,
   updatePollValidation,
   votePollValidation,
+  outstandingQueryValidation,
+  outstandingHouseIdValidation,
+  outstandingExportQueryValidation,
   updateProfileValidation
 };

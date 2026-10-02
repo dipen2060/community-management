@@ -4,6 +4,7 @@ const Due = require('../models/Due');
 const Complaint = require('../models/Complaint');
 const House = require('../models/House');
 const ExportAudit = require('../models/ExportAudit');
+const { getOutstandingByHouse } = require('../utils/outstanding');
 
 const configuredMaxExportLimit = Number.parseInt(process.env.EXPORT_MAX_RECORDS, 10);
 const MAX_EXPORT_LIMIT = Number.isSafeInteger(configuredMaxExportLimit) && configuredMaxExportLimit > 0
@@ -48,16 +49,19 @@ function validateExportFilters(req, res, next) {
   const errors = [];
   const isDuesExport = req.path.startsWith('/dues/');
   const isComplaintsExport = req.path.startsWith('/complaints/');
+  const isOutstandingExport = req.path.startsWith('/outstanding/');
 
   validateOptionalInteger(req.query.month, 'month', 1, 12, errors);
   validateOptionalInteger(req.query.year, 'year', MIN_EXPORT_YEAR, MAX_EXPORT_YEAR, errors);
-  validateOptionalEnum(
-    req.query.status,
-    'status',
-    isDuesExport ? DUE_STATUSES : COMPLAINT_STATUSES,
-    errors
-  );
-  validateOptionalEnum(req.query.category, 'category', COMPLAINT_CATEGORIES, errors);
+  if (isDuesExport || isComplaintsExport) {
+    validateOptionalEnum(
+      req.query.status,
+      'status',
+      isDuesExport ? DUE_STATUSES : COMPLAINT_STATUSES,
+      errors
+    );
+  }
+  if (isComplaintsExport) validateOptionalEnum(req.query.category, 'category', COMPLAINT_CATEGORIES, errors);
 
   if (req.query.section !== undefined) {
     const section = getSingleQueryValue(req.query.section);
@@ -66,7 +70,12 @@ function validateExportFilters(req, res, next) {
     }
   }
 
-  if (!isDuesExport && !isComplaintsExport) {
+  if (req.query.houseId !== undefined) {
+    const houseId = getSingleQueryValue(req.query.houseId);
+    if (!houseId || !/^[a-f\d]{24}$/i.test(houseId)) errors.push('houseId must be a valid house ID');
+  }
+
+  if (!isDuesExport && !isComplaintsExport && !isOutstandingExport) {
     errors.push('unsupported export endpoint');
   }
 
@@ -122,7 +131,7 @@ function isAdmin(req) {
 }
 
 function getExportDetails(req) {
-  const match = req.path.match(/^\/(dues|complaints)\/(excel|pdf)$/);
+  const match = req.path.match(/^\/(dues|complaints|outstanding)\/(excel|pdf)$/);
   return match ? { resource: match[1], format: match[2] } : null;
 }
 
@@ -157,6 +166,220 @@ exports.validateExportPagination = (req, res, next) => {
 };
 
 exports.validateExportFilters = validateExportFilters;
+
+function getOutstandingExportRows(req, pagination, now = new Date()) {
+  return getOutstandingByHouse({
+    houseId: req.query.houseId,
+    section: req.query.section,
+    now
+  }).then(houses => houses.slice(pagination.skip, pagination.skip + pagination.limit));
+}
+
+function formatDueSince(dueSince) {
+  return `${String(dueSince.month).padStart(2, '0')}/${dueSince.year}`;
+}
+
+function formatDate(value) {
+  return value ? new Date(value).toLocaleDateString() : 'N/A';
+}
+
+exports.exportOutstandingToExcel = async (req, res) => {
+  try {
+    const pagination = getExportPagination(req, res);
+    if (!pagination) return;
+    const houses = await getOutstandingExportRows(req, pagination);
+    const breakdownCount = houses.reduce((count, house) => count + house.breakdown.length, 0);
+    if (breakdownCount > MAX_EXPORT_LIMIT) {
+      return res.status(400).json({ success: false, message: `Export breakdown cannot exceed ${MAX_EXPORT_LIMIT} records` });
+    }
+
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename=outstanding-report-${new Date().toISOString().split('T')[0]}.xlsx`);
+    const workbook = new ExcelJS.stream.xlsx.WorkbookWriter({ stream: res });
+    const summary = workbook.addWorksheet('Summary');
+    summary.columns = isAdmin(req) ? [
+      { header: 'House No', key: 'houseNo', width: 15 },
+      { header: 'Section', key: 'section', width: 16 },
+      { header: 'Owner', key: 'ownerName', width: 22 },
+      { header: 'Tenant', key: 'tenantName', width: 22 },
+      { header: 'Due Since', key: 'dueSince', width: 13 },
+      { header: 'Months Unpaid', key: 'monthsUnpaid', width: 15 },
+      { header: 'Current Month Amount', key: 'currentMonthAmount', width: 20 },
+      { header: 'Previous Balance', key: 'previousBalance', width: 18 },
+      { header: 'Total Fine', key: 'totalFine', width: 14 },
+      { header: 'Total Payable', key: 'totalPayable', width: 16 },
+      { header: 'Payment Under Verification', key: 'hasVerificationPending', width: 26 }
+    ] : [
+      { header: 'House No', key: 'houseNo', width: 15 },
+      { header: 'Section', key: 'section', width: 16 },
+      { header: 'Due Since', key: 'dueSince', width: 13 },
+      { header: 'Months Unpaid', key: 'monthsUnpaid', width: 15 },
+      { header: 'Payment Under Verification', key: 'hasVerificationPending', width: 26 }
+    ];
+    const breakdown = workbook.addWorksheet('Breakdown');
+    breakdown.columns = isAdmin(req) ? [
+      { header: 'House No', key: 'houseNo', width: 15 },
+      { header: 'Section', key: 'section', width: 16 },
+      { header: 'Month', key: 'month', width: 10 },
+      { header: 'Year', key: 'year', width: 10 },
+      { header: 'Amount', key: 'amount', width: 14 },
+      { header: 'Fine', key: 'fine', width: 12 },
+      { header: 'Total', key: 'total', width: 14 },
+      { header: 'Status', key: 'status', width: 22 },
+      { header: 'Due Date', key: 'dueDate', width: 16 },
+      { header: 'Days Overdue', key: 'daysOverdue', width: 14 }
+    ] : [
+      { header: 'House No', key: 'houseNo', width: 15 },
+      { header: 'Section', key: 'section', width: 16 },
+      { header: 'Month', key: 'month', width: 10 },
+      { header: 'Year', key: 'year', width: 10 },
+      { header: 'Status', key: 'status', width: 22 },
+      { header: 'Due Date', key: 'dueDate', width: 16 },
+      { header: 'Days Overdue', key: 'daysOverdue', width: 14 }
+    ];
+    for (const sheet of [summary, breakdown]) {
+      sheet.getRow(1).font = { bold: true };
+      sheet.getRow(1).commit();
+    }
+    houses.forEach(house => {
+      summary.addRow(isAdmin(req) ? {
+        houseNo: house.houseNo,
+        section: house.section,
+        ownerName: house.ownerName || 'N/A',
+        tenantName: house.tenantName || 'N/A',
+        dueSince: formatDueSince(house.dueSince),
+        monthsUnpaid: house.monthsUnpaid,
+        currentMonthAmount: house.currentMonthAmount,
+        previousBalance: house.previousBalance,
+        totalFine: house.totalFine,
+        totalPayable: house.totalPayable,
+        hasVerificationPending: house.hasVerificationPending
+      } : {
+        houseNo: house.houseNo,
+        section: house.section,
+        dueSince: formatDueSince(house.dueSince),
+        monthsUnpaid: house.monthsUnpaid,
+        hasVerificationPending: house.hasVerificationPending
+      }).commit();
+      house.breakdown.forEach(due => {
+        const row = {
+          houseNo: house.houseNo,
+          section: house.section,
+          month: due.month,
+          year: due.year,
+          status: due.status,
+          dueDate: formatDate(due.dueDate),
+          daysOverdue: due.daysOverdue
+        };
+        if (isAdmin(req)) Object.assign(row, {
+          amount: due.amount,
+          fine: due.fine,
+          total: due.total
+        });
+        breakdown.addRow(row).commit();
+      });
+    });
+    await workbook.commit();
+  } catch (err) {
+    if (!res.headersSent) res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+exports.exportOutstandingToPDF = async (req, res) => {
+  try {
+    const pagination = getExportPagination(req, res);
+    if (!pagination) return;
+    const houses = await getOutstandingExportRows(req, pagination);
+    const breakdownCount = houses.reduce((count, house) => count + house.breakdown.length, 0);
+    if (breakdownCount > MAX_EXPORT_LIMIT) {
+      return res.status(400).json({ success: false, message: `Export breakdown cannot exceed ${MAX_EXPORT_LIMIT} records` });
+    }
+    const headers = isAdmin(req)
+      ? ['House', 'Section', 'Owner', 'Tenant', 'Since', 'Months', 'Current', 'Previous', 'Fines', 'Payable', 'Verifying']
+      : ['House', 'Section', 'Since', 'Months', 'Verifying'];
+    const widths = isAdmin(req) ? [58, 58, 82, 82, 48, 38, 58, 58, 48, 58, 58] : [100, 100, 80, 65, 120];
+    const doc = new PDFDocument({ margin: 28, size: 'A4', layout: 'landscape' });
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename=outstanding-report-${new Date().toISOString().split('T')[0]}.pdf`);
+    doc.pipe(res);
+    doc.font('Helvetica-Bold').fontSize(18).text('Outstanding Dues Report', { align: 'center' });
+    doc.moveDown();
+    const drawHeader = () => {
+      let x = 28;
+      const y = doc.y;
+      doc.font('Helvetica-Bold').fontSize(8);
+      headers.forEach((header, index) => {
+        doc.text(header, x, y, { width: widths[index] });
+        x += widths[index];
+      });
+      doc.moveDown(1.8);
+    };
+    drawHeader();
+    let subtotal = 0;
+    houses.forEach(house => {
+      if (doc.y > doc.page.height - 55) {
+        doc.addPage();
+        drawHeader();
+      }
+      const values = isAdmin(req)
+        ? [house.houseNo, house.section, house.ownerName || 'N/A', house.tenantName || 'N/A', formatDueSince(house.dueSince), String(house.monthsUnpaid), `Rs ${house.currentMonthAmount}`, `Rs ${house.previousBalance}`, `Rs ${house.totalFine}`, `Rs ${house.totalPayable}`, house.hasVerificationPending ? 'Yes' : 'No']
+        : [house.houseNo, house.section, formatDueSince(house.dueSince), String(house.monthsUnpaid), house.hasVerificationPending ? 'Yes' : 'No'];
+      let x = 28;
+      const y = doc.y;
+      doc.font('Helvetica').fontSize(8);
+      values.forEach((value, index) => {
+        doc.text(String(value), x, y, { width: widths[index] });
+        x += widths[index];
+      });
+      doc.moveDown(1.8);
+      subtotal += house.totalPayable;
+    });
+    if (req.query.houseId && houses.length) {
+      doc.addPage();
+      doc.font('Helvetica-Bold').fontSize(14).text(`Monthly Breakdown — ${houses[0].houseNo}`);
+      doc.moveDown();
+      const detailHeaders = isAdmin(req)
+        ? ['Month/Year', 'Amount', 'Fine', 'Total', 'Status', 'Due Date', 'Days Late']
+        : ['Month/Year', 'Status', 'Due Date', 'Days Late'];
+      const detailWidths = isAdmin(req) ? [80, 70, 60, 70, 95, 90, 70] : [100, 120, 110, 80];
+      const drawDetailHeader = () => {
+        let x = 28;
+        const y = doc.y;
+        doc.font('Helvetica-Bold').fontSize(8);
+        detailHeaders.forEach((header, index) => {
+          doc.text(header, x, y, { width: detailWidths[index] });
+          x += detailWidths[index];
+        });
+        doc.moveDown(1.8);
+      };
+      drawDetailHeader();
+      houses[0].breakdown.forEach(due => {
+        if (doc.y > doc.page.height - 45) {
+          doc.addPage();
+          drawDetailHeader();
+        }
+        const values = isAdmin(req)
+          ? [`${due.month}/${due.year}`, `Rs ${due.amount}`, `Rs ${due.fine}`, `Rs ${due.total}`, due.status, formatDate(due.dueDate), String(due.daysOverdue)]
+          : [`${due.month}/${due.year}`, due.status, formatDate(due.dueDate), String(due.daysOverdue)];
+        let x = 28;
+        const y = doc.y;
+        doc.font('Helvetica').fontSize(8);
+        values.forEach((value, index) => {
+          doc.text(value, x, y, { width: detailWidths[index] });
+          x += detailWidths[index];
+        });
+        doc.moveDown(1.8);
+      });
+    }
+    if (isAdmin(req)) {
+      doc.moveDown();
+      doc.font('Helvetica-Bold').fontSize(10).text(`Subtotal total payable: Rs. ${subtotal.toLocaleString('en-IN')}`, { align: 'right' });
+    }
+    doc.end();
+  } catch (err) {
+    if (!res.headersSent) res.status(500).json({ success: false, message: err.message });
+  }
+};
 
 // Export dues to Excel
 exports.exportDuesToExcel = async (req, res) => {
@@ -309,6 +532,7 @@ exports.exportComplaintsToExcel = async (req, res) => {
       { header: 'Specialization', key: 'specialization', width: 15 },
       { header: 'Resolution', key: 'resolution', width: 40 },
       { header: 'Resolved By', key: 'resolvedBy', width: 15 },
+      { header: 'Started At', key: 'startedAt', width: 22 },
       { header: 'Resolved At', key: 'resolvedAt', width: 18 },
       { header: 'Created At', key: 'createdAt', width: 18 }
     ] : [
@@ -321,6 +545,7 @@ exports.exportComplaintsToExcel = async (req, res) => {
       { header: 'Assigned To', key: 'assignedTo', width: 15 },
       { header: 'Specialization', key: 'specialization', width: 15 },
       { header: 'Resolved By', key: 'resolvedBy', width: 15 },
+      { header: 'Started At', key: 'startedAt', width: 22 },
       { header: 'Resolved At', key: 'resolvedAt', width: 18 },
       { header: 'Created At', key: 'createdAt', width: 18 }
     ];
@@ -346,8 +571,9 @@ exports.exportComplaintsToExcel = async (req, res) => {
         assignedTo: complaint.assignedTo?.name || 'N/A',
         specialization: complaint.assignedTo?.specialization || 'N/A',
         resolvedBy: complaint.resolvedBy?.name || 'N/A',
+        startedAt: complaint.startedAt ? complaint.startedAt.toLocaleString() : 'N/A',
         resolvedAt: complaint.resolvedAt ? complaint.resolvedAt.toLocaleString() : 'N/A',
-        createdAt: complaint.createdAt.toLocaleString()
+        createdAt: complaint.createdAt ? complaint.createdAt.toLocaleString() : 'N/A'
       };
       if (isAdmin(req)) Object.assign(row, {
         description: complaint.description,
@@ -538,10 +764,11 @@ exports.exportComplaintsToPDF = async (req, res) => {
       if (complaint.resolution) {
         doc.text(`Resolution: ${complaint.resolution}`);
         doc.text(`Resolved By: ${complaint.resolvedBy?.name || 'N/A'}`);
-        doc.text(`Resolved At: ${complaint.resolvedAt ? complaint.resolvedAt.toLocaleString() : 'N/A'}`);
       }
 
-      doc.text(`Created At: ${complaint.createdAt.toLocaleString()}`);
+      doc.text(`Submitted At: ${complaint.createdAt ? complaint.createdAt.toLocaleString() : 'N/A'}`);
+      doc.text(`Started At: ${complaint.startedAt ? complaint.startedAt.toLocaleString() : 'N/A'}`);
+      doc.text(`Resolved At: ${complaint.resolvedAt ? complaint.resolvedAt.toLocaleString() : 'N/A'}`);
       doc.moveDown();
     });
 

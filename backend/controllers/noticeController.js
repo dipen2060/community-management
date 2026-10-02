@@ -9,6 +9,15 @@ const { getPagination, buildMeta } = require('../utils/paginate');
 exports.getNotices = async (req, res, next) => {
   try {
     const filter = { isActive: true };
+    const includeExpired = req.user.role === 'admin' && req.query.includeExpired === 'true';
+    if (req.query.includeExpired !== undefined && !['true', 'false'].includes(req.query.includeExpired)) {
+      return res.status(400).json({ success: false, message: 'includeExpired must be true or false.' });
+    }
+    if (!includeExpired) {
+      filter.$and = [
+        { $or: [{ expiresAt: null }, { expiresAt: { $gt: new Date() } }] }
+      ];
+    }
     
     // Search functionality - search in title and content
     if (req.query.search !== undefined) {
@@ -41,6 +50,13 @@ exports.getNotices = async (req, res, next) => {
       notices = notices.filter(n => n.targetSections.length === 0 || n.targetSections.some(section => sections.has(section)));
     }
 
+    const now = new Date();
+    notices = notices.map(notice => {
+      const data = typeof notice.toObject === 'function' ? notice.toObject() : { ...notice };
+      data.expired = Boolean(data.expiresAt && new Date(data.expiresAt) <= now);
+      return data;
+    });
+
     const { page, limit } = getPagination(req);
     const total = notices.length;
     const data = page ? notices.slice((page - 1) * limit, page * limit) : notices;
@@ -50,7 +66,14 @@ exports.getNotices = async (req, res, next) => {
 
 exports.createNotice = async (req, res, next) => {
   try {
-    const { title, content, type, targetSections } = req.body;
+    const { title, content, type, targetSections, expiresAt } = req.body;
+    let expirationDate = null;
+    if (expiresAt !== undefined && expiresAt !== '') {
+      expirationDate = new Date(expiresAt);
+      if (Number.isNaN(expirationDate.getTime()) || expirationDate <= new Date()) {
+        return res.status(400).json({ success: false, message: 'expiresAt must be a valid date in the future.' });
+      }
+    }
     const sections = Array.isArray(targetSections) ? targetSections.map(section => section.trim()) : [];
     if (sections.some(section => !section)) {
       return res.status(400).json({ success: false, message: 'Target sections cannot be empty.' });
@@ -60,7 +83,14 @@ exports.createNotice = async (req, res, next) => {
     if (unknownSections.length) {
       return res.status(400).json({ success: false, message: `Unknown target section(s): ${unknownSections.join(', ')}` });
     }
-    const notice = await Notice.create({ title, content, type, targetSections: sections, createdBy: req.user._id });
+    const notice = await Notice.create({
+      title,
+      content,
+      type,
+      targetSections: sections,
+      createdBy: req.user._id,
+      expiresAt: expirationDate
+    });
 
     // 🔔 Notify residents — only those in the target section(s), or everyone if no section specified
     let residentFilter = { role: 'resident' };

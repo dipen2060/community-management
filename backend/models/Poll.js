@@ -14,11 +14,20 @@ const pollSchema = new mongoose.Schema({
   targetSections: { type: [String], default: [] }, // Empty = all sections can vote
   createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
   endDate: { type: Date }, // Optional end date for poll
-  totalVotes: { type: Number, default: 0 }
+  totalVotes: { type: Number, default: 0 },
+  outcome: { type: String, enum: ['open', 'winner', 'tie', 'no_votes'], default: 'open' },
+  winnerOptionIndexes: { type: [Number], default: [] },
+  closedAt: { type: Date },
+  closedReason: { type: String, enum: ['expired', 'manual'] },
+  round: { type: Number, default: 1, min: 1 },
+  parentPoll: { type: mongoose.Schema.Types.ObjectId, ref: 'Poll' },
+  runoffPoll: { type: mongoose.Schema.Types.ObjectId, ref: 'Poll' }
 }, { timestamps: true, optimisticConcurrency: true });
 
 // Index for efficient queries
 pollSchema.index({ status: 1, createdAt: -1 });
 pollSchema.index({ targetSections: 1 });
+pollSchema.index({ status: 1, endDate: 1 });
+pollSchema.index({ parentPoll: 1 }, { unique: true, sparse: true });
 
 module.exports = mongoose.model('Poll', pollSchema);

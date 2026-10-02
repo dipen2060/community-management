@@ -1,6 +1,6 @@
 const User = require('../models/User');
 const House = require('../models/House');
-const { generateUsername, generateTemporaryPassword } = require('../utils/userCredentials');
+const { generateUsername, generateTemporaryPassword, generateRandomPassword } = require('../utils/userCredentials');
 const { logAudit } = require('../utils/auditLogger');
 const ResidentHouse = require('../models/ResidentHouse');
 const Complaint = require('../models/Complaint');
@@ -10,6 +10,7 @@ const Poll = require('../models/Poll');
 const Notice = require('../models/Notice');
 const { allowedExportSections } = require('../middleware/exportPermissions');
 const { setResidentHouseLink } = require('../utils/residentHouses');
+const { normalizeWhitespace, isValidNewPassword } = require('../utils/inputValidation');
 
 // GET /api/users?role=staff — list users, optionally filtered by role
 exports.getUsers = async (req, res) => {
@@ -44,6 +45,8 @@ exports.getUserById = async (req, res) => {
 exports.createUser = async (req, res) => {
   try {
     const { name, email, phone, role, specialization, exportSection, houseId, relationshipType } = req.body;
+    const normalizedName = normalizeWhitespace(name || '');
+    const normalizedEmail = (email || '').trim().toLowerCase();
     const validRoles = ['admin', 'staff', 'resident'];
     const validSpecializations = ['water', 'electric', 'lift', 'sanitation', 'security', 'general'];
     if (role !== undefined && !validRoles.includes(role)) {
@@ -52,8 +55,8 @@ exports.createUser = async (req, res) => {
     if (specialization !== undefined && specialization !== null && !validSpecializations.includes(specialization)) {
       return res.status(400).json({ success: false, message: 'Invalid specialization' });
     }
-    if (!name || !name.trim()) return res.status(400).json({ success: false, message: 'Name is required' });
-    if (!email || !email.trim()) return res.status(400).json({ success: false, message: 'Email is required — used as login identifier' });
+    if (!normalizedName) return res.status(400).json({ success: false, message: 'Name is required' });
+    if (!normalizedEmail) return res.status(400).json({ success: false, message: 'Email is required — used as login identifier' });
     if (role === 'staff' && !specialization) {
       return res.status(400).json({ success: false, message: 'Specialization is required for staff.' });
     }
@@ -79,15 +82,15 @@ exports.createUser = async (req, res) => {
       }
     }
 
-    const emailExists = await User.findOne({ email: email.trim().toLowerCase() });
+    const emailExists = await User.findOne({ email: normalizedEmail });
     if (emailExists) return res.status(400).json({ success: false, message: 'Email already in use' });
 
-    const username = await generateUsername(name);
+    const username = await generateUsername(normalizedName);
     const password = generateTemporaryPassword();
 
     const user = await User.create({
-      name: name.trim(),
-      email: email.trim().toLowerCase(),
+      name: normalizedName,
+      email: normalizedEmail,
       username, password, mustChangePassword: true, phone,
       role: resultingRole,
       specialization: role === 'staff' ? specialization : null,
@@ -138,7 +141,7 @@ exports.updateUser = async (req, res) => {
   try {
     const { name, phone, specialization, isActive, role, exportSection, houseId, relationshipType } = req.body;
     const update = {};
-    if (name)   update.name = name;
+    if (name) update.name = normalizeWhitespace(name);
     if (phone !== undefined)  update.phone = phone;
     const targetUser = await User.findById(req.params.id).select('-password');
     if (!targetUser) return res.status(404).json({ success: false, message: 'User not found' });
@@ -248,28 +251,6 @@ exports.updateUser = async (req, res) => {
 };
 
 // PUT /api/users/:id/reset-password — Admin generates a temporary password that must be changed on first login
-// exports.resetPassword = async (req, res) => {
-//   try {
-//     const user = await User.findById(req.params.id);
-//     if (!user || !user.isActive) return res.status(404).json({ success: false, message: 'Active user not found' });
-//     const newPassword = generateTemporaryPassword();
-//     user.password = newPassword;
-//     user.mustChangePassword = true;
-//     await user.save();
-//     await logAudit(req.user._id, req.user.role, 'user_password_reset', 'user', user._id, {
-//       reason: 'default_password_reset'
-//     });
-//     res.json({
-//       success: true,
-//       // Same one-time-reveal pattern as createUser: returned once here, never stored or logged in plaintext.
-//       data: { id: user._id, temporaryPassword: newPassword },
-//       message: 'Password reset. This temporary password is shown only once — copy it now and deliver it through a secure channel. It must be changed on first login.'
-//     });
-//   } catch (err) { res.status(500).json({ success: false, message: err.message }); }
-// };
-
-// PUT /api/users/:id/reset-password — Admin generates a temporary password that must be changed on first login
-
 exports.resetPassword = async (req, res) => {
   try {
     const user = await User.findById(req.params.id);
@@ -281,7 +262,7 @@ exports.resetPassword = async (req, res) => {
       });
     }
 
-    const newPassword = generateTemporaryPassword();
+    const newPassword = generateRandomPassword();
 
     user.password = newPassword;
     user.mustChangePassword = true;
@@ -305,11 +286,8 @@ exports.resetPassword = async (req, res) => {
         id: user._id,
         name: user.name,
         username: user.username,
-        email: user.email,
-        temporaryPassword: newPassword
+        email: user.email
       },
-      // Top-level copy matches the createUser response shape.
-      // Shown once, here, to the admin — never stored or retrievable again.
       temporaryPassword: newPassword,
       message: 'Password reset. Save the new temporary password now — it will not be shown again.'
     });
@@ -396,8 +374,9 @@ exports.updateMyProfile = async (req, res) => {
     // otherwise generateUsername() finds the user's own existing username "taken" and
     // needlessly appends a number every time the profile is saved)
     if (name && name.trim() && name.trim() !== user.name) {
-      user.name = name.trim();
-      user.username = await generateUsername(name.trim());
+      const normalizedName = normalizeWhitespace(name);
+      user.name = normalizedName;
+      user.username = await generateUsername(normalizedName);
     }
 
     // Update phone if provided
@@ -419,8 +398,8 @@ exports.updateMyProfile = async (req, res) => {
       if (!isMatch) {
         return res.status(400).json({ success: false, message: 'Current password is incorrect' });
       }
-      if (newPassword.length < 6) {
-        return res.status(400).json({ success: false, message: 'New password must be at least 6 characters' });
+      if (!isValidNewPassword(newPassword)) {
+        return res.status(400).json({ success: false, message: 'New password must be 8-64 characters and include at least one letter and one number' });
       }
       user.password = newPassword; // pre-save hook (below) hashes it — MUST use .save(), not findByIdAndUpdate,
       user.mustChangePassword = false;

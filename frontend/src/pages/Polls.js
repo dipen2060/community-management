@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from 'recharts';
+import { validatePollForm } from '../utils/validation';
 
 const CHART_COLORS = ['#3b82f6', '#a855f7', '#22c55e', '#f59e0b', '#ef4444', '#06b6d4', '#ec4899', '#84cc16'];
 
@@ -12,6 +13,8 @@ const Polls = () => {
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [showResults, setShowResults] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [pollSubmitAttempted, setPollSubmitAttempted] = useState(false);
+  const [pollTouchedFields, setPollTouchedFields] = useState({});
   const [availableSections, setAvailableSections] = useState(['Section 1', 'Section 2', 'Section 3', 'Section 4']);
 
   const [newPoll, setNewPoll] = useState({
@@ -31,6 +34,17 @@ const Polls = () => {
     }).catch(err => console.error('Failed to fetch houses:', err));
   }, []);
 
+  useEffect(() => {
+    const endTimes = polls
+      .filter(poll => poll.status === 'active' && poll.endDate)
+      .map(poll => new Date(poll.endDate).getTime())
+      .filter(endTime => Number.isFinite(endTime) && endTime > Date.now());
+    if (!endTimes.length) return undefined;
+    const nextEndTime = Math.min(...endTimes);
+    const timer = setTimeout(fetchPolls, Math.max(500, nextEndTime - Date.now() + 500));
+    return () => clearTimeout(timer);
+  }, [polls]);
+
   const fetchPolls = async () => {
     try {
       const res = await axios.get('/api/polls');
@@ -44,20 +58,22 @@ const Polls = () => {
 
   const handleCreatePoll = async (e) => {
     e.preventDefault();
-    try {
-      const validOptions = newPoll.options.filter(opt => opt.trim());
-      if (validOptions.length < 2) {
-        alert('Please provide at least 2 options');
-        return;
-      }
+    setPollSubmitAttempted(true);
+    const errors = validatePollForm(newPoll);
+    if (Object.values(errors).some(Boolean)) return;
 
+    try {
       await axios.post('/api/polls', {
         ...newPoll,
-        options: validOptions,
-        endDate: newPoll.endDate ? new Date(newPoll.endDate).toISOString() : undefined
+        title: newPoll.title.trim(),
+        description: newPoll.description.trim(),
+        options: newPoll.options.map(option => option.trim()),
+        endDate: new Date(newPoll.endDate).toISOString()
       });
 
       setShowCreateForm(false);
+      setPollSubmitAttempted(false);
+      setPollTouchedFields({});
       setNewPoll({
         title: '',
         description: '',
@@ -93,6 +109,13 @@ const Polls = () => {
     }
   };
 
+  const scrollToRunoff = async (runoffPollId) => {
+    await fetchPolls();
+    setTimeout(() => {
+      document.getElementById(`poll-card-${runoffPollId}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 200);
+  };
+
   const handleClosePoll = async (pollId) => {
     try {
       await axios.put(`/api/polls/${pollId}`, { status: 'closed' });
@@ -115,6 +138,7 @@ const Polls = () => {
   };
 
   const addOption = () => {
+    if (newPoll.options.length >= 10) return;
     setNewPoll({ ...newPoll, options: [...newPoll.options, ''] });
   };
 
@@ -130,6 +154,8 @@ const Polls = () => {
     updated[index] = value;
     setNewPoll({ ...newPoll, options: updated });
   };
+
+  const pollFormErrors = validatePollForm(newPoll);
 
   if (loading) return (
     <div className="flex items-center justify-center h-64">
@@ -152,7 +178,11 @@ const Polls = () => {
         </div>
         {(user?.role === 'admin' || user?.role === 'staff') && (
           <button
-            onClick={() => setShowCreateForm(true)}
+            onClick={() => {
+              setPollSubmitAttempted(false);
+              setPollTouchedFields({});
+              setShowCreateForm(true);
+            }}
             className="flex w-full items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-blue-600 to-purple-600 px-6 py-3 text-white shadow-lg transition-all hover:from-blue-700 hover:to-purple-700 hover:shadow-xl sm:w-auto"
           >
             <span className="text-xl">+</span>
@@ -173,40 +203,48 @@ const Polls = () => {
               ✕
             </button>
           </div>
-          <form onSubmit={handleCreatePoll} className="space-y-6">
+          <form onSubmit={handleCreatePoll} noValidate className="space-y-6">
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-2">Poll Title *</label>
               <input
                 type="text"
+                maxLength={100}
                 value={newPoll.title}
                 onChange={(e) => setNewPoll({ ...newPoll, title: e.target.value })}
+                onBlur={() => setPollTouchedFields({ ...pollTouchedFields, title: true })}
                 className="w-full border-2 border-gray-200 rounded-xl p-4 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none"
                 placeholder="What would you like to ask the community?"
                 required
               />
+              {(pollTouchedFields.title || pollSubmitAttempted) && pollFormErrors.title && <p role="alert" className="mt-2 text-sm text-red-600">{pollFormErrors.title}</p>}
             </div>
 
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-2">Description</label>
               <textarea
+                maxLength={500}
                 value={newPoll.description}
                 onChange={(e) => setNewPoll({ ...newPoll, description: e.target.value })}
+                onBlur={() => setPollTouchedFields({ ...pollTouchedFields, description: true })}
                 className="w-full border-2 border-gray-200 rounded-xl p-4 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none resize-none"
                 rows="3"
                 placeholder="Add more context to your poll (optional)"
               />
+              {(pollTouchedFields.description || pollSubmitAttempted) && pollFormErrors.description && <p role="alert" className="mt-2 text-sm text-red-600">{pollFormErrors.description}</p>}
             </div>
 
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">Voting Options (minimum 2) *</label>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Voting Options (2-10) *</label>
               <div className="space-y-3">
                 {newPoll.options.map((option, index) => (
                   <div key={index} className="flex gap-3">
                     <div className="flex-1 relative">
                       <input
                         type="text"
+                        maxLength={100}
                         value={option}
                         onChange={(e) => updateOption(index, e.target.value)}
+                        onBlur={() => setPollTouchedFields({ ...pollTouchedFields, options: true })}
                         className="w-full border-2 border-gray-200 rounded-xl p-4 pl-12 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none"
                         placeholder={`Option ${index + 1}`}
                         required
@@ -227,13 +265,15 @@ const Polls = () => {
                   </div>
                 ))}
               </div>
+              {(pollTouchedFields.options || pollSubmitAttempted) && pollFormErrors.options && <p role="alert" className="mt-2 text-sm text-red-600">{pollFormErrors.options}</p>}
               <button
                 type="button"
                 onClick={addOption}
+                disabled={newPoll.options.length >= 10}
                 className="mt-3 text-blue-600 hover:text-blue-700 font-semibold text-sm flex items-center gap-2"
               >
                 <span className="text-lg">+</span>
-                Add Another Option
+                {newPoll.options.length >= 10 ? 'Maximum 10 options' : 'Add Another Option'}
               </button>
             </div>
 
@@ -251,13 +291,16 @@ const Polls = () => {
               </div>
 
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">End Date (optional)</label>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">End Date *</label>
                 <input
                   type="datetime-local"
                   value={newPoll.endDate}
                   onChange={(e) => setNewPoll({ ...newPoll, endDate: e.target.value })}
+                  onBlur={() => setPollTouchedFields({ ...pollTouchedFields, endDate: true })}
                   className="w-full border-2 border-gray-200 rounded-xl p-4 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none"
+                  required
                 />
+                {(pollTouchedFields.endDate || pollSubmitAttempted) && pollFormErrors.endDate && <p role="alert" className="mt-2 text-sm text-red-600">{pollFormErrors.endDate}</p>}
               </div>
             </div>
 
@@ -323,13 +366,20 @@ const Polls = () => {
                     Total Votes: {selectedPoll.poll.totalVotes}
                   </span>
                   <span className={`px-3 py-1 rounded-full font-medium ${
-                    selectedPoll.poll.status === 'active' 
+                    selectedPoll.poll.status === 'active'
                       ? 'bg-green-100 text-green-700' 
                       : 'bg-red-100 text-red-700'
                   }`}>
                     {selectedPoll.poll.status === 'active' ? '● Active' : '● Closed'}
                   </span>
                 </div>
+                <p className="mt-3 text-sm font-semibold text-gray-700">
+                  Outcome: {selectedPoll.poll.outcome === 'winner'
+                    ? `Winner — ${selectedPoll.results[selectedPoll.poll.winnerOptionIndexes?.[0]]?.text || 'Option'}`
+                    : selectedPoll.poll.outcome === 'tie'
+                      ? selectedPoll.poll.runoffPoll ? 'Tie — re-vote started' : 'Final tie — admin decision needed'
+                      : selectedPoll.poll.outcome === 'no_votes' ? 'No votes' : 'Voting open'}
+                </p>
               </div>
 
               {selectedPoll.poll.totalVotes > 0 && (
@@ -407,8 +457,17 @@ const Polls = () => {
         </div>
       ) : (
         <div className="grid gap-6">
-          {polls.map((poll) => (
-            <div key={poll._id} className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-shadow border border-gray-100 overflow-hidden">
+          {polls.map((poll) => {
+            const pollClosed = poll.status === 'closed' || (poll.endDate && new Date(poll.endDate).getTime() <= Date.now());
+            const isResident = user?.role === 'resident';
+            const canVote = isResident && !pollClosed && !poll.hasVoted;
+            const winner = poll.outcome === 'winner' ? poll.options[poll.winnerOptionIndexes?.[0]] : null;
+            const winnerPercentage = winner && poll.totalVotes > 0
+              ? ((winner.votes.length / poll.totalVotes) * 100).toFixed(1)
+              : '0.0';
+            const sourcePoll = poll.parentPoll && polls.find(item => String(item._id) === String(poll.parentPoll));
+            return (
+            <div id={`poll-card-${poll._id}`} key={poll._id} className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-shadow border border-gray-100 overflow-hidden">
               {/* Poll Header */}
               <div className="bg-gradient-to-r from-blue-50 to-purple-50 p-6">
                 <div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-start">
@@ -416,12 +475,13 @@ const Polls = () => {
                     <div className="mb-2 flex flex-wrap items-center gap-3">
                       <h3 className="break-words text-xl font-bold text-gray-800">{poll.title}</h3>
                       <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                        poll.status === 'active' 
+                        !pollClosed
                           ? 'bg-green-100 text-green-700' 
                           : 'bg-red-100 text-red-700'
                       }`}>
-                        {poll.status === 'active' ? '● Active' : '● Closed'}
+                        {!pollClosed ? '● Active' : '● Closed'}
                       </span>
+                      {poll.round > 1 && <span className="rounded-full bg-purple-100 px-3 py-1 text-xs font-semibold text-purple-700">Re-vote · Round {poll.round}</span>}
                     </div>
                     {poll.description && <p className="text-gray-600 text-sm">{poll.description}</p>}
                     <div className="flex flex-wrap gap-3 mt-3 text-xs text-gray-500">
@@ -455,10 +515,29 @@ const Polls = () => {
                     </div>
                   )}
                 </div>
+                {sourcePoll && <p className="mt-3 text-sm font-medium text-purple-700">Tie-break of: {sourcePoll.title}</p>}
               </div>
 
               {/* Voting Options */}
               <div className="p-6">
+                {pollClosed && poll.outcome === 'winner' && winner && (
+                  <div className="mb-5 rounded-xl border border-green-200 bg-green-50 p-4 font-semibold text-green-800">
+                    Winner: {winner.text} — {winner.votes.length} votes ({winnerPercentage}%)
+                  </div>
+                )}
+                {pollClosed && poll.outcome === 'tie' && (
+                  <div className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-yellow-200 bg-yellow-50 p-4 font-semibold text-yellow-800">
+                    <span>{poll.runoffPoll ? 'Tie — re-vote started' : 'Final tie — waiting for admin decision'}</span>
+                    {poll.runoffPoll && (
+                      <button type="button" onClick={() => scrollToRunoff(poll.runoffPoll)} className="rounded-lg bg-yellow-100 px-3 py-2 text-sm hover:bg-yellow-200">
+                        Go to re-vote
+                      </button>
+                    )}
+                  </div>
+                )}
+                {pollClosed && poll.outcome === 'no_votes' && (
+                  <div className="mb-5 rounded-xl border border-gray-200 bg-gray-100 p-4 font-semibold text-gray-700">No votes</div>
+                )}
                 <div className="space-y-3">
                   {poll.options.map((option, index) => {
                     const votePercentage = poll.totalVotes > 0 
@@ -468,12 +547,12 @@ const Polls = () => {
                     return (
                       <button
                         key={index}
-                        onClick={() => handleVote(poll._id, index)}
-                        disabled={poll.status !== 'active' || poll.hasVoted}
-                        className={`w-full text-left p-4 rounded-xl border-2 transition-all relative overflow-hidden group ${
-                          poll.status !== 'active' || poll.hasVoted
-                            ? 'bg-gray-50 border-gray-200 cursor-not-allowed'
-                            : 'bg-white border-gray-200 hover:border-blue-400 hover:bg-blue-50'
+                        onClick={isResident ? () => handleVote(poll._id, index) : undefined}
+                        disabled={!isResident || pollClosed || poll.hasVoted}
+                        className={`w-full text-left p-4 rounded-xl border-2 relative overflow-hidden ${
+                          canVote
+                            ? 'transition-all group bg-white border-gray-200 hover:border-blue-400 hover:bg-blue-50'
+                            : 'bg-gray-50 border-gray-200 cursor-not-allowed'
                         }`}
                       >
                         {/* Progress bar background */}
@@ -487,9 +566,9 @@ const Polls = () => {
                         <div className="relative flex justify-between items-center">
                           <div className="flex items-center gap-3">
                             <span className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm ${
-                              poll.status !== 'active' || poll.hasVoted
-                                ? 'bg-gray-200 text-gray-500'
-                                : 'bg-blue-100 text-blue-600 group-hover:bg-blue-600 group-hover:text-white transition-colors'
+                              canVote
+                                ? 'bg-blue-100 text-blue-600 group-hover:bg-blue-600 group-hover:text-white transition-colors'
+                                : 'bg-gray-200 text-gray-500'
                             }`}>
                               {index + 1}
                             </span>
@@ -514,10 +593,7 @@ const Polls = () => {
                   </div>
                 )}
 
-                {/* Backend restricts GET /api/polls/:id/results to admin/staff only (see routes/polls.js),
-                    so the button must not be shown to residents — it used to appear after voting or once
-                    a poll closed and would fail with a 403 when clicked. */}
-                {(user?.role === 'admin' || user?.role === 'staff') && (
+                {((user?.role === 'admin' || user?.role === 'staff') || (user?.role === 'resident' && pollClosed)) && (
                   <button
                     onClick={() => handleViewResults(poll._id)}
                     className="mt-4 w-full py-3 bg-gradient-to-r from-blue-50 to-purple-50 text-blue-700 rounded-xl hover:from-blue-100 hover:to-purple-100 transition-colors font-semibold flex items-center justify-center gap-2"
@@ -528,7 +604,8 @@ const Polls = () => {
                 )}
               </div>
             </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>

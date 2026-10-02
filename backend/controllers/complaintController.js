@@ -7,6 +7,7 @@ const { detectCategory } = require('../utils/categoryClassifier');
 const { detectPriority, maxSeverity } = require('../utils/priorityClassifier');
 const { findBestStaffForCategory } = require('../utils/autoAssign');
 const { logAudit } = require('../utils/auditLogger');
+const { getSlaHours } = require('../utils/slaConfig');
 const { getResidentHouseIds, isResidentLinkedToHouse } = require('../utils/residentHouses');
 const fs = require('fs');
 const path = require('path');
@@ -166,6 +167,7 @@ exports.createComplaint = async (req, res, next) => {
       submittedBy: req.user._id,
       assignedTo: assignedStaff ? assignedStaff._id : null,
       status: assignedStaff ? 'inprogress' : 'pending',
+      startedAt: assignedStaff ? new Date() : undefined,
       attachments
     });
     if (attachments.length) {
@@ -304,6 +306,10 @@ exports.updateComplaint = async (req, res, next) => {
     if (assignedTo) complaint.assignedTo = assignedTo;
     if (resolution) complaint.resolution = resolution;
 
+    if (status === 'inprogress' && status !== oldStatus) {
+      complaint.startedAt = new Date();
+    }
+
     if (status === 'resolved') {
       complaint.resolvedAt = new Date();
       complaint.resolvedBy = req.user._id;
@@ -358,7 +364,7 @@ exports.updateComplaint = async (req, res, next) => {
 // Each priority level gets a resolution-time budget; anything still open past
 // its budget is bumped one severity level and admins are alerted, so nothing
 // silently sits forgotten in the queue. Called from a cron job in server.js.
-const SLA_HOURS = { urgent: 24, high: 48, medium: 96, low: 168 };
+const SLA_HOURS = getSlaHours();
 const ESCALATE_TO = { low: 'medium', medium: 'high', high: 'urgent', urgent: 'urgent' };
 
 exports.escalateOverdueComplaints = async () => {

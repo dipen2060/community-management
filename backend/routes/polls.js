@@ -21,7 +21,7 @@ router.get('/:id', getPollById);
 // Voting (residents only)
 router.post('/:id/vote', authorize('resident'), votePollValidation, votePoll);
 
-// Results are available to admins/staff and residents who have voted.
+// Residents can view results only after closure and only for polls targeting their section.
 router.get('/:id/results', getPollResults);
 
 // Admin/Staff only routes

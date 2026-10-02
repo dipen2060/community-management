@@ -5,7 +5,7 @@ const exportAuditSchema = new mongoose.Schema({
   role: { type: String, enum: ['admin', 'staff'], required: true },
   endpoint: { type: String, required: true, maxlength: 100 },
   format: { type: String, enum: ['excel', 'pdf'], required: true },
-  resource: { type: String, enum: ['dues', 'complaints'], required: true },
+  resource: { type: String, enum: ['dues', 'complaints', 'outstanding'], required: true },
   parameters: { type: mongoose.Schema.Types.Mixed, default: {} },
   triggeredAt: { type: Date, default: Date.now, index: true }
 }, { timestamps: false });

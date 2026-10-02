@@ -34,7 +34,7 @@ module.exports = {
       description:
         'Returns polls, newest first. Each item carries a computed `hasVoted` flag for the caller.\n\n' +
         '**Residents only see polls addressed to their own section**, plus any poll with an empty `targetSections` array. ' +
-        'Admins and staff see every poll.\n\n' +
+        'Admins and staff see every poll. Expired polls are finalized before this response is assembled.\n\n' +
         'For `anonymous` polls every voter is replaced with `{ _id: "anonymous", name: "Anonymous" }` before the response ' +
         'is sent, so identities are never leaked regardless of role.\n\n' +
         '**Pagination is opt-in** — omit `page` to receive all polls, which the frontend section pickers rely on.',
@@ -105,7 +105,8 @@ module.exports = {
       summary: 'Update a poll',
       description:
         `Partial update of \`title\`, \`description\`, \`status\` and \`endDate\`.\n\n${POLL_TRANSITIONS}\n\n` +
-        'A `closed` poll cannot be modified at all (400), and a new `endDate` must always be in the future.',
+        'Setting `status: "closed"` runs the same finalization, outcome calculation, notification, and tie-break flow as automatic expiry. ' +
+        'Other edits to a closed poll are rejected (400), and a new `endDate` must always be in the future.',
       params: [param('IdPathParam')],
       requestBody: body('UpdatePollRequest', false),
       responses: {
@@ -153,7 +154,7 @@ module.exports = {
         `Records a vote for the option at \`optionIndex\`.\n\n${POLL_TRANSITIONS}\n\n` +
         '**Eligibility:** residents may only vote on polls addressed to their own section (or on broadcasts). A vote is ' +
         'recorded atomically against the poll\'s current state, so concurrent double submissions cannot both succeed.\n\n' +
-        'The response returns the whole poll with the vote list masked appropriately for its `type`.',
+        'The response returns the whole poll with the vote list masked appropriately for its `type`. Expired polls are finalized before the vote is attempted.',
       params: [param('IdPathParam')],
       requestBody: body('VotePollRequest'),
       responses: {
@@ -184,10 +185,10 @@ module.exports = {
       summary: 'Get poll results',
       description:
         'Returns per-option tallies with a `percentage` share of `totalVotes`, plus the voter list. For `anonymous` polls ' +
-        'each voter is replaced with an `{ _id: "anonymous", name: "Anonymous" }` placeholder, so the tally is public but ' +
-        'the identities are not.\n\n' +
-        'The embedded `poll` object is a summary (title, description, totalVotes, status, type) — fetch `GET /polls/{id}` if ' +
-        'you need the options and `endDate` too.',
+        'each voter is replaced with an `{ _id: "anonymous", name: "Anonymous" }` placeholder; named polls return voter names only, never phone numbers. ' +
+        'Admins and staff may always view results. Residents may view results only for polls matching their section, and only after closure; an active poll returns 403. ' +
+        'Expired polls are finalized before this response is assembled.\n\n' +
+        'The poll summary includes `outcome`, `winnerOptionIndexes`, `closedAt`, `round`, and parent/runoff poll ids. Expired polls are finalized before results are assembled.',
       params: [param('IdPathParam')],
       responses: {
         200: {
@@ -201,7 +202,7 @@ module.exports = {
             }
           }
         },
-        ...errors({ notFound: true })
+        ...errors({ notFound: true, forbidden: true })
       }
     })
   }

@@ -55,6 +55,7 @@ const dueSchema = new mongoose.Schema({
 dueSchema.index({ house: 1, month: 1, year: 1 }, { unique: true });
 dueSchema.index({ status: 1, month: 1, year: 1 });
 dueSchema.index({ dueDate: 1, status: 1 });
+dueSchema.index({ house: 1, status: 1, dueDate: 1 });
 dueSchema.index({ submittedBy: 1, paymentSubmittedAt: -1 });
 dueSchema.index({ verifiedBy: 1, verifiedAt: -1 });
 

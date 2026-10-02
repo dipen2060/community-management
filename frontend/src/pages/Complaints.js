@@ -3,6 +3,7 @@ import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
 import Pagination from '../components/Pagination';   // ← naya
 import { SkeletonTable } from '../components/Skeleton';
+import { formatDateTime } from '../utils/dateTime';
 
 export default function Complaints() {
   const [complaints, setComplaints] = useState([]);
@@ -187,7 +188,15 @@ export default function Complaints() {
           <tbody>
             {complaints.map(c => (
               <tr key={c._id}>
-                <td><strong>{c.title}</strong><br /><span style={{ fontSize: '0.78rem', color: '#6b7280' }}>{c.description?.slice(0, 60)}...</span></td>
+                <td className="min-w-[190px]">
+                  <strong>{c.title}</strong><br />
+                  <span style={{ fontSize: '0.78rem', color: '#6b7280' }}>{c.description?.slice(0, 60)}...</span>
+                  <div className="mt-1 space-y-0.5 text-xs text-gray-500">
+                    <div>Submitted: {formatDateTime(c.createdAt)}</div>
+                    {c.startedAt && <div>Started: {formatDateTime(c.startedAt)}</div>}
+                    {c.resolvedAt && <div>Resolved: {formatDateTime(c.resolvedAt)}</div>}
+                  </div>
+                </td>
                 <td><span className="status status-pending">📍 {c.section}</span></td>
                 <td><span className="status status-inprogress">{c.category}</span></td>
                 <td><span className={`status status-${c.priority === 'urgent' ? 'overdue' : 'pending'}`}>{c.priority}</span></td>

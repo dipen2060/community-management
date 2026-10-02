@@ -1,13 +1,24 @@
 const Poll = require('../models/Poll');
-const User = require('../models/User');
 const House = require('../models/House');
 const { createNotificationForMany } = require('./notificationController');
-const { getResidentHouseIds, ResidentHouse } = require('../utils/residentHouses');
+const { getResidentHouseIds } = require('../utils/residentHouses');
 const { getPagination, buildMeta } = require('../utils/paginate');
+const { getPollRecipientIds } = require('../utils/pollRecipients');
+const { finalizeExpiredPolls, finalizePoll } = require('../utils/pollFinalizer');
+const { isValidPollOptions, isWithinOneYear } = require('../utils/inputValidation');
+
+async function residentCanViewPoll(residentId, poll) {
+  if (!poll.targetSections.length) return true;
+  const houseIds = await getResidentHouseIds(residentId);
+  const linkedHouses = await House.find({ _id: { $in: houseIds } }).select('section').lean();
+  const sections = new Set(linkedHouses.map(house => house.section).filter(Boolean));
+  return poll.targetSections.some(section => sections.has(section));
+}
 
 // Get all polls (with section filtering for residents)
 exports.getPolls = async (req, res, next) => {
   try {
+    await finalizeExpiredPolls();
     const filter = {};
     if (req.query.status) filter.status = req.query.status;
 
@@ -26,8 +37,8 @@ exports.getPolls = async (req, res, next) => {
     // For each poll, check if current user has voted
     polls = polls.map(poll => {
       const pollObj = poll.toObject();
-      pollObj.hasVoted = poll.options.some(option => 
-        option.votes.some(voterId => voterId.toString() === req.user._id.toString())
+      pollObj.hasVoted = poll.options.some(option =>
+        option.votes.some(voterId => String(voterId._id || voterId) === String(req.user._id))
       );
       if (poll.type === 'anonymous') {
         pollObj.options = pollObj.options.map(option => ({
@@ -48,26 +59,22 @@ exports.getPolls = async (req, res, next) => {
 // Get single poll with details
 exports.getPollById = async (req, res, next) => {
   try {
+    await finalizeExpiredPolls();
     const poll = await Poll.findById(req.params.id)
       .populate('createdBy', 'name')
-      .populate('options.votes', 'name phone');
+      .populate('options.votes', 'name');
 
     if (!poll) return res.status(404).json({ success: false, message: 'Poll not found' });
 
     // Check if user can view this poll (section-based)
-    if (req.user.role === 'resident') {
-      const houseIds = await getResidentHouseIds(req.user._id);
-      const linkedHouses = await House.find({ _id: { $in: houseIds } }).select('section').lean();
-      const sections = new Set(linkedHouses.map(house => house.section).filter(Boolean));
-      if (poll.targetSections.length > 0 && !poll.targetSections.some(section => sections.has(section))) {
-        return res.status(403).json({ success: false, message: 'You are not authorized to view this poll' });
-      }
+    if (req.user.role === 'resident' && !(await residentCanViewPoll(req.user._id, poll))) {
+      return res.status(403).json({ success: false, message: 'You are not authorized to view this poll' });
     }
 
     // Check if user has voted
     const pollObj = poll.toObject();
-    pollObj.hasVoted = poll.options.some(option => 
-      option.votes.some(voterId => voterId.toString() === req.user._id.toString())
+    pollObj.hasVoted = poll.options.some(option =>
+      option.votes.some(voterId => String(voterId._id || voterId) === String(req.user._id))
     );
 
     // If anonymous voting, hide voter names
@@ -91,12 +98,8 @@ exports.createPoll = async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'Title is required' });
     }
 
-    if (!options || !Array.isArray(options) || options.length < 2) {
-      return res.status(400).json({ success: false, message: 'At least 2 options are required' });
-    }
-
-    if (options.some(opt => typeof opt !== 'string' || !opt.trim())) {
-      return res.status(400).json({ success: false, message: 'All options must have text' });
+    if (!isValidPollOptions(options)) {
+      return res.status(400).json({ success: false, message: 'Poll options must be 2-10 unique labels of 1-100 characters each' });
     }
     if (type !== undefined && !['anonymous', 'named'].includes(type)) {
       return res.status(400).json({ success: false, message: 'Invalid poll type' });
@@ -105,8 +108,8 @@ exports.createPoll = async (req, res, next) => {
     const sections = Array.isArray(targetSections) ? targetSections.filter(Boolean) : [];
 
     // Validate end date
-    if (endDate && (!Number.isFinite(new Date(endDate).getTime()) || new Date(endDate) <= new Date())) {
-      return res.status(400).json({ success: false, message: 'End date must be in the future' });
+    if (!endDate || !Number.isFinite(new Date(endDate).getTime()) || !isWithinOneYear(new Date(endDate))) {
+      return res.status(400).json({ success: false, message: 'End date is required and must be in the future and no more than 1 year ahead' });
     }
 
     const poll = await Poll.create({
@@ -121,23 +124,8 @@ exports.createPoll = async (req, res, next) => {
 
     await poll.populate('createdBy', 'name');
 
-    // 🔔 Notify residents about new poll
-    let residentFilter = { role: 'resident' };
-    let recipientIds;
-    if (sections.length > 0) {
-      const housesInSections = await House.find({ section: { $in: sections } });
-      const houseIds = housesInSections.map(house => house._id);
-      const links = await ResidentHouse.find({ house_id: { $in: houseIds } }).select('resident_id').lean();
-      const userIds = new Set(links.map(link => link.resident_id.toString()));
-      housesInSections.forEach(h => {
-        if (h.owner) userIds.add(h.owner.toString());
-        if (h.tenant) userIds.add(h.tenant.toString());
-      });
-      recipientIds = Array.from(userIds);
-    } else {
-      const residents = await User.find({ ...residentFilter, isActive: true }).select('_id');
-      recipientIds = residents.map(u => u._id);
-    }
+    // Notify only active residents eligible for the poll.
+    const recipientIds = await getPollRecipientIds(sections);
 
     const sectionLabel = sections.length > 0 ? ` (${sections.join(', ')})` : '';
     const notificationResult = await createNotificationForMany(recipientIds, {
@@ -165,6 +153,12 @@ exports.updatePoll = async (req, res, next) => {
     const poll = await Poll.findById(req.params.id);
 
     if (!poll) return res.status(404).json({ success: false, message: 'Poll not found' });
+
+    if (status === 'closed') {
+      await finalizePoll(poll._id, 'manual');
+      const closedPoll = await Poll.findById(req.params.id).populate('createdBy', 'name');
+      return res.json({ success: true, data: closedPoll, message: 'Poll closed successfully' });
+    }
 
     // Cannot modify if poll is closed
     if (poll.status === 'closed') {
@@ -214,6 +208,7 @@ exports.deletePoll = async (req, res, next) => {
 // Vote on poll (residents only)
 exports.votePoll = async (req, res, next) => {
   try {
+    await finalizeExpiredPolls();
     const { optionIndex } = req.body;
     const poll = await Poll.findById(req.params.id);
 
@@ -273,18 +268,30 @@ exports.votePoll = async (req, res, next) => {
 // Get poll results (admin/staff only, or after voting)
 exports.getPollResults = async (req, res, next) => {
   try {
+    await finalizeExpiredPolls();
     const poll = await Poll.findById(req.params.id)
       .populate('createdBy', 'name')
-      .populate('options.votes', 'name phone');
+      .populate('options.votes', 'name');
 
     if (!poll) return res.status(404).json({ success: false, message: 'Poll not found' });
+
+    if (req.user.role === 'resident') {
+      if (!(await residentCanViewPoll(req.user._id, poll))) {
+        return res.status(403).json({ success: false, message: 'You are not authorized to view this poll' });
+      }
+      if (poll.status !== 'closed') {
+        return res.status(403).json({ success: false, message: 'Poll results are available after the poll closes.' });
+      }
+    }
 
     // Calculate percentages
     const results = poll.options.map(option => ({
       text: option.text,
       votes: option.votes.length,
       percentage: poll.totalVotes > 0 ? ((option.votes.length / poll.totalVotes) * 100).toFixed(1) : 0,
-      voters: poll.type === 'named' ? option.votes : option.votes.map(() => ({ _id: 'anonymous', name: 'Anonymous' }))
+      voters: poll.type === 'named'
+        ? option.votes.map(voter => ({ name: voter.name }))
+        : option.votes.map(() => ({ _id: 'anonymous', name: 'Anonymous' }))
     }));
 
     res.json({ 
@@ -295,7 +302,13 @@ exports.getPollResults = async (req, res, next) => {
           description: poll.description,
           totalVotes: poll.totalVotes,
           status: poll.status,
-          type: poll.type
+          type: poll.type,
+          outcome: poll.outcome,
+          winnerOptionIndexes: poll.winnerOptionIndexes,
+          closedAt: poll.closedAt,
+          round: poll.round,
+          parentPoll: poll.parentPoll,
+          runoffPoll: poll.runoffPoll
         },
         results
       }

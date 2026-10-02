@@ -86,6 +86,46 @@ module.exports = {
     })
   },
 
+  '/exports/outstanding/excel': {
+    get: op({
+      operationId: 'exportOutstandingExcel',
+      tags: ['Exports'],
+      summary: 'Export outstanding balances to Excel',
+      description:
+        `Streams a workbook with a per-house \`Summary\` sheet and unpaid-month \`Breakdown\` sheet. An optional \`houseId\` exports only that house. ${EXPORT_COMMON}`,
+      params: [
+        param('ExportPageParam'),
+        param('ExportLimitParam'),
+        param('ExportSectionQuery'),
+        param('HouseIdQuery')
+      ],
+      responses: {
+        200: { $ref: '#/components/responses/XlsxFileResponse' },
+        ...exportErrors()
+      }
+    })
+  },
+
+  '/exports/outstanding/pdf': {
+    get: op({
+      operationId: 'exportOutstandingPdf',
+      tags: ['Exports'],
+      summary: 'Export outstanding balances to PDF',
+      description:
+        `Streams the per-house outstanding summary and, when \`houseId\` is supplied, includes that house's month-by-month detail. Admins receive a total-payable subtotal; staff receive the existing reduced column set. ${EXPORT_COMMON}`,
+      params: [
+        param('ExportPageParam'),
+        param('ExportLimitParam'),
+        param('ExportSectionQuery'),
+        param('HouseIdQuery')
+      ],
+      responses: {
+        200: { $ref: '#/components/responses/PdfFileResponse' },
+        ...exportErrors()
+      }
+    })
+  },
+
   '/exports/complaints/excel': {
     get: op({
       operationId: 'exportComplaintsExcel',

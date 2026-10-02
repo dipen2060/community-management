@@ -1,23 +1,29 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
+import { formatDateTime } from '../utils/dateTime';
 
 export default function Notices() {
   const [notices, setNotices] = useState([]);
   const [sections, setSections] = useState([]);
   const [showModal, setShowModal] = useState(false);
-  const [form, setForm] = useState({ title: '', content: '', type: 'general', targetSections: [] });
+  const [form, setForm] = useState({ title: '', content: '', type: 'general', targetSections: [], expiresAt: '' });
+  const [showExpired, setShowExpired] = useState(false);
   const { user } = useAuth();
   const isAdmin = user?.role === 'admin';
   const canPost = ['admin', 'staff'].includes(user?.role);
 
-  const fetchNotices = () => axios.get('/api/notices').then(r => setNotices(r.data.data || []));
+  const fetchNotices = () => {
+    const params = isAdmin && showExpired ? '?includeExpired=true' : '';
+    return axios.get(`/api/notices${params}`).then(r => setNotices(r.data.data || []));
+  };
   const fetchSections = () => axios.get('/api/houses').then(r => {
     const unique = [...new Set((r.data.data || []).map(h => h.section).filter(Boolean))];
     setSections(unique);
   });
 
-  useEffect(() => { fetchNotices(); if (canPost) fetchSections(); }, []);
+  useEffect(() => { fetchNotices(); }, [showExpired, isAdmin]);
+  useEffect(() => { if (canPost) fetchSections(); }, [canPost]);
 
   const toggleSection = (section) => {
     setForm(prev => ({
@@ -33,7 +39,7 @@ export default function Notices() {
     try {
       const res = await axios.post('/api/notices', form);
       setShowModal(false);
-      setForm({ title: '', content: '', type: 'general', targetSections: [] });
+      setForm({ title: '', content: '', type: 'general', targetSections: [], expiresAt: '' });
       alert(res.data.warning
         ? `Notice posted, but notifications could not be delivered. Notified ${res.data.notifiedCount} resident(s).`
         : `Notice posted! Notified ${res.data.notifiedCount} resident(s).`);
@@ -55,17 +61,29 @@ export default function Notices() {
   };
 
   const typeColors = { general: '#dbeafe', emergency: '#fee2e2', event: '#d1fae5', maintenance: '#fef3c7' };
+  const tomorrow = new Date();
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const minimumExpiryDate = `${tomorrow.getFullYear()}-${String(tomorrow.getMonth() + 1).padStart(2, '0')}-${String(tomorrow.getDate()).padStart(2, '0')}`;
 
   return (
     <div className="min-w-0 w-full">
       <h1 className="page-title">📢 Notices</h1>
       {canPost && <button className="btn btn-primary" style={{ marginBottom: 20 }} onClick={() => setShowModal(true)}>+ Post Notice</button>}
+      {isAdmin && (
+        <label className="mb-4 flex w-fit items-center gap-2 text-sm text-slate-700">
+          <input type="checkbox" checked={showExpired} onChange={event => setShowExpired(event.target.checked)} />
+          Show expired
+        </label>
+      )}
       <div className="grid min-w-0 gap-4 sm:gap-5">
         {notices.map(n => (
-          <div key={n._id} className="card" style={{ background: typeColors[n.type] || '#fff', border: '1px solid #e2e8f0' }}>
+          <div key={n._id} className="card" style={{ background: typeColors[n.type] || '#fff', border: '1px solid #e2e8f0', ...(n.expired ? { opacity: 0.55, filter: 'grayscale(1)' } : {}) }}>
             <div className="flex min-w-0 flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
               <div className="min-w-0 break-words">
-                <h3 style={{ marginBottom: 8 }}>{n.title}</h3>
+                <div className="flex flex-wrap items-center gap-2">
+                  <h3 style={{ marginBottom: 8 }}>{n.title}</h3>
+                  {n.expired && <span className="status status-overdue">Expired</span>}
+                </div>
                 <p style={{ color: '#374151', fontSize: '0.875rem' }}>{n.content}</p>
                 <div style={{ marginTop: 10, fontSize: '0.78rem', color: '#6b7280' }}>
                   <span className={`status status-paid`}>{n.type}</span>
@@ -74,7 +92,8 @@ export default function Notices() {
                   ) : (
                     <span style={{ marginLeft: 6 }} className="status status-inprogress">🌐 All Sections</span>
                   )}
-                  <br />Posted by {n.createdBy?.name} • {new Date(n.createdAt).toLocaleDateString()}
+                  <br />Posted by {n.createdBy?.name} • {formatDateTime(n.createdAt)}
+                  {n.expiresAt && <><br />Expires on {formatDateTime(n.expiresAt)}</>}
                 </div>
               </div>
               {isAdmin && <button className="btn btn-sm" style={{ background: '#fee2e2', color: '#991b1b' }} onClick={() => handleDelete(n._id)}>Remove</button>}
@@ -90,6 +109,16 @@ export default function Notices() {
             <form onSubmit={handleSubmit}>
               <div className="form-group"><label>Title</label><input value={form.title} onChange={e => setForm({...form, title: e.target.value})} required /></div>
               <div className="form-group"><label>Content</label><textarea rows="4" value={form.content} onChange={e => setForm({...form, content: e.target.value})} required style={{ width: '100%', padding: '10px', border: '1px solid #d1d5db', borderRadius: '8px' }} /></div>
+              <div className="form-group">
+                <label htmlFor="notice-expires-at">Expires on <span className="optional-label">(optional; leave blank to never expire)</span></label>
+                <input
+                  id="notice-expires-at"
+                  type="date"
+                  min={minimumExpiryDate}
+                  value={form.expiresAt}
+                  onChange={event => setForm({ ...form, expiresAt: event.target.value })}
+                />
+              </div>
               <div className="form-group"><label>Type</label>
                 <select value={form.type} onChange={e => setForm({...form, type: e.target.value})}>
                   <option value="general">General</option><option value="emergency">Emergency</option>

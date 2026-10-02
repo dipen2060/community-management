@@ -12,6 +12,7 @@ const complaintSchema = new mongoose.Schema({
   assignedTo:   { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   resolution:   { type: String },
   resolvedBy:   { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  startedAt:    { type: Date },
   resolvedAt:   { type: Date },
   reopenCount:  { type: Number, default: 0 },
   escalated:    { type: Boolean, default: false }, // true once auto-escalated past its SLA threshold

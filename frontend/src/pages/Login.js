@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import '../components/Layout.css';
 
@@ -17,8 +17,14 @@ export default function Login() {
     try {
       await login(email, password);
       navigate('/');
-    } catch {
-      setError('Invalid email or password');
+    } catch (err) {
+      if (!err.response) {
+        setError('Cannot reach the server. Please check your connection.');
+      } else if (err.response.status === 400 && Array.isArray(err.response.data?.errors)) {
+        setError(err.response.data.errors[0]?.message || err.response.data.message || 'Please check your input.');
+      } else {
+        setError(err.response.data?.message || 'Unable to log in. Please try again.');
+      }
     } finally { setLoading(false); }
   };
 
@@ -37,10 +43,8 @@ export default function Login() {
             <label>Password</label>
             <input type="password" value={password} onChange={e => setPassword(e.target.value)} required />
           </div>
-          <div style={{ textAlign: 'right', marginBottom: 12 }}>
-            <Link to="/forgot-password" style={{ fontSize: '0.8rem', color: '#e94560', textDecoration: 'none' }}>
-              Forgot password?
-            </Link>
+          <div style={{ marginBottom: 12, fontSize: '0.8rem', color: '#6b7280' }}>
+            Forgot your password? Please contact the tole admin to reset it.
           </div>
           <button type="submit" className="btn btn-primary" disabled={loading}>
             {loading ? 'Logging in...' : 'Login'}

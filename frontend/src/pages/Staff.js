@@ -1,6 +1,11 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
+import {
+  normalizeEmail,
+  normalizeUserName,
+  validateStaffForm
+} from '../utils/validation';
 
 const specializationLabels = {
   water: '🚿 Water (Plumber)',
@@ -28,6 +33,9 @@ export default function Staff() {
   const [editUser, setEditUser]   = useState(null); // user being edited, null = creating new
   const [credentials, setCredentials] = useState(null); // show after creation
   const [form, setForm] = useState({ name: '', email: '', phone: '', role: 'staff', specialization: 'water', exportSection: 'complaints', houseId: '', relationshipType: 'owner' });
+  const [phoneTouched, setPhoneTouched] = useState(false);
+  const [touchedFields, setTouchedFields] = useState({});
+  const [submitAttempted, setSubmitAttempted] = useState(false);
   const { user } = useAuth();
   const isAdmin = user?.role === 'admin';
 
@@ -55,6 +63,9 @@ export default function Staff() {
   const openCreate = (role) => {
     setEditUser(null);
     setForm({ name: '', email: '', phone: '', role, specialization: 'water', exportSection: role === 'staff' ? 'complaints' : '', houseId: '', relationshipType: 'owner' });
+    setPhoneTouched(false);
+    setTouchedFields({});
+    setSubmitAttempted(false);
     setShowModal(true);
   };
 
@@ -66,20 +77,30 @@ export default function Staff() {
       specialization: u.specialization || 'water', exportSection: u.exportSection || '',
       houseId: currentLink?.houseId || '', relationshipType: currentLink?.relationshipType || 'owner'
     });
+    setPhoneTouched(false);
+    setTouchedFields({});
+    setSubmitAttempted(false);
     setShowModal(true);
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setSubmitAttempted(true);
+    const errors = validateStaffForm(form);
+    if (Object.values(errors).some(Boolean)) return;
+
     const isResident = form.role === 'resident';
     const payload = {
       ...form,
+      name: normalizeUserName(form.name),
+      email: normalizeEmail(form.email),
       exportSection: form.role === 'staff' ? (form.exportSection || null) : undefined,
       // Only send house fields for residents; omit entirely for staff/admin
       // so we never accidentally touch house links for a non-resident.
       houseId: isResident ? form.houseId : undefined,
       relationshipType: isResident && form.houseId ? form.relationshipType : undefined
     };
+
     try {
       if (editUser) {
         await axios.put(`/api/users/${editUser._id}`, payload);
@@ -101,6 +122,8 @@ export default function Staff() {
       alert(err.response?.data?.message || 'Action failed');
     }
   };
+
+  const formErrors = validateStaffForm(form);
 
   const handleDeactivateToggle = async (u) => {
     try {
@@ -233,14 +256,51 @@ export default function Staff() {
         <div className="modal-overlay" onClick={() => setShowModal(false)}>
           <div className="modal" onClick={e => e.stopPropagation()}>
             <h3>{editUser ? `Edit ${editUser.name}` : `Add New ${form.role === 'staff' ? 'Staff' : form.role === 'admin' ? 'Admin' : 'Resident'}`}</h3>
-            <form onSubmit={handleSubmit}>
-              <div className="form-group"><label>Full Name</label><input value={form.name} onChange={e => setForm({...form, name: e.target.value})} placeholder="e.g. Bishnu Thapa" required /></div>
+            <form onSubmit={handleSubmit} noValidate>
+              <div className="form-group">
+                <label>Full Name</label>
+                <input
+                  type="text"
+                  maxLength={50}
+                  value={form.name}
+                  onChange={e => setForm({ ...form, name: e.target.value })}
+                  onBlur={() => setTouchedFields({ ...touchedFields, name: true })}
+                  placeholder="e.g. Bishnu Thapa"
+                  required
+                />
+                {(touchedFields.name || submitAttempted) && formErrors.name && <p role="alert" className="mt-1 text-sm text-red-600">{formErrors.name}</p>}
+              </div>
               <div className="form-group">
                 <label>Email {!editUser && '(used for login)'}</label>
-                <input type="email" value={form.email} onChange={e => setForm({...form, email: e.target.value})} placeholder="e.g. bishnu@tole.com" required={!editUser} disabled={!!editUser} style={{ background: editUser ? '#f9fafb' : undefined }} />
+                <input
+                  type="email"
+                  maxLength={100}
+                  value={form.email}
+                  onChange={e => setForm({ ...form, email: e.target.value })}
+                  onBlur={() => setTouchedFields({ ...touchedFields, email: true })}
+                  placeholder="e.g. bishnu@tole.com"
+                  required={!editUser}
+                  disabled={!!editUser}
+                  style={{ background: editUser ? '#f9fafb' : undefined }}
+                />
+                {(touchedFields.email || submitAttempted) && formErrors.email && <p role="alert" className="mt-1 text-sm text-red-600">{formErrors.email}</p>}
                 {editUser && <p style={{ fontSize: '0.72rem', color: '#9ca3af', marginTop: 3 }}>Email cannot be changed after creation</p>}
               </div>
-              <div className="form-group"><label>Phone</label><input value={form.phone} onChange={e => setForm({...form, phone: e.target.value})} placeholder="98xxxxxxxx" /></div>
+              <div className="form-group">
+                <label>Phone</label>
+                <input
+                  type="tel"
+                  inputMode="numeric"
+                  maxLength={10}
+                  value={form.phone}
+                  onChange={e => setForm({ ...form, phone: e.target.value.replace(/\D/g, '').slice(0, 10) })}
+                  onBlur={() => { setPhoneTouched(true); setTouchedFields({ ...touchedFields, phone: true }); }}
+                  placeholder="98XXXXXXXX"
+                />
+                {formErrors.phone && (phoneTouched || submitAttempted || form.phone.length === 10) && (
+                  <p role="alert" className="mt-1 text-sm text-red-600">{formErrors.phone}</p>
+                )}
+              </div>
               {form.role === 'staff' && (
                 <div className="form-group">
                   <label>Specialization</label>

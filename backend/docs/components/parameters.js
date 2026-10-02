@@ -154,6 +154,22 @@ const ExportSectionQuery = {
   schema: { type: 'string', pattern: '^Section [0-9]+$', example: 'Section 1' }
 };
 
+const OutstandingSectionQuery = {
+  name: 'section',
+  in: 'query',
+  required: false,
+  description: 'Filter outstanding houses by their section.',
+  schema: { type: 'string', minLength: 1, example: 'Section 1' }
+};
+
+const OutstandingHouseIdPathParam = {
+  name: 'houseId',
+  in: 'path',
+  required: true,
+  description: 'MongoDB ObjectId of the house.',
+  schema: { type: 'string', pattern: '^[0-9a-fA-F]{24}$', example: '65f1a2b3c4d5e6f7a8b9c0d2' }
+};
+
 const CategoryQuery = {
   name: 'category',
   in: 'query',
@@ -168,6 +184,14 @@ const NoticeTypeQuery = {
   required: false,
   description: 'Filter notices by type.',
   schema: { $ref: '#/components/schemas/NoticeType' }
+};
+
+const IncludeExpiredQuery = {
+  name: 'includeExpired',
+  in: 'query',
+  required: false,
+  description: 'Admins may pass `true` to include expired active notices. Residents and staff always receive unexpired notices only.',
+  schema: { type: 'string', enum: ['true', 'false'], example: 'true' }
 };
 
 const PollStatusQuery = {
@@ -256,8 +280,11 @@ module.exports = {
   SearchQuery,
   SectionQuery,
   ExportSectionQuery,
+  OutstandingSectionQuery,
+  OutstandingHouseIdPathParam,
   CategoryQuery,
   NoticeTypeQuery,
+  IncludeExpiredQuery,
   PollStatusQuery,
   HistoryQuery,
   MineQuery,

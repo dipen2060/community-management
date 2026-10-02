@@ -1,8 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import Login      from './pages/Login';
-import ForgotPassword from './pages/ForgotPassword';
-import ResetPassword  from './pages/ResetPassword';
 import Dashboard  from './pages/Dashboard';
 import Houses     from './pages/Houses';
 import Dues       from './pages/Dues';
@@ -41,8 +39,6 @@ export default function App() {
       <BrowserRouter>
         <Routes>
           <Route path="/login" element={<Login />} />
-          <Route path="/forgot-password" element={<ForgotPassword />} />
-          <Route path="/reset-password/:token" element={<ResetPassword />} />
           <Route path="/" element={<PrivateRoute><Layout /></PrivateRoute>}>
             <Route index          element={<Dashboard />} />
             <Route path="houses"     element={<Houses />} />
