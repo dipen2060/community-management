@@ -57,19 +57,19 @@ export const validateMonthlyDue = (value) => {
   const amount = Number(value);
   return /^\d+(?:\.\d{1,2})?$/.test(String(value)) &&
     Number.isFinite(amount) &&
-    amount >= 0 &&
+    amount > 0 &&
     amount <= MAX_MONTHLY_DUE
     ? ''
-    : `Monthly due must be between 0 and ${MAX_MONTHLY_DUE} with at most 2 decimal places`;
+    : `Monthly due must be greater than 0 and no greater than ${MAX_MONTHLY_DUE} with at most 2 decimal places`;
 };
 
 export const normalizeUserName = normalizeSpaces;
 
 export const validateUserName = (value) => {
   const name = normalizeUserName(value);
-  return name.length >= 2 && name.length <= 50 && /^[A-Za-z][A-Za-z .'-]*$/.test(name)
+  return   name.length >= 2 && name.length <= 50 && /^[A-Za-z][A-Za-z ]*$/.test(name)
     ? ''
-    : 'Name must be 2-50 characters using Latin letters, spaces, dots, apostrophes, or hyphens';
+    : 'Name must be 2-50 characters using Latin letters and spaces only';
 };
 
 export const normalizeEmail = (value) => value.trim().toLowerCase();
@@ -90,9 +90,10 @@ export const validateStaffForm = (form) => ({
 
 export const validateNewPassword = (password) =>
   password.length >= 8 && password.length <= 64 &&
-  /[A-Za-z]/.test(password) && /\d/.test(password)
+  /[A-Z]/.test(password) && /[a-z]/.test(password) &&
+  /\d/.test(password) && /[^A-Za-z0-9\s]/.test(password)
     ? ''
-    : 'Password must be 8-64 characters and include at least one letter and one number';
+    : 'Password must be 8-64 characters and include an uppercase letter, a lowercase letter, a number, and a special character';
 
 export const validateProfileForm = (form) => {
   const errors = {

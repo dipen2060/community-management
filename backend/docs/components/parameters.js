@@ -190,7 +190,7 @@ const IncludeExpiredQuery = {
   name: 'includeExpired',
   in: 'query',
   required: false,
-  description: 'Admins may pass `true` to include expired active notices. Residents and staff always receive unexpired notices only.',
+  description: 'Admins and staff may pass `true` to include expired active notices. Residents always receive unexpired notices only.',
   schema: { type: 'string', enum: ['true', 'false'], example: 'true' }
 };
 
@@ -217,6 +217,14 @@ const MineQuery = {
   in: 'query',
   required: false,
   description: 'Set to the string `true` to restrict complaints to those assigned to the calling staff member. Ignored for other roles.',
+  schema: { type: 'string', enum: ['true'], example: 'true' }
+};
+
+const SlaBreachedQuery = {
+  name: 'slaBreached',
+  in: 'query',
+  required: false,
+  description: 'Set to `true` to return open complaints that have breached their configured SLA or have already been escalated.',
   schema: { type: 'string', enum: ['true'], example: 'true' }
 };
 
@@ -288,6 +296,7 @@ module.exports = {
   PollStatusQuery,
   HistoryQuery,
   MineQuery,
+  SlaBreachedQuery,
   ResidentQuery,
   ActorQuery,
   AuditActionQuery,

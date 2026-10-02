@@ -22,7 +22,7 @@
 //   * BEFORE the rate limiter   -> the UI issues many sub-resource requests
 //   * AFTER express.json       -> serves the JSON spec
 
-const swaggerUi = require('swagger-ui-express');
+const { isDocsEnabled } = require('./config');
 
 const schemas = require('./components/schemas');
 const parameters = require('./components/parameters');
@@ -129,10 +129,9 @@ const buildOpenApiSpec = () => ({
       '| Scope | Development | Production |',
       '| --- | --- | --- |',
       '| All endpoints | 2000 / 15 min | 100 / 15 min |',
-      '| `/api/auth/*` | 200 / 15 min | 50 / 15 min |',
       '| `POST /api/auth/login` | 10 / 15 min | 10 / 15 min |',
       '',
-      'The global and `/api/auth` limiters respond with a **plain-text** body rather than JSON.',
+      'The login limiter responds with HTTP 429 and a JSON `message` when the IP exceeds 10 attempts in 15 minutes. Successful logins do not count toward the limit.',
       '',
       '## Deletion semantics',
       '',
@@ -214,6 +213,7 @@ const openApiSpec = buildOpenApiSpec();
  * constructed at all when the docs are disabled.
  */
 const createDocsRouter = () => {
+  const swaggerUi = require('swagger-ui-express');
   const router = require('express').Router();
 
   // Scoped CSP relaxation — see the note above. `contentSecurityPolicy: false`
@@ -253,11 +253,4 @@ const createDocsRouter = () => {
  * The JSON spec at /api-docs.json is gated by the same flag — if you want the
  * spec public but the UI private, split the mount in server.js.
  */
-const isDocsEnabled = () => {
-  const flag = process.env.ENABLE_API_DOCS;
-  if (flag === 'true') return true;
-  if (flag === 'false') return false;
-  return process.env.NODE_ENV !== 'production';
-};
-
 module.exports = { buildOpenApiSpec, openApiSpec, createDocsRouter, isDocsEnabled };

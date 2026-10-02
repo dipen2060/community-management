@@ -46,10 +46,10 @@ const errorHandler = (err, req, res, next) => {
     error = { message, statusCode: 401 };
   }
 
-  res.status(error.statusCode || err.statusCode || 500).json({
-    success: false,
-    message: error.message || 'Server Error'
-  });
+  const statusCode = error.statusCode || err.statusCode || 500;
+  const message = statusCode >= 500 ? 'Server Error' : error.message || 'Server Error';
+
+  res.status(statusCode).json({ message });
 };
 
 module.exports = errorHandler;

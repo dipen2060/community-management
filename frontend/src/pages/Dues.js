@@ -1,7 +1,7 @@
-﻿import { useEffect, useState } from 'react';         // useMemo hataiyo (ab chaidaina)
+import { useEffect, useState } from 'react';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
-import Pagination from '../components/Pagination';    // ← naya
+import Pagination from '../components/Pagination';
 
 const emptyPaymentForm = { paymentMethod: 'digital_wallet', paymentReference: '', declaredAmount: '', proof: null };
 
@@ -57,6 +57,7 @@ export default function Dues() {
   const [outstandingTotal, setOutstandingTotal] = useState(0);
   const [outstandingModal, setOutstandingModal] = useState(null);
   const [residentOutstanding, setResidentOutstanding] = useState([]);
+  const [remindingHouseId, setRemindingHouseId] = useState('');
 
   const isResident = user?.role === 'resident';
   const isAdmin = user?.role === 'admin';
@@ -278,6 +279,20 @@ export default function Dues() {
     }
   };
 
+  const remindOutstandingResidents = async (house) => {
+    setRemindingHouseId(String(house.houseId));
+    setError('');
+    setMessage('');
+    try {
+      const response = await axios.post(`/api/dues/outstanding/${house.houseId}/remind`);
+      setMessage(response.data.message || 'Due reminder sent.');
+    } catch (err) {
+      setError(err.response?.data?.message || 'Could not send the due reminder.');
+    } finally {
+      setRemindingHouseId('');
+    }
+  };
+
   const residentName = (d) => {
     const owner = d.house?.owner;
     const tenant = d.house?.tenant;
@@ -298,7 +313,7 @@ export default function Dues() {
         </div>
         {isManagement && (
           <div className="flex flex-wrap items-center gap-2">
-            <button className="btn btn-primary" onClick={async () => {
+            {isAdmin && <button className="btn btn-primary" onClick={async () => {
               try {
                 await axios.post('/api/dues/generate');
                 setMessage('Monthly dues checked/generated successfully.');
@@ -308,7 +323,7 @@ export default function Dues() {
               }
             }}>
               🤖 Generate Monthly Dues
-            </button>
+            </button>}
             {canExportDues && (
               <>
                 <button type="button" className="btn btn-sm" style={{ background: '#10b981', color: 'white' }} onClick={() => handleExport('excel')}>
@@ -336,8 +351,8 @@ export default function Dues() {
           <button type="button" className={`btn btn-sm ${activeTab === 'outstanding' ? 'btn-primary' : 'btn-cancel'}`} onClick={() => { setActiveTab('outstanding'); setOutstandingPage(1); }}>Outstanding</button>
           {activeTab === 'outstanding' && canExportDues && (
             <>
-              <button type="button" className="btn btn-sm" style={{ background: '#10b981', color: 'white' }} onClick={() => downloadOutstanding('excel')}>Download Outstanding Excel</button>
-              <button type="button" className="btn btn-sm" style={{ background: '#ef4444', color: 'white' }} onClick={() => downloadOutstanding('pdf')}>Download Outstanding PDF</button>
+              <button type="button" className="btn btn-sm" style={{ background: '#10b981', color: 'white' }} onClick={() => downloadOutstanding('excel')}>Export to Excel</button>
+              <button type="button" className="btn btn-sm" style={{ background: '#ef4444', color: 'white' }} onClick={() => downloadOutstanding('pdf')}>Export to PDF</button>
             </>
           )}
         </div>
@@ -416,22 +431,36 @@ export default function Dues() {
           <div className="card dues-table-card">
             <div className="table-scroll">
               <table className="dues-table">
-                <thead><tr><th>House</th><th>Resident</th><th>Due Since</th><th>Months Unpaid</th><th>Previous Balance</th><th>Fines</th><th>Total Payable</th><th>Status</th></tr></thead>
+                <thead><tr><th>House No</th><th>Owner / Resident</th><th>Contact</th><th>Base Fee</th><th>Carry Forward</th><th>Fines</th><th>Total Due</th><th>Status</th><th>Actions</th></tr></thead>
                 <tbody>
                   {outstandingLoading ? (
-                    <tr><td colSpan={8} className="table-empty">Loading outstanding balances...</td></tr>
+                    <tr><td colSpan={9} className="table-empty">Loading outstanding balances...</td></tr>
                   ) : outstandingRows.length === 0 ? (
-                    <tr><td colSpan={8} className="table-empty">No outstanding dues found.</td></tr>
+                    <tr><td colSpan={9} className="table-empty">No outstanding dues found.</td></tr>
                   ) : outstandingRows.map(house => (
-                    <tr key={String(house.houseId)} onClick={() => openOutstandingDetail(house)} style={{ cursor: 'pointer' }}>
+                    <tr key={String(house.houseId)}>
                       <td><strong>{house.houseNo}</strong><small className="cell-subtitle">{house.section}</small></td>
-                      <td>{[house.ownerName, house.tenantName].filter(Boolean).join(' / ') || 'Not linked'}</td>
-                      <td>{String(house.dueSince.month).padStart(2, '0')}/{house.dueSince.year}</td>
-                      <td>{house.monthsUnpaid}</td>
+                      <td>{house.residentName || [house.ownerName, house.tenantName].filter(Boolean).join(' / ') || 'Not linked'}</td>
+                      <td>{house.contactNumber || '—'}</td>
+                      <td>{money(house.baseMonthlyDue)}</td>
                       <td>{money(house.previousBalance)}</td>
                       <td className={house.totalFine > 0 ? 'fine-value' : ''}>{money(house.totalFine)}</td>
-                      <td><strong>{money(house.totalPayable)}</strong></td>
-                      <td>{house.hasVerificationPending ? <span className="status status-verification_pending">Payment under verification</span> : 'Unpaid'}</td>
+                      <td><strong>{money(house.totalOutstanding ?? house.totalPayable)}</strong></td>
+                      <td>{house.hasVerificationPending ? <span className="status status-verification_pending">Under verification</span> : 'Outstanding'}</td>
+                      <td className="due-actions-cell">
+                        <button type="button" className="btn btn-sm btn-primary" onClick={() => openOutstandingDetail(house)}>View Details</button>
+                        {isAdmin && (
+                          <button
+                            type="button"
+                            className="btn btn-sm"
+                            style={{ marginLeft: 6 }}
+                            disabled={remindingHouseId === String(house.houseId)}
+                            onClick={() => remindOutstandingResidents(house)}
+                          >
+                            {remindingHouseId === String(house.houseId) ? 'Sending...' : 'Remind'}
+                          </button>
+                        )}
+                      </td>
                     </tr>
                   ))}
                 </tbody>

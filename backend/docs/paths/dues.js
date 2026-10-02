@@ -1,4 +1,4 @@
-// docs/paths/dues.js — 10 operations on /dues
+// docs/paths/dues.js — 13 operations on /dues
 const { op, body, json, errors, param, multipart, schema } = require('../lib/helpers');
 
 const dueList = {
@@ -38,7 +38,7 @@ const WORKFLOW = [
   '     └── admin: PUT /dues/{id}/reject-payment    →  pending | overdue',
   '```',
   '',
-  'A due is auto-created on the 10th of each month by a scheduled job, and a separate nightly job flips `pending` dues ' +
+  'A due is auto-created at midnight on the 1st of each month for occupied houses with an active resident, with payment due on the 10th. A separate nightly job flips `pending` dues ' +
   'past their due date to `overdue` while accruing a fine. Residents can only ever move a due **into** ' +
   '`verification_pending`; only an admin can move it out.'
 ].join('\n');
@@ -50,8 +50,8 @@ module.exports = {
       tags: ['Dues'],
       summary: 'List outstanding balances by house',
       description:
-        'Returns one row per house with unpaid `pending`, `overdue` and `verification_pending` dues. Each row includes ' +
-        'the oldest unpaid month, current-month amount, prior-month principal, effective fines, and total payable. ' +
+        'Returns one row per occupied house with an active resident and a non-zero balance. Each row includes resident names and contact, base monthly fee, ' +
+        'previous unpaid principal, current-month amount, effective unpaid fines, and total outstanding (`previous + current + fines`). ' +
         'Fine values are calculated per due using `effectiveFine` and remain capped per row. Staff must have the existing ' +
         '`dues` or `all` export permission; `section` narrows their result set. Pagination uses the shared metadata helper.',
       params: [
@@ -103,16 +103,46 @@ module.exports = {
     })
   },
 
+  '/dues/outstanding/{houseId}/remind': {
+    post: op({
+      operationId: 'remindOutstandingResidents',
+      tags: ['Dues'],
+      summary: 'Send an outstanding-dues reminder',
+      description:
+        'Admin-only action that sends an in-app due reminder to active residents linked to an occupied house with a non-zero outstanding balance. ' +
+        'Vacant, inactive, archived, and fully paid houses are rejected.',
+      params: [param('OutstandingHouseIdPathParam')],
+      responses: {
+        200: {
+          description: 'Reminder notifications were delivered.',
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                properties: {
+                  success: { type: 'boolean', example: true },
+                  message: { type: 'string', example: 'Due reminder sent to 1 resident(s).' },
+                  remindedCount: { type: 'integer', example: 1 }
+                }
+              }
+            }
+          }
+        },
+        ...errors({ notFound: true, forbidden: true })
+      }
+    })
+  },
+
   '/dues': {
     get: op({
       operationId: 'listDues',
       tags: ['Dues'],
       summary: 'List dues',
       description:
-        'Returns dues with the house populated, plus `paidBy`, `submittedBy` and `verifiedBy` as `name`/`username`.\n\n' +
+        'Returns dues for occupied houses with an active linked resident by default, with the house populated, plus `paidBy`, `submittedBy` and `verifiedBy` as `name`/`username`.\n\n' +
         '**Scoping.** Residents are restricted to houses they are linked to, and `houseId` is intersected with that set ' +
         'rather than replacing it — a resident cannot widen their scope by passing another house\'s ID. ' +
-        '`history=true` additionally includes dues belonging to archived houses, which are excluded by default.\n\n' +
+        '`history=true` additionally includes dues belonging to archived or currently vacant houses, which are excluded by default.\n\n' +
         '**Pagination is opt-in** — omit `page` for the full list. Either way, `summary` always describes the whole ' +
         'filtered set.',
       params: [
@@ -139,8 +169,8 @@ module.exports = {
       description:
         'Aggregates for the **current calendar month only** — this endpoint takes no filters, so it is a straight ' +
         'read of what the Dues page header shows.\n\n' +
-        'It also returns `allTimeOutstandingAmount` and `housesWithArrears`, computed from all unpaid rows (including ' +
-        '`verification_pending`) with live per-row effective fines. These two values are scoped to the resident\'s linked houses.\n\n' +
+        'It also returns `allTimeOutstandingAmount` and `housesWithArrears`, computed only for occupied houses with active residents using ' +
+        '`previous unpaid monthly dues + current month due + active/unpaid effective fines`. These values are scoped to the resident\'s linked houses.\n\n' +
         'Residents receive the same figures scoped to their own linked houses, so a resident\'s `totalCollected` reflects ' +
         'their own payments rather than the community total. `collectionRate` is returned as a **percentage string** with ' +
         'one decimal place, not a number.',
@@ -197,7 +227,7 @@ module.exports = {
         '**Idempotent.** Each `(house, month, year)` triple is upserted, and a house that already has a due this month is ' +
         'skipped, so calling this repeatedly will not duplicate charges. The returned count is how many were actually ' +
         'created.\n\n' +
-        'A cron job runs the same logic automatically at 08:00 on the 1st of each month, so this endpoint is mainly for ' +
+        'A cron job runs the same logic automatically at 00:00 on the 1st of each month, so this endpoint is mainly for ' +
         'backfilling or forcing a run. Every affected resident is notified.',
       responses: {
         200: {

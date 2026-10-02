@@ -27,6 +27,13 @@ jest.mock('../models/House', () => ({
   findOne: jest.fn().mockResolvedValue(null),
   find: jest.fn(() => ({ select: jest.fn().mockReturnValue({ lean: jest.fn().mockResolvedValue([]) }) }))
 }));
+jest.mock('../models/ResidentHouse', () => ({
+  find: jest.fn(() => ({
+    select: jest.fn().mockReturnValue({
+      lean: jest.fn().mockResolvedValue([])
+    })
+  }))
+}));
 jest.mock('../models/Complaint', () => ({ findById: jest.fn(), find: jest.fn(), countDocuments: jest.fn() }));
 jest.mock('../models/Due', () => ({
   findById: jest.fn(),
@@ -52,8 +59,8 @@ jest.mock('../controllers/complaintController', () => {
   };
 });
 jest.mock('../controllers/notificationController', () => ({
-  createNotification: jest.fn().mockResolvedValue(undefined),
-  createNotificationForMany: jest.fn().mockResolvedValue(undefined)
+  createNotification: jest.fn().mockResolvedValue({ success: true }),
+  createNotificationForMany: jest.fn().mockResolvedValue({ success: true })
 }));
 jest.mock('../utils/autoAssign', () => ({ findBestStaffForCategory: jest.fn().mockResolvedValue(null) }));
 jest.mock('../utils/auditLogger', () => ({ logAudit: jest.fn().mockResolvedValue(undefined) }));
@@ -66,13 +73,47 @@ jest.mock('../utils/residentHouses', () => ({
 const Complaint = require('../models/Complaint');
 const Due = require('../models/Due');
 const House = require('../models/House');
+const User = require('../models/User');
+const ResidentHouse = require('../models/ResidentHouse');
 const ExportAudit = require('../models/ExportAudit');
 const Poll = require('../models/Poll');
 const errorHandler = require('../middleware/errorHandler');
 const { getOutstandingByHouse } = require('../utils/outstanding');
 const { generateMonthlyDuesForCron } = require('../controllers/dueController');
 const { createNotification } = require('../controllers/notificationController');
-const residentHouseUtils = require('../utils/residentHouses');
+const activeHouseId = 'aaaaaaaaaaaaaaaaaaaaaaaa';
+const activeResidentId = 'bbbbbbbbbbbbbbbbbbbbbbbb';
+function mockOccupiedHouse(house = {}) {
+  const activeHouse = {
+    _id: activeHouseId,
+    houseNo: 'A-1',
+    section: 'Section 1',
+    monthlyDue: 500,
+    owner: activeResidentId,
+    tenant: null,
+    isOccupied: true,
+    status: 'active',
+    ...house
+  };
+  House.find.mockReturnValue({
+    select: jest.fn().mockReturnValue({
+      lean: jest.fn().mockResolvedValue([activeHouse])
+    })
+  });
+  ResidentHouse.find.mockReturnValue({
+    select: jest.fn().mockReturnValue({
+      lean: jest.fn().mockResolvedValue([])
+    })
+  });
+  User.find.mockReturnValue({
+    select: jest.fn().mockResolvedValue([{
+      _id: activeResidentId,
+      name: 'Resident',
+      phone: '9841234567'
+    }])
+  });
+  return activeHouse;
+}
 
 function makeApp() {
   const app = express();
@@ -214,11 +255,36 @@ describe('export query validation', () => {
     expect(response.status).toBe(400);
   });
 
+  describe('occupied-house due visibility', () => {
+    test('does not allow an admin houseId filter to bypass active occupancy scoping', async () => {
+      mockOccupiedHouse();
+      Due.countDocuments.mockResolvedValue(0);
+      const emptyDueQuery = {
+        populate: jest.fn(function () { return this; }),
+        sort: jest.fn(function () { return this; }),
+        select: jest.fn(function () { return this; }),
+        lean: jest.fn().mockResolvedValue([]),
+        then: resolve => Promise.resolve([]).then(resolve)
+      };
+      Due.find.mockReturnValue(emptyDueQuery);
+
+      const response = await request(app)
+        .get('/dues?houseId=cccccccccccccccccccccccc')
+        .set('Authorization', '444444444444444444444444');
+
+      expect(response.status).toBe(200);
+      expect(Due.countDocuments).toHaveBeenCalledWith({
+        house: { $in: [] }
+      });
+    });
+  });
+
   describe('outstanding balances', () => {
     const houseId = 'aaaaaaaaaaaaaaaaaaaaaaaa';
 
     test('carries three unpaid months forward and flags a verification-pending row', async () => {
       const now = new Date(2026, 2, 15);
+      mockOccupiedHouse();
       Due.aggregate.mockResolvedValue([{
         _id: houseId,
         houseNo: 'A-1',
@@ -238,12 +304,17 @@ describe('export query validation', () => {
       expect(summary.previousBalance).toBe(1000);
       expect(summary.totalFine).toBe(880);
       expect(summary.totalPayable).toBe(2380);
+      expect(summary.totalOutstanding).toBe(2380);
+      expect(summary.residentName).toBe('Resident');
+      expect(summary.contactNumber).toBe('9841234567');
+      expect(summary.baseMonthlyDue).toBe(500);
       expect(summary.hasVerificationPending).toBe(true);
       expect(summary.breakdown[1].status).toBe('verification_pending');
     });
 
     test('caps each row fine independently', async () => {
       const now = new Date(2026, 2, 15);
+      mockOccupiedHouse();
       Due.aggregate.mockResolvedValue([{
         _id: houseId,
         houseNo: 'A-1',
@@ -270,6 +341,7 @@ describe('export query validation', () => {
     });
 
     test('staff section filter is included in the aggregation', async () => {
+      mockOccupiedHouse();
       Due.aggregate.mockResolvedValue([]);
       const response = await request(app)
         .get('/dues/outstanding?section=Section%202')
@@ -283,9 +355,8 @@ describe('export query validation', () => {
 
     test('monthly backfill is idempotent and excludes archived houses', async () => {
       const activeHouse = { _id: houseId, monthlyDue: 500, houseNo: 'A-1' };
+      mockOccupiedHouse(activeHouse);
       const inserted = new Set([`${houseId}:1:2026`]);
-      House.find.mockResolvedValue([activeHouse]);
-      residentHouseUtils.getHouseResidentIds.mockResolvedValue(['111111111111111111111111']);
       Due.findOne.mockImplementation(() => ({
         sort: jest.fn().mockReturnThis(),
         select: jest.fn().mockReturnThis(),
@@ -306,6 +377,71 @@ describe('export query validation', () => {
       expect(House.find).toHaveBeenCalledWith({ isOccupied: true, status: { $ne: 'archived' } });
       expect([...inserted]).toEqual(expect.arrayContaining([`${houseId}:2:2026`, `${houseId}:3:2026`]));
       expect(createNotification).toHaveBeenCalledTimes(1);
+    });
+
+    test('does not generate monthly dues for vacant houses or houses without an active resident', async () => {
+      mockOccupiedHouse({ owner: null, tenant: null });
+
+      const result = await generateMonthlyDuesForCron(new Date(2026, 2, 15));
+
+      expect(result).toMatchObject({ created: 0, backfilled: 0 });
+      expect(Due.updateOne).not.toHaveBeenCalled();
+      expect(User.find).not.toHaveBeenCalled();
+    });
+
+    test('does not generate dues for a house linked only to inactive residents', async () => {
+      mockOccupiedHouse();
+      User.find.mockReturnValue({ select: jest.fn().mockResolvedValue([]) });
+
+      const result = await generateMonthlyDuesForCron(new Date(2026, 2, 15));
+
+      expect(result).toMatchObject({ created: 0, backfilled: 0 });
+      expect(Due.updateOne).not.toHaveBeenCalled();
+    });
+
+    test('includes this month base fee when an occupied house has no due record yet', async () => {
+      mockOccupiedHouse();
+      Due.aggregate.mockResolvedValue([]);
+
+      const [summary] = await getOutstandingByHouse({ now: new Date(2026, 2, 5) });
+
+      expect(summary.currentMonthAmount).toBe(500);
+      expect(summary.previousBalance).toBe(0);
+      expect(summary.totalOutstanding).toBe(500);
+    });
+
+    test('recognizes active resident-house links when legacy owner fields are empty', async () => {
+      mockOccupiedHouse({ owner: null, tenant: null });
+      ResidentHouse.find.mockReturnValue({
+        select: jest.fn().mockReturnValue({
+          lean: jest.fn().mockResolvedValue([{
+            house_id: activeHouseId,
+            resident_id: activeResidentId
+          }])
+        })
+      });
+      Due.aggregate.mockResolvedValue([]);
+
+      const [summary] = await getOutstandingByHouse({ now: new Date(2026, 2, 5) });
+
+      expect(summary.residentName).toBe('Resident');
+      expect(summary.totalOutstanding).toBe(500);
+    });
+
+    test('sends reminders only for outstanding balances on occupied houses', async () => {
+      mockOccupiedHouse();
+      Due.aggregate.mockResolvedValue([]);
+
+      const response = await request(app)
+        .post(`/dues/outstanding/${activeHouseId}/remind`)
+        .set('Authorization', '444444444444444444444444');
+
+      expect(response.status).toBe(200);
+      expect(response.body.remindedCount).toBe(1);
+      expect(createNotification).toHaveBeenCalledWith(expect.objectContaining({
+        user: activeResidentId,
+        title: 'Outstanding Dues Reminder'
+      }));
     });
 
     test.each([

@@ -32,7 +32,28 @@ function generateTemporaryPassword() {
 // Kept for anywhere a truly random, single-use secret is still wanted (e.g. a future
 // "generate random password instead" button) — not used for normal account creation anymore.
 function generateRandomPassword() {
-  return crypto.randomBytes(18).toString('base64url');
+  const characterSets = [
+    'ABCDEFGHIJKLMNOPQRSTUVWXYZ',
+    'abcdefghijklmnopqrstuvwxyz',
+    '0123456789',
+    '!@#$%^&*()-_=+'
+  ];
+  const allCharacters = characterSets.join('');
+  const passwordCharacters = characterSets.map((characters) =>
+    characters[crypto.randomInt(characters.length)]
+  );
+
+  while (passwordCharacters.length < 12) {
+    passwordCharacters.push(allCharacters[crypto.randomInt(allCharacters.length)]);
+  }
+
+  for (let index = passwordCharacters.length - 1; index > 0; index -= 1) {
+    const swapIndex = crypto.randomInt(index + 1);
+    [passwordCharacters[index], passwordCharacters[swapIndex]] =
+      [passwordCharacters[swapIndex], passwordCharacters[index]];
+  }
+
+  return passwordCharacters.join('');
 }
 
 module.exports = { generateUsername, generateTemporaryPassword, generateRandomPassword };

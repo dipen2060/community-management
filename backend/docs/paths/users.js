@@ -96,7 +96,7 @@ module.exports = {
         '- Changing `name` also regenerates `username` (only when the name actually changed, so repeated saves do not ' +
         'inflate the username).\n' +
         '- To change the password, send **both** `currentPassword` and `newPassword`. A missing or wrong ' +
-        '`currentPassword` returns 400, as does a `newPassword` that is not 8-64 characters with at least one letter and one number.\n' +
+        '`currentPassword` returns 400, as does a `newPassword` that is not 8-64 characters and does not include uppercase, lowercase, a number, and a special character.\n' +
         '- Omitting `currentPassword`/`newPassword` leaves the password untouched.\n\n' +
         'Admins should prefer `PUT /users/{id}` for editing *other* people.',
       requestBody: body('UpdateMyProfileRequest', false, {
@@ -204,7 +204,7 @@ module.exports = {
                   temporaryPassword: { type: 'string', example: 'one-time-random-password', description: 'Shown once; deliver securely. Must be changed on first login.' },
                   message: {
                     type: 'string',
-                    example: 'Password reset. Save the new temporary password now — it will not be shown again.'
+                    example: 'Password reset successfully'
                   }
                 }
               }

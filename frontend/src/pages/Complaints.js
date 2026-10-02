@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
-import Pagination from '../components/Pagination';   // ← naya
+import Pagination from '../components/Pagination';
 import { SkeletonTable } from '../components/Skeleton';
 import { formatDateTime } from '../utils/dateTime';
 
@@ -14,27 +14,45 @@ export default function Complaints() {
   const [resolveFor, setResolveFor] = useState(null);
   const [resolutionText, setResolutionText] = useState('');
   const [sectionFilter, setSectionFilter] = useState('');
+  const [slaBreachedOnly, setSlaBreachedOnly] = useState(false);
+  const [now, setNow] = useState(() => Date.now());
   const [allSections, setAllSections] = useState([]);
   const [staffList, setStaffList] = useState([]);
-  const [page, setPage] = useState(1);        // ← naya
-  const [pages, setPages] = useState(1);      // ← naya
-  const [total, setTotal] = useState(0);      // ← naya
+  const [page, setPage] = useState(1);
+  const [pages, setPages] = useState(1);
+  const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [resolving, setResolving] = useState(false);
   const { user } = useAuth();
   const isAdminOrStaff = ['admin', 'staff'].includes(user?.role);
   const isAdmin = user?.role === 'admin';
   const canExportComplaints = isAdmin || user?.exportSection === 'all' || user?.exportSection === 'complaints';
 
   const fetchComplaints = (p = page) => {
+    setLoading(true);
     const sectionParam = sectionFilter ? `&section=${encodeURIComponent(sectionFilter)}` : '';
-    axios.get(`/api/complaints?page=${p}&limit=20${sectionParam}`).then(r => {
+    const slaParam = slaBreachedOnly ? '&slaBreached=true' : '';
+    axios.get(`/api/complaints?page=${p}&limit=20${sectionParam}${slaParam}`).then(r => {
       setComplaints(r.data.data || []);
       setPages(r.data.pages || 1);
       setTotal(r.data.total ?? (r.data.data || []).length);
     }).finally(() => setLoading(false));
   };
 
-  useEffect(() => { fetchComplaints(page); }, [page, sectionFilter]);
+  useEffect(() => { fetchComplaints(page); }, [page, sectionFilter, slaBreachedOnly]);
+
+  useEffect(() => {
+    const interval = setInterval(() => setNow(Date.now()), 60_000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const formatTimeRemaining = target => {
+    const minutes = Math.max(0, Math.ceil((new Date(target).getTime() - now) / 60_000));
+    const hours = Math.floor(minutes / 60);
+    const remainingMinutes = minutes % 60;
+    return hours > 0 ? `${hours}h ${remainingMinutes}m remaining` : `${remainingMinutes}m remaining`;
+  };
 
   useEffect(() => {
     if (isAdminOrStaff) {
@@ -86,6 +104,7 @@ export default function Complaints() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setSubmitting(true);
     try {
       const res = await axios.post('/api/complaints', form);
       setAutoInfo({ category: res.data.autoDetected?.category, section: res.data.autoDetected?.section, assigned: res.data.autoAssigned });
@@ -98,6 +117,8 @@ export default function Complaints() {
       fetchComplaints();
     } catch (err) {
       alert(err.response?.data?.message || 'Could not submit complaint');
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -117,12 +138,15 @@ export default function Complaints() {
 
   const submitResolution = async () => {
     if (!resolutionText.trim()) { alert('Resolution description is required!'); return; }
+    setResolving(true);
     try {
       await axios.put(`/api/complaints/${resolveFor._id}`, { status: 'resolved', resolution: resolutionText });
       setResolveFor(null);
       fetchComplaints();
     } catch (err) {
       alert(err.response?.data?.message || 'Could not resolve complaint');
+    } finally {
+      setResolving(false);
     }
   };
 
@@ -154,6 +178,17 @@ export default function Complaints() {
                 </button>
               </>
             )}
+            <label className="flex items-center gap-2 text-sm text-slate-700">
+              <input
+                type="checkbox"
+                checked={slaBreachedOnly}
+                onChange={event => {
+                  setSlaBreachedOnly(event.target.checked);
+                  setPage(1);
+                }}
+              />
+              Escalated / Overdue Complaints
+            </label>
           </>
         )}
       </div>
@@ -186,6 +221,15 @@ export default function Complaints() {
             <tr><th>Title</th><th>Section</th><th>Category</th><th>Priority</th><th>Submitted By</th><th>Assigned To</th><th>Status</th><th>Action</th></tr>
           </thead>
           <tbody>
+            {!complaints.length && (
+              <tr>
+                <td colSpan="8" className="table-empty">
+                  {sectionFilter || slaBreachedOnly
+                    ? 'No complaints match the selected filters.'
+                    : 'No complaints have been reported yet.'}
+                </td>
+              </tr>
+            )}
             {complaints.map(c => (
               <tr key={c._id}>
                 <td className="min-w-[190px]">
@@ -193,8 +237,21 @@ export default function Complaints() {
                   <span style={{ fontSize: '0.78rem', color: '#6b7280' }}>{c.description?.slice(0, 60)}...</span>
                   <div className="mt-1 space-y-0.5 text-xs text-gray-500">
                     <div>Submitted: {formatDateTime(c.createdAt)}</div>
-                    {c.startedAt && <div>Started: {formatDateTime(c.startedAt)}</div>}
-                    {c.resolvedAt && <div>Resolved: {formatDateTime(c.resolvedAt)}</div>}
+                    <div>Work Started: {c.startedAt ? formatDateTime(c.startedAt) : 'Not Started'}</div>
+                    <div>Resolved: {c.resolvedAt ? formatDateTime(c.resolvedAt) : 'Pending'}</div>
+                    {!['resolved', 'closed'].includes(c.status) && (
+                      <div className="pt-1">
+                        {c.escalated ? (
+                          <span className="rounded-full bg-red-100 px-2 py-1 font-semibold text-red-700">Escalated</span>
+                        ) : c.slaTargetAt && new Date(c.slaTargetAt).getTime() < now ? (
+                          <span className="rounded-full bg-red-100 px-2 py-1 font-semibold text-red-700">SLA Overdue</span>
+                        ) : c.slaTargetAt ? (
+                          <span className="rounded-full bg-green-100 px-2 py-1 font-semibold text-green-700">
+                            On Track · {formatTimeRemaining(c.slaTargetAt)}
+                          </span>
+                        ) : null}
+                      </div>
+                    )}
                   </div>
                 </td>
                 <td><span className="status status-pending">📍 {c.section}</span></td>
@@ -282,7 +339,9 @@ export default function Complaints() {
               </div>
               <div className="modal-actions">
                 <button type="button" className="btn btn-cancel" onClick={() => setShowModal(false)}>Cancel</button>
-                <button type="submit" className="btn btn-primary">Submit Complaint</button>
+                <button type="submit" className="btn btn-primary" disabled={submitting}>
+                  {submitting ? 'Submitting...' : 'Submit Complaint'}
+                </button>
               </div>
             </form>
           </div>
@@ -316,6 +375,11 @@ export default function Complaints() {
         <div className="modal-overlay" onClick={() => setResolveFor(null)}>
           <div className="modal" onClick={e => e.stopPropagation()}>
             <h3>Resolve: {resolveFor.title}</h3>
+            <div className="mb-4 space-y-1 text-sm text-gray-600">
+              <div>Submitted: {formatDateTime(resolveFor.createdAt)}</div>
+              <div>Work Started: {resolveFor.startedAt ? formatDateTime(resolveFor.startedAt) : 'Not Started'}</div>
+              <div>Resolved: {resolveFor.resolvedAt ? formatDateTime(resolveFor.resolvedAt) : 'Pending'}</div>
+            </div>
             <div className="form-group">
               <label>What was the problem and how was it fixed? (required)</label>
               <textarea rows="4" value={resolutionText} onChange={e => setResolutionText(e.target.value)}
@@ -324,7 +388,9 @@ export default function Complaints() {
             </div>
             <div className="modal-actions">
               <button type="button" className="btn btn-cancel" onClick={() => setResolveFor(null)}>Cancel</button>
-              <button className="btn btn-success" onClick={submitResolution}>Mark Resolved</button>
+              <button className="btn btn-success" onClick={submitResolution} disabled={resolving}>
+                {resolving ? 'Saving...' : 'Mark Resolved'}
+              </button>
             </div>
           </div>
         </div>

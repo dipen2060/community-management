@@ -104,8 +104,8 @@ const PollType = {
 
 const PollStatus = {
   type: 'string',
-  enum: ['active', 'closed'],
-  description: 'Closed polls reject votes and refuse option edits.'
+  enum: ['active', 'closed', 'completed', 'tied'],
+  description: 'Only active polls accept votes. Expired polls with a winner become completed; tied polls become tied and start a runoff.'
 };
 
 const PollOutcome = {
@@ -164,7 +164,7 @@ const UserSummary = {
   description: 'Trimmed user object as returned by Mongoose `populate()` projections.',
   properties: {
     _id: { type: 'string', example: '65f1a2b3c4d5e6f7a8b9c0d1' },
-    name: { type: 'string', minLength: 2, maxLength: 50, pattern: "^[A-Za-z][A-Za-z .'-]*$", example: 'Ram Bahadur' },
+    name: { type: 'string', minLength: 2, maxLength: 50, pattern: '^[A-Za-z][A-Za-z ]*$', example: 'Ram Bahadur' },
     username: { type: 'string', example: 'ram.bahadur' },
     phone: { ...NepalMobilePhone },
     email: { type: 'string', format: 'email', maxLength: 100, example: 'ram.bahadur@example.com' },
@@ -179,7 +179,7 @@ const User = {
     'Accounts are soft-deleted: `isActive=false` instead of removal.',
   properties: {
     _id: { type: 'string', example: '65f1a2b3c4d5e6f7a8b9c0d1' },
-    name: { type: 'string', minLength: 2, maxLength: 50, pattern: "^[A-Za-z][A-Za-z .'-]*$", example: 'Ram Bahadur' },
+    name: { type: 'string', minLength: 2, maxLength: 50, pattern: '^[A-Za-z][A-Za-z ]*$', example: 'Ram Bahadur' },
     username: {
       type: 'string',
       example: 'ram.bahadur',
@@ -211,7 +211,7 @@ const UserProfile = {
     'Assembled field-by-field by the controller, so it uses `id` (not `_id`) and always includes every key.',
   properties: {
     id: { type: 'string', example: '65f1a2b3c4d5e6f7a8b9c0d1' },
-    name: { type: 'string', minLength: 2, maxLength: 50, pattern: "^[A-Za-z][A-Za-z .'-]*$", example: 'Ram Bahadur' },
+    name: { type: 'string', minLength: 2, maxLength: 50, pattern: '^[A-Za-z][A-Za-z ]*$', example: 'Ram Bahadur' },
     username: { type: 'string', example: 'ram.bahadur' },
     email: { type: 'string', format: 'email', maxLength: 100, example: 'ram.bahadur@example.com' },
     role: UserRole,
@@ -252,7 +252,7 @@ const CreateUserRequest = {
   type: 'object',
   required: ['name', 'email'],
   properties: {
-    name: { type: 'string', minLength: 2, maxLength: 50, pattern: "^[A-Za-z][A-Za-z .'-]*$", example: 'Ram Bahadur' },
+    name: { type: 'string', minLength: 2, maxLength: 50, pattern: '^[A-Za-z][A-Za-z ]*$', example: 'Ram Bahadur' },
     email: { type: 'string', format: 'email', maxLength: 100, example: 'ram.bahadur@example.com' },
     phone: { ...NepalMobilePhone },
     role: { ...UserRole, default: 'resident' },
@@ -265,7 +265,7 @@ const UpdateUserRequest = {
   type: 'object',
   description: 'All fields optional — only supplied keys are applied.',
   properties: {
-    name: { type: 'string', minLength: 2, maxLength: 50, pattern: "^[A-Za-z][A-Za-z .'-]*$", example: 'Ram Bahadur Thapa' },
+    name: { type: 'string', minLength: 2, maxLength: 50, pattern: '^[A-Za-z][A-Za-z ]*$', example: 'Ram Bahadur Thapa' },
     phone: { ...NepalMobilePhone },
     role: UserRole,
     specialization: Specialization,
@@ -282,7 +282,7 @@ const UpdateMyProfileRequest = {
       type: 'string',
       minLength: 2,
       maxLength: 50,
-      pattern: "^[A-Za-z][A-Za-z .'-]*$",
+      pattern: '^[A-Za-z][A-Za-z ]*$',
       example: 'Ram Bahadur Thapa',
       description: 'Changing the name also regenerates `username`.'
     },
@@ -299,9 +299,9 @@ const UpdateMyProfileRequest = {
       format: 'password',
       minLength: 8,
       maxLength: 64,
-      pattern: '^(?=.*[A-Za-z])(?=.*\\d)[\\s\\S]{8,64}$',
-      example: 'evenBetterSecret',
-      description: 'Must be 8-64 characters and include at least one letter and one number. Supplying this clears `mustChangePassword`.'
+      pattern: '^(?=.*[A-Z])(?=.*[a-z])(?=.*\\d)(?=.*[^A-Za-z0-9\\s])[\\s\\S]{8,64}$',
+      example: 'EvenBetter7!',
+      description: 'Must be 8-64 characters and include uppercase, lowercase, a number, and a special character. Supplying this clears `mustChangePassword`.'
     }
   }
 };
@@ -328,7 +328,7 @@ const House = {
       nullable: true,
       description: 'Populated resident. `null` when unassigned. A resident may tenant at most one house.'
     },
-    monthlyDue: { type: 'number', minimum: 0, maximum: 10000, multipleOf: 0.01, example: 500, description: 'Default monthly charge in NPR used when generating dues. The default maximum is configurable with MAX_MONTHLY_DUE.' },
+    monthlyDue: { type: 'number', exclusiveMinimum: 0, maximum: 10000, multipleOf: 0.01, example: 500, description: 'Required positive monthly charge in NPR used when generating dues. The default maximum is configurable with MAX_MONTHLY_DUE.' },
     isOccupied: { type: 'boolean', example: true, description: 'Only occupied, non-archived houses get dues generated.' },
     status: HouseStatus,
     address: { type: 'string', maxLength: 200, example: 'Lalitpur, Ward 4' },
@@ -339,7 +339,7 @@ const House = {
 
 const CreateHouseRequest = {
   type: 'object',
-  required: ['houseNo'],
+  required: ['houseNo', 'section', 'floor', 'monthlyDue'],
   properties: {
     houseNo: { type: 'string', minLength: 1, maxLength: 20, pattern: '^[A-Z0-9][A-Z0-9\\-/ ]*$', example: 'A-101' },
     section: { type: 'string', minLength: 1, maxLength: 50, pattern: '^[A-Za-z0-9][A-Za-z0-9 \\-]*$', example: 'Section 1' },
@@ -347,7 +347,7 @@ const CreateHouseRequest = {
     type: HouseType,
     owner: { type: 'string', description: 'User ID of an active resident. Omit or pass an empty string for none.', example: '65f1a2b3c4d5e6f7a8b9c0d1' },
     tenant: { type: 'string', description: 'User ID of an active resident. Omit or pass an empty string for none.', example: '65f1a2b3c4d5e6f7a8b9c0d3' },
-    monthlyDue: { type: 'number', minimum: 0, maximum: 10000, multipleOf: 0.01, default: 500, example: 500 },
+    monthlyDue: { type: 'number', exclusiveMinimum: 0, maximum: 10000, multipleOf: 0.01, example: 500 },
     isOccupied: { type: 'boolean', default: true },
     address: { type: 'string', maxLength: 200, example: 'Lalitpur, Ward 4' }
   }
@@ -364,7 +364,7 @@ const UpdateHouseRequest = {
     type: HouseType,
     owner: { type: 'string', example: '' },
     tenant: { type: 'string', example: '' },
-    monthlyDue: { type: 'number', minimum: 0, maximum: 10000, multipleOf: 0.01, example: 750 },
+    monthlyDue: { type: 'number', exclusiveMinimum: 0, maximum: 10000, multipleOf: 0.01, example: 750 },
     isOccupied: { type: 'boolean', example: true },
     address: { type: 'string', maxLength: 200, example: 'Lalitpur, Ward 4' }
   }
@@ -459,8 +459,8 @@ const DashboardStats = {
     verificationPending: { type: 'integer', example: 2 },
     collectionRate: { type: 'number', example: '85.4', description: '`paidDues / totalDues` as a percentage string, one decimal place.' },
     totalCollected: { type: 'number', example: 21450, description: 'Sum of amount + fine across paid dues this month, in NPR.' },
-    allTimeOutstandingAmount: { type: 'number', example: 18400, description: 'All-time amount + effective fine across unpaid due rows.' },
-    housesWithArrears: { type: 'integer', example: 12, description: 'Number of houses with one or more unpaid due rows.' }
+    allTimeOutstandingAmount: { type: 'number', example: 18400, description: 'Occupied active houses only: previous unpaid monthly dues + current month due + active/unpaid effective fines.' },
+    housesWithArrears: { type: 'integer', example: 12, description: 'Number of occupied active houses with a non-zero outstanding balance.' }
   }
 };
 
@@ -487,6 +487,9 @@ const OutstandingHouse = {
     section: { type: 'string', example: 'Section 1' },
     ownerName: { type: 'string', nullable: true },
     tenantName: { type: 'string', nullable: true },
+    residentName: { type: 'string', nullable: true, example: 'Ram Bahadur' },
+    contactNumber: { type: 'string', nullable: true, example: '9841234567' },
+    baseMonthlyDue: { type: 'number', example: 500 },
     dueSince: {
       type: 'object',
       properties: {
@@ -498,6 +501,7 @@ const OutstandingHouse = {
     currentMonthAmount: { type: 'number', example: 500 },
     previousBalance: { type: 'number', example: 1000 },
     totalFine: { type: 'number', example: 150 },
+    totalOutstanding: { type: 'number', example: 1650 },
     totalPayable: { type: 'number', example: 1650 },
     hasVerificationPending: { type: 'boolean', example: true },
     breakdown: { type: 'array', items: { $ref: '#/components/schemas/OutstandingDueBreakdown' } }
@@ -567,8 +571,11 @@ const Complaint = {
     assignedTo: { ...UserSummary, nullable: true, description: 'Populated with `name phone specialization`. Assigned automatically by category.' },
     resolution: { type: 'string', nullable: true, example: 'Pump replaced and supply restored.', description: 'Mandatory when transitioning to `resolved`.' },
     resolvedBy: { ...UserSummary, nullable: true },
-    startedAt: { type: 'string', format: 'date-time', nullable: true, description: 'When work most recently started; set on auto-assignment or transition to `inprogress`.' },
+    startedAt: { type: 'string', format: 'date-time', nullable: true, description: 'When work first began; set on auto-assignment or transition to `inprogress` and preserved thereafter.' },
     resolvedAt: { type: 'string', format: 'date-time', nullable: true },
+    slaTargetAt: { type: 'string', format: 'date-time', nullable: true, description: 'Computed from startedAt (or createdAt) plus the configured SLA for this priority.' },
+    escalated: { type: 'boolean', example: false, description: 'True after this complaint breaches its configured SLA.' },
+    escalatedAt: { type: 'string', format: 'date-time', nullable: true },
     reopenCount: { type: 'integer', example: 0, description: 'Incremented each time a resolved complaint is reopened. At 2 the complaint is forced to `closed`.' },
     attachments: {
       type: 'array',
@@ -637,7 +644,7 @@ const Notice = {
     title: { type: 'string', minLength: 5, maxLength: 100, example: 'Water supply interruption on Friday' },
     content: { type: 'string', minLength: 10, maxLength: 1000, example: 'Supply will be interrupted from 9 AM to 2 PM for tank maintenance.' },
     type: NoticeType,
-    expiresAt: { type: 'string', format: 'date-time', nullable: true, example: '2026-12-31T00:00:00.000Z', description: 'Null means the notice never expires.' },
+    expiresAt: { type: 'string', format: 'date-time', nullable: true, example: '2026-12-31T00:00:00.000Z', description: 'Defaults to 7 days after creation when omitted.' },
     expired: { type: 'boolean', example: false, description: 'True when the notice expiry has passed. Included on notice list responses.' },
     targetSections: {
       type: 'array',
@@ -788,7 +795,7 @@ const UpdatePollRequest = {
       maxItems: 10,
       description: 'When supplied, 2-10 trimmed unique option labels; duplicate labels are compared ignoring case.'
     },
-    status: { ...PollStatus, enum: ['active', 'closed'], description: 'Any other value is rejected with 400.' },
+    status: { ...PollStatus, enum: ['active', 'closed'], description: 'Any other value is rejected with 400; setting closed finalizes the poll.' },
     endDate: { type: 'string', format: 'date-time', description: 'Must be in the future. Existing update behavior does not impose a one-year maximum.' }
   }
 };

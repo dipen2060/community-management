@@ -42,7 +42,12 @@ async function finalizePoll(pollId, reason = 'expired') {
 
   const finalizedPoll = await Poll.findByIdAndUpdate(
     poll._id,
-    { $set: { outcome, winnerOptionIndexes, totalVotes } },
+    { $set: {
+      outcome,
+      winnerOptionIndexes,
+      totalVotes,
+      status: outcome === 'winner' ? 'completed' : outcome === 'tie' ? 'tied' : 'closed'
+    } },
     { new: true }
   );
 
@@ -65,40 +70,29 @@ async function finalizePoll(pollId, reason = 'expired') {
     return finalizedPoll;
   }
 
-  const { maxRounds, runoffHours } = getPollConfig();
-  if (poll.round < maxRounds) {
-    const runoff = await Poll.create({
-      title: `Re-vote (Round ${poll.round + 1}): ${poll.title}`,
-      description: poll.description,
-      options: winnerOptionIndexes.map(index => ({ text: poll.options[index].text, votes: [] })),
-      type: poll.type,
-      targetSections: poll.targetSections,
-      createdBy: poll.createdBy,
-      endDate: new Date(closedAt.getTime() + runoffHours * 60 * 60 * 1000),
-      totalVotes: 0,
-      outcome: 'open',
-      round: poll.round + 1,
-      parentPoll: poll._id
-    });
-    await Poll.findByIdAndUpdate(poll._id, { $set: { runoffPoll: runoff._id } });
-    const recipients = await getPollRecipientIds(poll.targetSections);
-    await createNotificationForMany(recipients, {
-      title: 'Poll tie — re-vote started',
-      message: `Tie in ${poll.title} — re-voting started, vote before ${runoff.endDate.toLocaleString()}`,
-      type: 'general',
-      link: '/polls'
-    });
-    finalizedPoll.runoffPoll = runoff._id;
-    return finalizedPoll;
-  }
-
-  const admins = await User.find({ role: 'admin', isActive: true }).select('_id').lean();
-  await createNotificationForMany(admins.map(admin => admin._id), {
-    title: 'Poll final tie — admin decision needed',
-    message: `Final tie after ${poll.round} rounds — admin decision needed for "${poll.title}".`,
+  const { runoffHours } = getPollConfig();
+  const runoff = await Poll.create({
+    title: `[Runoff] ${poll.title}`,
+    description: poll.description,
+    options: winnerOptionIndexes.map(index => ({ text: poll.options[index].text, votes: [] })),
+    type: poll.type,
+    targetSections: poll.targetSections,
+    createdBy: poll.createdBy,
+    endDate: new Date(closedAt.getTime() + runoffHours * 60 * 60 * 1000),
+    totalVotes: 0,
+    outcome: 'open',
+    round: poll.round + 1,
+    parentPoll: poll._id
+  });
+  await Poll.findByIdAndUpdate(poll._id, { $set: { runoffPoll: runoff._id } });
+  const recipients = await getPollRecipientIds(poll.targetSections);
+  await createNotificationForMany(recipients, {
+    title: 'Poll tie — runoff started',
+    message: `Tie in ${poll.title} — a runoff poll is open until ${runoff.endDate.toLocaleString()}`,
     type: 'general',
     link: '/polls'
   });
+  finalizedPoll.runoffPoll = runoff._id;
   return finalizedPoll;
 }
 

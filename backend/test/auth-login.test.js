@@ -10,6 +10,7 @@ process.env.JWT_EXPIRE = '1h';
 
 const User = require('../models/User');
 const app = express();
+app.set('trust proxy', 1);
 app.use(express.json());
 app.use('/auth', require('../routes/auth'));
 
@@ -85,6 +86,18 @@ describe('login errors and rate limiting', () => {
     expect(response.body.success).toBe(true);
   });
 
+  test.each(['/auth/forgot-password', '/auth/reset-password-token'])(
+    'disables public password reset at %s',
+    async path => {
+      const response = await request(app).post(path).send({ email: 'resident@example.com' });
+
+      expect(response.status).toBe(404);
+      expect(response.body).toEqual({
+        message: 'Public password reset is disabled. Please contact your neighborhood admin to reset your password.'
+      });
+    }
+  );
+
   test('finds a Gmail-dot-normalized account while retaining the submitted address', async () => {
     const user = activeUser();
     User.findOne.mockImplementation(async filter => {
@@ -104,21 +117,22 @@ describe('login errors and rate limiting', () => {
     expect(response.body.user.mustChangePassword).toBe(true);
   });
 
-  test('returns the standard JSON rate-limit response after failed attempts', async () => {
+  test('returns the dedicated JSON rate-limit response after 10 failed attempts', async () => {
     User.findOne.mockResolvedValue(null);
-    let response;
-    for (let attempt = 0; attempt < 105; attempt += 1) {
-      response = await request(app)
+    const responses = [];
+    for (let attempt = 0; attempt < 11; attempt += 1) {
+      responses.push(await request(app)
         .post('/auth/login')
-        .send({ email: 'unknown@example.com', password: 'valid-pass' });
+        .set('X-Forwarded-For', '203.0.113.10')
+        .send({ email: 'unknown@example.com', password: 'valid-pass' }));
     }
 
+    expect(responses.slice(0, 10).every(response => response.status === 401)).toBe(true);
+    const response = responses[10];
     expect(response.status).toBe(429);
-    expect(response.body).toMatchObject({
-      success: false,
-      code: 'RATE_LIMITED'
+    expect(response.body).toEqual({
+      message: 'Too many login attempts from this IP. Please try again after 15 minutes.'
     });
-    expect(response.body.message).toMatch(/^Too many attempts\. Please try again in \d+ minutes\.$/);
 
     const currentUserResponse = await request(app).get('/auth/me');
     expect(currentUserResponse.status).toBe(401);

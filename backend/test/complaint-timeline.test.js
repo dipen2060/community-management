@@ -37,7 +37,12 @@ const Complaint = require('../models/Complaint');
 const User = require('../models/User');
 const House = require('../models/House');
 const { findBestStaffForCategory } = require('../utils/autoAssign');
-const { createComplaint, updateComplaint } = require('../controllers/complaintController');
+const {
+  createComplaint,
+  updateComplaint,
+  escalateOverdueComplaints
+} = require('../controllers/complaintController');
+const { createNotificationForMany } = require('../controllers/notificationController');
 
 function responseMock() {
   return {
@@ -118,5 +123,89 @@ describe('complaint timeline start timestamp', () => {
     expect(complaint.status).toBe('inprogress');
     expect(complaint.save).toHaveBeenCalled();
     expect(next).not.toHaveBeenCalled();
+  });
+
+  test('sets startedAt when a staff member is assigned without an explicit status change', async () => {
+    const complaint = {
+      _id: 'complaint-id',
+      status: 'pending',
+      submittedBy: 'resident-id',
+      assignedTo: null,
+      reopenCount: 0,
+      save: jest.fn().mockResolvedValue(undefined),
+      populate: jest.fn().mockResolvedValue(undefined)
+    };
+    Complaint.findById.mockResolvedValue(complaint);
+    const before = Date.now();
+
+    await updateComplaint({
+      params: { id: 'complaint-id' },
+      body: { assignedTo: 'staff-id' },
+      user: { _id: 'admin-id', role: 'admin', name: 'Admin' }
+    }, responseMock(), jest.fn());
+
+    expect(complaint.startedAt).toBeInstanceOf(Date);
+    expect(complaint.startedAt.getTime()).toBeGreaterThanOrEqual(before);
+    expect(complaint.assignedTo).toBe('staff-id');
+  });
+
+  test('does not replace an existing startedAt on subsequent updates', async () => {
+    const originalStartedAt = new Date('2026-01-01T10:00:00Z');
+    const complaint = {
+      _id: 'complaint-id',
+      status: 'pending',
+      startedAt: originalStartedAt,
+      submittedBy: 'resident-id',
+      assignedTo: 'staff-id',
+      reopenCount: 0,
+      save: jest.fn().mockResolvedValue(undefined),
+      populate: jest.fn().mockResolvedValue(undefined)
+    };
+    Complaint.findById.mockResolvedValue(complaint);
+
+    await updateComplaint({
+      params: { id: 'complaint-id' },
+      body: { status: 'inprogress' },
+      user: { _id: 'admin-id', role: 'admin', name: 'Admin' }
+    }, responseMock(), jest.fn());
+
+    expect(complaint.startedAt).toBe(originalStartedAt);
+  });
+
+  test('escalates breached open complaints once and notifies admins and assigned staff', async () => {
+    const overdue = {
+      _id: 'overdue-id',
+      title: 'Water supply failure',
+      priority: 'low',
+      status: 'inprogress',
+      createdAt: new Date(Date.now() - 74 * 60 * 60 * 1000),
+      startedAt: new Date(Date.now() - 74 * 60 * 60 * 1000),
+      assignedTo: 'staff-id',
+      escalated: false,
+      save: jest.fn().mockResolvedValue(undefined)
+    };
+    const onTrack = {
+      _id: 'on-track-id',
+      priority: 'low',
+      status: 'pending',
+      createdAt: new Date(Date.now() - 24 * 60 * 60 * 1000),
+      escalated: false,
+      save: jest.fn().mockResolvedValue(undefined)
+    };
+    Complaint.find.mockResolvedValueOnce([overdue, onTrack]);
+
+    const result = await escalateOverdueComplaints();
+
+    expect(result).toEqual({ checked: 2, escalated: 1 });
+    expect(overdue.escalated).toBe(true);
+    expect(overdue.escalatedAt).toBeInstanceOf(Date);
+    expect(overdue.priority).toBe('medium');
+    expect(overdue.status).toBe('inprogress');
+    expect(overdue.save).toHaveBeenCalledTimes(1);
+    expect(onTrack.save).not.toHaveBeenCalled();
+    expect(createNotificationForMany).toHaveBeenCalledWith(
+      ['admin-id'],
+      expect.objectContaining({ title: 'Complaint SLA Breached ⏰' })
+    );
   });
 });

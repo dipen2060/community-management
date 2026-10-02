@@ -26,6 +26,11 @@ const { buildOpenApiSpec } = require('../docs/swagger');
 jest.mock('file-type', () => ({ fromBuffer: jest.fn() }));
 
 const HTTP_METHODS = ['get', 'post', 'put', 'patch', 'delete'];
+// Legacy password-reset paths remain as 404 stubs and are intentionally not public API operations.
+const intentionallyUndocumentedRoutes = new Set([
+  'POST /auth/forgot-password',
+  'POST /auth/reset-password-token'
+]);
 
 /** Read the `/api/xxx -> routes/xxx.js` mount table straight out of server.js. */
 const readMountsFromServer = () => {
@@ -220,6 +225,7 @@ describe('OpenAPI document', () => {
       ['/dues/clusters', 'get'],
       ['/dues/generate', 'post'],
       ['/notices', 'post'],
+      ['/notices/{id}/expire', 'put'],
       ['/notices/{id}', 'delete'],
       ['/polls', 'post'],
       ['/polls/{id}', 'put'],
@@ -273,7 +279,7 @@ describe('Spec / route parity', () => {
     // so it is absent from the collected set and checked separately below.
     const missing = [...new Set(actualRoutes())].filter((op) => !documented.has(op));
 
-    expect(missing).toEqual([]);
+    expect(missing.filter((op) => !intentionallyUndocumentedRoutes.has(op))).toEqual([]);
   });
 
   it('documents the root health check', () => {
@@ -288,8 +294,8 @@ describe('Spec / route parity', () => {
     expect(orphans).toEqual([]);
   });
 
-  it('covers all 52 API endpoints plus the health check', () => {
-    expect(specOperations().length).toBe(53);
+  it('covers all 54 API endpoints plus the health check', () => {
+    expect(specOperations().length).toBe(55);
   });
 });
 

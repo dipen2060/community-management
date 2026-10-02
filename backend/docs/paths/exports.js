@@ -92,7 +92,7 @@ module.exports = {
       tags: ['Exports'],
       summary: 'Export outstanding balances to Excel',
       description:
-        `Streams a workbook with a per-house \`Summary\` sheet and unpaid-month \`Breakdown\` sheet. An optional \`houseId\` exports only that house. ${EXPORT_COMMON}`,
+        `Streams a workbook with a per-house \`Summary\` sheet containing resident/contact, base monthly fee, current due, carry-forward balance, fines, and total outstanding; the \`Breakdown\` sheet lists each unpaid month. Vacant houses are excluded. An optional \`houseId\` exports only that house. ${EXPORT_COMMON}`,
       params: [
         param('ExportPageParam'),
         param('ExportLimitParam'),
@@ -112,7 +112,7 @@ module.exports = {
       tags: ['Exports'],
       summary: 'Export outstanding balances to PDF',
       description:
-        `Streams the per-house outstanding summary and, when \`houseId\` is supplied, includes that house's month-by-month detail. Admins receive a total-payable subtotal; staff receive the existing reduced column set. ${EXPORT_COMMON}`,
+        `Streams the occupied-house outstanding summary, including resident/contact, base monthly fee, current due, carry-forward balance, fines, and total outstanding; when \`houseId\` is supplied, it includes that house's month-by-month detail. Admins receive a total-payable subtotal; staff receive the existing reduced column set. ${EXPORT_COMMON}`,
       params: [
         param('ExportPageParam'),
         param('ExportLimitParam'),

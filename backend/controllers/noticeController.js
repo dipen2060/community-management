@@ -9,13 +9,14 @@ const { getPagination, buildMeta } = require('../utils/paginate');
 exports.getNotices = async (req, res, next) => {
   try {
     const filter = { isActive: true };
-    const includeExpired = req.user.role === 'admin' && req.query.includeExpired === 'true';
+    const includeExpired = ['admin', 'staff'].includes(req.user.role) && req.query.includeExpired === 'true';
     if (req.query.includeExpired !== undefined && !['true', 'false'].includes(req.query.includeExpired)) {
       return res.status(400).json({ success: false, message: 'includeExpired must be true or false.' });
     }
     if (!includeExpired) {
+      const now = new Date();
       filter.$and = [
-        { $or: [{ expiresAt: null }, { expiresAt: { $gt: new Date() } }] }
+        { $or: [{ expiresAt: null }, { expiresAt: { $gt: now } }] }
       ];
     }
     
@@ -67,7 +68,7 @@ exports.getNotices = async (req, res, next) => {
 exports.createNotice = async (req, res, next) => {
   try {
     const { title, content, type, targetSections, expiresAt } = req.body;
-    let expirationDate = null;
+    let expirationDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
     if (expiresAt !== undefined && expiresAt !== '') {
       expirationDate = new Date(expiresAt);
       if (Number.isNaN(expirationDate.getTime()) || expirationDate <= new Date()) {
@@ -142,5 +143,21 @@ exports.deleteNotice = async (req, res, next) => {
     const notice = await Notice.findByIdAndUpdate(req.params.id, { isActive: false }, { new: true, runValidators: true });
     if (!notice) return res.status(404).json({ success: false, message: 'Notice not found' });
     res.json({ success: true, message: 'Notice removed' });
+  } catch (err) { next(err); }
+};
+
+exports.expireNotice = async (req, res, next) => {
+  try {
+    const notice = await Notice.findById(req.params.id);
+    if (!notice) return res.status(404).json({ success: false, message: 'Notice not found' });
+
+    notice.expiresAt = new Date();
+    await notice.save();
+
+    res.json({
+      success: true,
+      data: notice,
+      message: 'Notice expired successfully'
+    });
   } catch (err) { next(err); }
 };

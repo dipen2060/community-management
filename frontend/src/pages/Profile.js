@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
-import { normalizeUserName, validateProfileForm } from '../utils/validation';
+import { normalizeUserName, validateNewPassword, validateProfileForm } from '../utils/validation';
 
 const Profile = () => {
   const { user, setUser } = useAuth();
@@ -176,7 +176,7 @@ const Profile = () => {
                   placeholder="Enter your full name"
                   required
                 />
-                {(touchedFields.name || submitAttempted) && formErrors.name && <p role="alert" className="mt-2 text-sm text-red-600">{formErrors.name}</p>}
+                {(touchedFields.name || submitAttempted || formData.name) && formErrors.name && <p role="alert" className="mt-2 text-sm text-red-600">{formErrors.name}</p>}
               </div>
 
               <div>
@@ -202,7 +202,7 @@ const Profile = () => {
                   className="w-full border-2 border-gray-200 rounded-xl p-4 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none"
                   placeholder="98XXXXXXXX"
                 />
-                {formErrors.phone && (phoneTouched || submitAttempted || formData.phone.length === 10) && (
+                {formErrors.phone && (phoneTouched || submitAttempted || formData.phone) && (
                   <p role="alert" className="mt-2 text-sm text-red-600">{formErrors.phone}</p>
                 )}
               </div>
@@ -250,7 +250,8 @@ const Profile = () => {
                       className="w-full border-2 border-gray-200 rounded-xl p-4 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none"
                       placeholder="Enter new password"
                     />
-                    {(touchedFields.newPassword || submitAttempted) && formErrors.newPassword && <p role="alert" className="mt-2 text-sm text-red-600">{formErrors.newPassword}</p>}
+                    <p className="mt-2 text-xs text-gray-500">Use 8-64 characters with an uppercase letter, lowercase letter, number, and special symbol.</p>
+                    {(touchedFields.newPassword || submitAttempted || formData.newPassword) && formErrors.newPassword && <p role="alert" className="mt-2 text-sm text-red-600">{formErrors.newPassword}</p>}
                   </div>
 
                   <div>

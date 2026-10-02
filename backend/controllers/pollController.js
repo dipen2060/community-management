@@ -154,25 +154,30 @@ exports.updatePoll = async (req, res, next) => {
 
     if (!poll) return res.status(404).json({ success: false, message: 'Poll not found' });
 
+    if (poll.status !== 'active') {
+      return res.status(400).json({ success: false, message: 'Cannot modify a finalized poll' });
+    }
+
     if (status === 'closed') {
       await finalizePoll(poll._id, 'manual');
       const closedPoll = await Poll.findById(req.params.id).populate('createdBy', 'name');
       return res.json({ success: true, data: closedPoll, message: 'Poll closed successfully' });
     }
 
-    // Cannot modify if poll is closed
-    if (poll.status === 'closed') {
-      return res.status(400).json({ success: false, message: 'Cannot modify a closed poll' });
-    }
-
     // Cannot modify options if there are already votes
     if (poll.totalVotes > 0 && req.body.options) {
       return res.status(400).json({ success: false, message: 'Cannot modify options after voting has started' });
+    }
+    if (req.body.options && !isValidPollOptions(req.body.options)) {
+      return res.status(400).json({ success: false, message: 'Poll options must be 2-10 unique labels of 1-100 characters each' });
     }
 
     const update = {};
     if (title) update.title = title.trim();
     if (description !== undefined) update.description = description?.trim() || '';
+    if (req.body.options) {
+      update.options = req.body.options.map(text => ({ text, votes: [] }));
+    }
     if (status !== undefined) {
       if (!['active', 'closed'].includes(status)) {
         return res.status(400).json({ success: false, message: 'Invalid poll status' });
@@ -208,13 +213,17 @@ exports.deletePoll = async (req, res, next) => {
 // Vote on poll (residents only)
 exports.votePoll = async (req, res, next) => {
   try {
+    if (req.user.role !== 'resident') {
+      return res.status(403).json({ success: false, message: 'Only residents may vote in polls' });
+    }
+
     await finalizeExpiredPolls();
     const { optionIndex } = req.body;
     const poll = await Poll.findById(req.params.id);
 
     if (!poll) return res.status(404).json({ success: false, message: 'Poll not found' });
 
-    if (poll.status === 'closed') {
+    if (poll.status !== 'active') {
       return res.status(400).json({ success: false, message: 'This poll is closed for voting' });
     }
 
@@ -279,7 +288,7 @@ exports.getPollResults = async (req, res, next) => {
       if (!(await residentCanViewPoll(req.user._id, poll))) {
         return res.status(403).json({ success: false, message: 'You are not authorized to view this poll' });
       }
-      if (poll.status !== 'closed') {
+      if (poll.status === 'active') {
         return res.status(403).json({ success: false, message: 'Poll results are available after the poll closes.' });
       }
     }

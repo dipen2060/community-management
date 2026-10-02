@@ -1,15 +1,16 @@
 const mongoose = require('mongoose');
+const { isValidMonthlyDue } = require('../utils/inputValidation');
 
 const houseSchema = new mongoose.Schema({
-  houseNo:     { type: String, required: true, unique: true },
-  section:     { type: String, required: true, default: 'Section 1', maxlength: 100 },
-  floor:       { type: Number, default: 0, min: 0 },
+  houseNo:     { type: String, required: true, unique: true, trim: true, minlength: 1, maxlength: 20, match: /^[A-Z0-9][A-Z0-9\-\/ ]*$/ },
+  section:     { type: String, required: true, trim: true, minlength: 1, maxlength: 50, match: /^[A-Za-z0-9][A-Za-z0-9 \-]*$/ },
+  floor:       { type: Number, required: true, min: 0, max: 30, validate: Number.isInteger },
   type:        { type: String, enum: ['apartment', 'house', 'shop'], default: 'apartment' },
   // Legacy denormalized links retained during migration. New multi-house
   // relationships are stored in resident_houses.
   owner:       { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   tenant:      { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
-  monthlyDue:  { type: Number, default: 500, min: 0 },
+  monthlyDue:  { type: Number, required: true, validate: isValidMonthlyDue },
   isOccupied:  { type: Boolean, default: true },
   status:      { type: String, enum: ['active', 'archived'], default: 'active', index: true },
   address:     { type: String, maxlength: 200 }

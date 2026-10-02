@@ -200,14 +200,13 @@ exports.exportOutstandingToExcel = async (req, res) => {
     summary.columns = isAdmin(req) ? [
       { header: 'House No', key: 'houseNo', width: 15 },
       { header: 'Section', key: 'section', width: 16 },
-      { header: 'Owner', key: 'ownerName', width: 22 },
-      { header: 'Tenant', key: 'tenantName', width: 22 },
-      { header: 'Due Since', key: 'dueSince', width: 13 },
-      { header: 'Months Unpaid', key: 'monthsUnpaid', width: 15 },
-      { header: 'Current Month Amount', key: 'currentMonthAmount', width: 20 },
-      { header: 'Previous Balance', key: 'previousBalance', width: 18 },
-      { header: 'Total Fine', key: 'totalFine', width: 14 },
-      { header: 'Total Payable', key: 'totalPayable', width: 16 },
+      { header: 'Owner / Resident', key: 'residentName', width: 24 },
+      { header: 'Contact Number', key: 'contactNumber', width: 18 },
+      { header: 'Base Monthly Due', key: 'baseMonthlyDue', width: 18 },
+      { header: 'Current Month Due', key: 'currentMonthAmount', width: 19 },
+      { header: 'Previous Unpaid Balance', key: 'previousBalance', width: 23 },
+      { header: 'Accumulated Fines', key: 'totalFine', width: 18 },
+      { header: 'Total Outstanding', key: 'totalOutstanding', width: 18 },
       { header: 'Payment Under Verification', key: 'hasVerificationPending', width: 26 }
     ] : [
       { header: 'House No', key: 'houseNo', width: 15 },
@@ -245,14 +244,13 @@ exports.exportOutstandingToExcel = async (req, res) => {
       summary.addRow(isAdmin(req) ? {
         houseNo: house.houseNo,
         section: house.section,
-        ownerName: house.ownerName || 'N/A',
-        tenantName: house.tenantName || 'N/A',
-        dueSince: formatDueSince(house.dueSince),
-        monthsUnpaid: house.monthsUnpaid,
+        residentName: house.residentName || [house.ownerName, house.tenantName].filter(Boolean).join(' / ') || 'N/A',
+        contactNumber: house.contactNumber || 'N/A',
+        baseMonthlyDue: house.baseMonthlyDue,
         currentMonthAmount: house.currentMonthAmount,
         previousBalance: house.previousBalance,
         totalFine: house.totalFine,
-        totalPayable: house.totalPayable,
+        totalOutstanding: house.totalOutstanding ?? house.totalPayable,
         hasVerificationPending: house.hasVerificationPending
       } : {
         houseNo: house.houseNo,
@@ -295,9 +293,9 @@ exports.exportOutstandingToPDF = async (req, res) => {
       return res.status(400).json({ success: false, message: `Export breakdown cannot exceed ${MAX_EXPORT_LIMIT} records` });
     }
     const headers = isAdmin(req)
-      ? ['House', 'Section', 'Owner', 'Tenant', 'Since', 'Months', 'Current', 'Previous', 'Fines', 'Payable', 'Verifying']
+      ? ['House', 'Section', 'Resident', 'Contact', 'Base Fee', 'Current Due', 'Carry Forward', 'Fines', 'Total Due', 'Verifying']
       : ['House', 'Section', 'Since', 'Months', 'Verifying'];
-    const widths = isAdmin(req) ? [58, 58, 82, 82, 48, 38, 58, 58, 48, 58, 58] : [100, 100, 80, 65, 120];
+    const widths = isAdmin(req) ? [54, 48, 90, 72, 54, 58, 62, 48, 58, 60] : [100, 100, 80, 65, 120];
     const doc = new PDFDocument({ margin: 28, size: 'A4', layout: 'landscape' });
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename=outstanding-report-${new Date().toISOString().split('T')[0]}.pdf`);
@@ -322,7 +320,18 @@ exports.exportOutstandingToPDF = async (req, res) => {
         drawHeader();
       }
       const values = isAdmin(req)
-        ? [house.houseNo, house.section, house.ownerName || 'N/A', house.tenantName || 'N/A', formatDueSince(house.dueSince), String(house.monthsUnpaid), `Rs ${house.currentMonthAmount}`, `Rs ${house.previousBalance}`, `Rs ${house.totalFine}`, `Rs ${house.totalPayable}`, house.hasVerificationPending ? 'Yes' : 'No']
+        ? [
+          house.houseNo,
+          house.section,
+          house.residentName || [house.ownerName, house.tenantName].filter(Boolean).join(' / ') || 'N/A',
+          house.contactNumber || 'N/A',
+          `Rs ${house.baseMonthlyDue}`,
+          `Rs ${house.currentMonthAmount}`,
+          `Rs ${house.previousBalance}`,
+          `Rs ${house.totalFine}`,
+          `Rs ${house.totalOutstanding ?? house.totalPayable}`,
+          house.hasVerificationPending ? 'Yes' : 'No'
+        ]
         : [house.houseNo, house.section, formatDueSince(house.dueSince), String(house.monthsUnpaid), house.hasVerificationPending ? 'Yes' : 'No'];
       let x = 28;
       const y = doc.y;

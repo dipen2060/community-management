@@ -50,6 +50,7 @@ module.exports = {
         'Returns complaints, newest first, with `submittedBy`, `assignedTo` and `resolvedBy` populated as ' +
         '`name`/`phone` (plus `specialization` for `assignedTo`).\n\n' +
         'Each complaint includes `createdAt` (submitted), `startedAt` (when work began, if started), and `resolvedAt` (when resolved, if resolved).\n\n' +
+        'Each complaint includes a computed `slaTargetAt`. Open complaints past that target are marked `SLA Overdue`; escalated complaints carry `escalated: true` and `escalatedAt`. Pass `slaBreached=true` to filter the list to overdue or escalated open complaints.\n\n' +
         '**Who sees what:**\n\n' +
         '- **Residents** see only their own complaints.\n' +
         '- **Staff** see all complaints; adding `mine=true` narrows the list to those assigned to them.\n' +
@@ -64,6 +65,7 @@ module.exports = {
         param('HouseIdQuery'),
         param('SearchQuery'),
         param('MineQuery'),
+        param('SlaBreachedQuery'),
         param('HistoryQuery'),
         param('PageParam'),
         param('LimitParam')

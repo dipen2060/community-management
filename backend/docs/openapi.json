@@ -3,7 +3,7 @@
   "info": {
     "title": "Tole Community Management API",
     "version": "1.0.0",
-    "description": "REST API for the Tole Community Management System — a neighbourhood administration platform covering monthly dues and fines,\nresident complaints with automated routing, notices, community polls, and audited reporting.\n\n## Authentication\n\nAll endpoints except `GET /` and `POST /auth/login` require a JWT.\n\n1. `POST /auth/login` with an email and password.\n2. Click **Authorize** in this page and paste the returned `token`.\n3. Every subsequent call is sent as `Authorization: Bearer <token>`.\n\nTokens are **only** accepted in that header. Passing `?token=` or `?access_token=` is rejected with 401 on purpose,\nso credentials never end up in access logs, browser history or `Referer` headers. If you are integrating from a\nbrowser, note that this also means you cannot pass the token in a query string from a `<script>` tag.\n\n## Roles\n\n| Role | Can do |\n| --- | --- |\n| `admin` | Everything: manage users and houses, verify payments, assign complaints, export all data, read the audit log. |\n| `staff` | Work the complaints assigned to them, view/export the sections they are permitted to export. |\n| `resident` | See and pay their own house dues, file complaints, vote in polls, read notices, edit their own profile. |\n\nRole checks happen in two places: coarse endpoint-level checks (`authorize`) and fine record-level ownership checks\n(for example, a resident may only fetch a due belonging to a house they are linked to). Both surface as 403.\n\n## Response envelope\n\nEvery JSON response follows the same shape:\n\n```json\n{ \"success\": true, \"message\": \"optional human-readable text\", \"data\": { } }\n```\n\nList endpoints add pagination counters — `count` (items in this response), `total` (matching records), `page` and\n`pages`. Errors always set `success: false` and give a `message`; validation failures add an `errors` array.\n\n## Pagination is opt-in\n\nList endpoints paginate **only when you send a `page` parameter**. Omit it and you receive the entire result set, with\n`page` and `pages` both reported as `1`. This is deliberate — several frontend screens (house pickers, section pickers)\ndepend on receiving everything — but it means a client that expects pagination must send `page` explicitly.\n`limit` defaults to 20 and is clamped to 1-100.\n\n## Status codes\n\n| Code | Meaning |\n| --- | --- |\n| `200` | Success. |\n| `201` | Resource created. |\n| `400` | Business-rule violation, invalid enum, rejected upload, or failed field validation. |\n| `401` | Missing, malformed or expired token — or a token supplied in the query string. |\n| `403` | Authenticated but not allowed (wrong role, or someone else's record). |\n| `404` | No such record, or a malformed ObjectId. |\n| `409` | State conflict: duplicate unique value, or a payment/vote already processed. |\n| `429` | Rate limited. |\n| `500` | Unhandled server error. |\n\n## Rate limits\n\n| Scope | Development | Production |\n| --- | --- | --- |\n| All endpoints | 2000 / 15 min | 100 / 15 min |\n| `/api/auth/*` | 200 / 15 min | 50 / 15 min |\n| `POST /api/auth/login` | 10 / 15 min | 10 / 15 min |\n\nThe global and `/api/auth` limiters respond with a **plain-text** body rather than JSON.\n\n## Deletion semantics\n\nMost resources are **never actually deleted**, so history stays auditable:\n\n- `DELETE /users/{id}` sets `isActive=false` and cascades to clean up references.\n- `DELETE /notices/{id}` sets `isActive=false`.\n- `DELETE /houses/{id}` archives the house, clearing its owner/tenant and removing resident links. Dues and complaints are preserved.\n- `DELETE /resident-houses/{id}` and `DELETE /polls/{id}` **are** hard deletes.\n\n## Binary and multipart endpoints\n\nSix endpoints do not return JSON: four under `/exports` stream `.xlsx`/`.pdf` downloads, and\n`GET /dues/{id}/proof` and `GET /complaints/{id}/attachments/{filename}` stream stored files. Swagger UI cannot\npreview these — use the \"Download file\" button.\n\nTwo endpoints accept `multipart/form-data`: `POST /complaints` (up to 5 attachments) and\n`PUT /dues/{id}/submit-payment` (a single `proof` file).",
+    "description": "REST API for the Tole Community Management System — a neighbourhood administration platform covering monthly dues and fines,\nresident complaints with automated routing, notices, community polls, and audited reporting.\n\n## Authentication\n\nAll endpoints except `GET /` and `POST /auth/login` require a JWT.\n\n1. `POST /auth/login` with an email and password.\n2. Click **Authorize** in this page and paste the returned `token`.\n3. Every subsequent call is sent as `Authorization: Bearer <token>`.\n\nTokens are **only** accepted in that header. Passing `?token=` or `?access_token=` is rejected with 401 on purpose,\nso credentials never end up in access logs, browser history or `Referer` headers. If you are integrating from a\nbrowser, note that this also means you cannot pass the token in a query string from a `<script>` tag.\n\n## Roles\n\n| Role | Can do |\n| --- | --- |\n| `admin` | Everything: manage users and houses, verify payments, assign complaints, export all data, read the audit log. |\n| `staff` | Work the complaints assigned to them, view/export the sections they are permitted to export. |\n| `resident` | See and pay their own house dues, file complaints, vote in polls, read notices, edit their own profile. |\n\nRole checks happen in two places: coarse endpoint-level checks (`authorize`) and fine record-level ownership checks\n(for example, a resident may only fetch a due belonging to a house they are linked to). Both surface as 403.\n\n## Response envelope\n\nEvery JSON response follows the same shape:\n\n```json\n{ \"success\": true, \"message\": \"optional human-readable text\", \"data\": { } }\n```\n\nList endpoints add pagination counters — `count` (items in this response), `total` (matching records), `page` and\n`pages`. Errors always set `success: false` and give a `message`; validation failures add an `errors` array.\n\n## Pagination is opt-in\n\nList endpoints paginate **only when you send a `page` parameter**. Omit it and you receive the entire result set, with\n`page` and `pages` both reported as `1`. This is deliberate — several frontend screens (house pickers, section pickers)\ndepend on receiving everything — but it means a client that expects pagination must send `page` explicitly.\n`limit` defaults to 20 and is clamped to 1-100.\n\n## Status codes\n\n| Code | Meaning |\n| --- | --- |\n| `200` | Success. |\n| `201` | Resource created. |\n| `400` | Business-rule violation, invalid enum, rejected upload, or failed field validation. |\n| `401` | Missing, malformed or expired token — or a token supplied in the query string. |\n| `403` | Authenticated but not allowed (wrong role, or someone else's record). |\n| `404` | No such record, or a malformed ObjectId. |\n| `409` | State conflict: duplicate unique value, or a payment/vote already processed. |\n| `429` | Rate limited. |\n| `500` | Unhandled server error. |\n\n## Rate limits\n\n| Scope | Development | Production |\n| --- | --- | --- |\n| All endpoints | 2000 / 15 min | 100 / 15 min |\n| `POST /api/auth/login` | 10 / 15 min | 10 / 15 min |\n\nThe login limiter responds with HTTP 429 and a JSON `message` when the IP exceeds 10 attempts in 15 minutes. Successful logins do not count toward the limit.\n\n## Deletion semantics\n\nMost resources are **never actually deleted**, so history stays auditable:\n\n- `DELETE /users/{id}` sets `isActive=false` and cascades to clean up references.\n- `DELETE /notices/{id}` sets `isActive=false`.\n- `DELETE /houses/{id}` archives the house, clearing its owner/tenant and removing resident links. Dues and complaints are preserved.\n- `DELETE /resident-houses/{id}` and `DELETE /polls/{id}` **are** hard deletes.\n\n## Binary and multipart endpoints\n\nSix endpoints do not return JSON: four under `/exports` stream `.xlsx`/`.pdf` downloads, and\n`GET /dues/{id}/proof` and `GET /complaints/{id}/attachments/{filename}` stream stored files. Swagger UI cannot\npreview these — use the \"Download file\" button.\n\nTwo endpoints accept `multipart/form-data`: `POST /complaints` (up to 5 attachments) and\n`PUT /dues/{id}/submit-payment` (a single `proof` file).",
     "contact": {
       "name": "Tole Community Management System",
       "url": "https://github.com/"
@@ -212,9 +212,11 @@
         "type": "string",
         "enum": [
           "active",
-          "closed"
+          "closed",
+          "completed",
+          "tied"
         ],
-        "description": "Closed polls reject votes and refuse option edits."
+        "description": "Only active polls accept votes. Expired polls with a winner become completed; tied polls become tied and start a runoff."
       },
       "PollOutcome": {
         "type": "string",
@@ -283,7 +285,7 @@
             "type": "string",
             "minLength": 2,
             "maxLength": 50,
-            "pattern": "^[A-Za-z][A-Za-z .'-]*$",
+            "pattern": "^[A-Za-z][A-Za-z ]*$",
             "example": "Ram Bahadur"
           },
           "username": {
@@ -330,7 +332,7 @@
             "type": "string",
             "minLength": 2,
             "maxLength": 50,
-            "pattern": "^[A-Za-z][A-Za-z .'-]*$",
+            "pattern": "^[A-Za-z][A-Za-z ]*$",
             "example": "Ram Bahadur"
           },
           "username": {
@@ -422,7 +424,7 @@
             "type": "string",
             "minLength": 2,
             "maxLength": 50,
-            "pattern": "^[A-Za-z][A-Za-z .'-]*$",
+            "pattern": "^[A-Za-z][A-Za-z ]*$",
             "example": "Ram Bahadur"
           },
           "username": {
@@ -531,7 +533,7 @@
                 "type": "string",
                 "minLength": 2,
                 "maxLength": 50,
-                "pattern": "^[A-Za-z][A-Za-z .'-]*$",
+                "pattern": "^[A-Za-z][A-Za-z ]*$",
                 "example": "Ram Bahadur"
               },
               "username": {
@@ -608,7 +610,7 @@
             "type": "string",
             "minLength": 2,
             "maxLength": 50,
-            "pattern": "^[A-Za-z][A-Za-z .'-]*$",
+            "pattern": "^[A-Za-z][A-Za-z ]*$",
             "example": "Ram Bahadur"
           },
           "email": {
@@ -669,7 +671,7 @@
             "type": "string",
             "minLength": 2,
             "maxLength": 50,
-            "pattern": "^[A-Za-z][A-Za-z .'-]*$",
+            "pattern": "^[A-Za-z][A-Za-z ]*$",
             "example": "Ram Bahadur Thapa"
           },
           "phone": {
@@ -728,7 +730,7 @@
             "type": "string",
             "minLength": 2,
             "maxLength": 50,
-            "pattern": "^[A-Za-z][A-Za-z .'-]*$",
+            "pattern": "^[A-Za-z][A-Za-z ]*$",
             "example": "Ram Bahadur Thapa",
             "description": "Changing the name also regenerates `username`."
           },
@@ -754,9 +756,9 @@
             "format": "password",
             "minLength": 8,
             "maxLength": 64,
-            "pattern": "^(?=.*[A-Za-z])(?=.*\\d)[\\s\\S]{8,64}$",
-            "example": "evenBetterSecret",
-            "description": "Must be 8-64 characters and include at least one letter and one number. Supplying this clears `mustChangePassword`."
+            "pattern": "^(?=.*[A-Z])(?=.*[a-z])(?=.*\\d)(?=.*[^A-Za-z0-9\\s])[\\s\\S]{8,64}$",
+            "example": "EvenBetter7!",
+            "description": "Must be 8-64 characters and include uppercase, lowercase, a number, and a special character. Supplying this clears `mustChangePassword`."
           }
         }
       },
@@ -810,7 +812,7 @@
                 "type": "string",
                 "minLength": 2,
                 "maxLength": 50,
-                "pattern": "^[A-Za-z][A-Za-z .'-]*$",
+                "pattern": "^[A-Za-z][A-Za-z ]*$",
                 "example": "Ram Bahadur"
               },
               "username": {
@@ -858,7 +860,7 @@
                 "type": "string",
                 "minLength": 2,
                 "maxLength": 50,
-                "pattern": "^[A-Za-z][A-Za-z .'-]*$",
+                "pattern": "^[A-Za-z][A-Za-z ]*$",
                 "example": "Ram Bahadur"
               },
               "username": {
@@ -896,11 +898,11 @@
           },
           "monthlyDue": {
             "type": "number",
-            "minimum": 0,
+            "exclusiveMinimum": 0,
             "maximum": 10000,
             "multipleOf": 0.01,
             "example": 500,
-            "description": "Default monthly charge in NPR used when generating dues. The default maximum is configurable with MAX_MONTHLY_DUE."
+            "description": "Required positive monthly charge in NPR used when generating dues. The default maximum is configurable with MAX_MONTHLY_DUE."
           },
           "isOccupied": {
             "type": "boolean",
@@ -933,7 +935,10 @@
       "CreateHouseRequest": {
         "type": "object",
         "required": [
-          "houseNo"
+          "houseNo",
+          "section",
+          "floor",
+          "monthlyDue"
         ],
         "properties": {
           "houseNo": {
@@ -977,10 +982,9 @@
           },
           "monthlyDue": {
             "type": "number",
-            "minimum": 0,
+            "exclusiveMinimum": 0,
             "maximum": 10000,
             "multipleOf": 0.01,
-            "default": 500,
             "example": 500
           },
           "isOccupied": {
@@ -1037,7 +1041,7 @@
           },
           "monthlyDue": {
             "type": "number",
-            "minimum": 0,
+            "exclusiveMinimum": 0,
             "maximum": 10000,
             "multipleOf": 0.01,
             "example": 750
@@ -1105,7 +1109,7 @@
                 "type": "string",
                 "minLength": 2,
                 "maxLength": 50,
-                "pattern": "^[A-Za-z][A-Za-z .'-]*$",
+                "pattern": "^[A-Za-z][A-Za-z ]*$",
                 "example": "Ram Bahadur"
               },
               "username": {
@@ -1222,7 +1226,7 @@
                 "type": "string",
                 "minLength": 2,
                 "maxLength": 50,
-                "pattern": "^[A-Za-z][A-Za-z .'-]*$",
+                "pattern": "^[A-Za-z][A-Za-z ]*$",
                 "example": "Ram Bahadur"
               },
               "username": {
@@ -1338,7 +1342,7 @@
                 "type": "string",
                 "minLength": 2,
                 "maxLength": 50,
-                "pattern": "^[A-Za-z][A-Za-z .'-]*$",
+                "pattern": "^[A-Za-z][A-Za-z ]*$",
                 "example": "Ram Bahadur"
               },
               "username": {
@@ -1385,7 +1389,7 @@
                 "type": "string",
                 "minLength": 2,
                 "maxLength": 50,
-                "pattern": "^[A-Za-z][A-Za-z .'-]*$",
+                "pattern": "^[A-Za-z][A-Za-z ]*$",
                 "example": "Ram Bahadur"
               },
               "username": {
@@ -1493,7 +1497,7 @@
                 "type": "string",
                 "minLength": 2,
                 "maxLength": 50,
-                "pattern": "^[A-Za-z][A-Za-z .'-]*$",
+                "pattern": "^[A-Za-z][A-Za-z ]*$",
                 "example": "Ram Bahadur"
               },
               "username": {
@@ -1604,12 +1608,12 @@
           "allTimeOutstandingAmount": {
             "type": "number",
             "example": 18400,
-            "description": "All-time amount + effective fine across unpaid due rows."
+            "description": "Occupied active houses only: previous unpaid monthly dues + current month due + active/unpaid effective fines."
           },
           "housesWithArrears": {
             "type": "integer",
             "example": 12,
-            "description": "Number of houses with one or more unpaid due rows."
+            "description": "Number of occupied active houses with a non-zero outstanding balance."
           }
         }
       },
@@ -1684,6 +1688,20 @@
             "type": "string",
             "nullable": true
           },
+          "residentName": {
+            "type": "string",
+            "nullable": true,
+            "example": "Ram Bahadur"
+          },
+          "contactNumber": {
+            "type": "string",
+            "nullable": true,
+            "example": "9841234567"
+          },
+          "baseMonthlyDue": {
+            "type": "number",
+            "example": 500
+          },
           "dueSince": {
             "type": "object",
             "properties": {
@@ -1713,6 +1731,10 @@
           "totalFine": {
             "type": "number",
             "example": 150
+          },
+          "totalOutstanding": {
+            "type": "number",
+            "example": 1650
           },
           "totalPayable": {
             "type": "number",
@@ -1898,7 +1920,7 @@
                 "type": "string",
                 "minLength": 2,
                 "maxLength": 50,
-                "pattern": "^[A-Za-z][A-Za-z .'-]*$",
+                "pattern": "^[A-Za-z][A-Za-z ]*$",
                 "example": "Ram Bahadur"
               },
               "username": {
@@ -1945,7 +1967,7 @@
                 "type": "string",
                 "minLength": 2,
                 "maxLength": 50,
-                "pattern": "^[A-Za-z][A-Za-z .'-]*$",
+                "pattern": "^[A-Za-z][A-Za-z ]*$",
                 "example": "Ram Bahadur"
               },
               "username": {
@@ -1999,7 +2021,7 @@
                 "type": "string",
                 "minLength": 2,
                 "maxLength": 50,
-                "pattern": "^[A-Za-z][A-Za-z .'-]*$",
+                "pattern": "^[A-Za-z][A-Za-z ]*$",
                 "example": "Ram Bahadur"
               },
               "username": {
@@ -2039,9 +2061,25 @@
             "type": "string",
             "format": "date-time",
             "nullable": true,
-            "description": "When work most recently started; set on auto-assignment or transition to `inprogress`."
+            "description": "When work first began; set on auto-assignment or transition to `inprogress` and preserved thereafter."
           },
           "resolvedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "slaTargetAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "description": "Computed from startedAt (or createdAt) plus the configured SLA for this priority."
+          },
+          "escalated": {
+            "type": "boolean",
+            "example": false,
+            "description": "True after this complaint breaches its configured SLA."
+          },
+          "escalatedAt": {
             "type": "string",
             "format": "date-time",
             "nullable": true
@@ -2151,7 +2189,7 @@
                 "type": "string",
                 "minLength": 2,
                 "maxLength": 50,
-                "pattern": "^[A-Za-z][A-Za-z .'-]*$",
+                "pattern": "^[A-Za-z][A-Za-z ]*$",
                 "example": "Ram Bahadur"
               },
               "username": {
@@ -2256,7 +2294,7 @@
             "format": "date-time",
             "nullable": true,
             "example": "2026-12-31T00:00:00.000Z",
-            "description": "Null means the notice never expires."
+            "description": "Defaults to 7 days after creation when omitted."
           },
           "expired": {
             "type": "boolean",
@@ -2285,7 +2323,7 @@
                 "type": "string",
                 "minLength": 2,
                 "maxLength": 50,
-                "pattern": "^[A-Za-z][A-Za-z .'-]*$",
+                "pattern": "^[A-Za-z][A-Za-z ]*$",
                 "example": "Ram Bahadur"
               },
               "username": {
@@ -2534,9 +2572,11 @@
             "type": "string",
             "enum": [
               "active",
-              "closed"
+              "closed",
+              "completed",
+              "tied"
             ],
-            "description": "Closed polls reject votes and refuse option edits."
+            "description": "Only active polls accept votes. Expired polls with a winner become completed; tied polls become tied and start a runoff."
           },
           "outcome": {
             "type": "string",
@@ -2607,7 +2647,7 @@
                 "type": "string",
                 "minLength": 2,
                 "maxLength": 50,
-                "pattern": "^[A-Za-z][A-Za-z .'-]*$",
+                "pattern": "^[A-Za-z][A-Za-z ]*$",
                 "example": "Ram Bahadur"
               },
               "username": {
@@ -2758,7 +2798,7 @@
               "active",
               "closed"
             ],
-            "description": "Any other value is rejected with 400."
+            "description": "Any other value is rejected with 400; setting closed finalizes the poll."
           },
           "endDate": {
             "type": "string",
@@ -2855,9 +2895,11 @@
                 "type": "string",
                 "enum": [
                   "active",
-                  "closed"
+                  "closed",
+                  "completed",
+                  "tied"
                 ],
-                "description": "Closed polls reject votes and refuse option edits."
+                "description": "Only active polls accept votes. Expired polls with a winner become completed; tied polls become tied and start a runoff."
               },
               "type": {
                 "type": "string",
@@ -2934,7 +2976,7 @@
                 "type": "string",
                 "minLength": 2,
                 "maxLength": 50,
-                "pattern": "^[A-Za-z][A-Za-z .'-]*$",
+                "pattern": "^[A-Za-z][A-Za-z ]*$",
                 "example": "Ram Bahadur"
               },
               "username": {
@@ -3031,7 +3073,7 @@
                 "type": "string",
                 "minLength": 2,
                 "maxLength": 50,
-                "pattern": "^[A-Za-z][A-Za-z .'-]*$",
+                "pattern": "^[A-Za-z][A-Za-z ]*$",
                 "example": "Ram Bahadur"
               },
               "username": {
@@ -3447,7 +3489,7 @@
         "name": "includeExpired",
         "in": "query",
         "required": false,
-        "description": "Admins may pass `true` to include expired active notices. Residents and staff always receive unexpired notices only.",
+        "description": "Admins and staff may pass `true` to include expired active notices. Residents always receive unexpired notices only.",
         "schema": {
           "type": "string",
           "enum": [
@@ -3484,6 +3526,19 @@
         "in": "query",
         "required": false,
         "description": "Set to the string `true` to restrict complaints to those assigned to the calling staff member. Ignored for other roles.",
+        "schema": {
+          "type": "string",
+          "enum": [
+            "true"
+          ],
+          "example": "true"
+        }
+      },
+      "SlaBreachedQuery": {
+        "name": "slaBreached",
+        "in": "query",
+        "required": false,
+        "description": "Set to `true` to return open complaints that have breached their configured SLA or have already been escalated.",
         "schema": {
           "type": "string",
           "enum": [
@@ -4134,7 +4189,7 @@
       "put": {
         "operationId": "updateMyProfile",
         "summary": "Update my own profile",
-        "description": "Lets any authenticated user edit their own profile. This is the only way to change your own password, and the only way to clear `mustChangePassword`.\n\n- Changing `name` also regenerates `username` (only when the name actually changed, so repeated saves do not inflate the username).\n- To change the password, send **both** `currentPassword` and `newPassword`. A missing or wrong `currentPassword` returns 400, as does a `newPassword` that is not 8-64 characters with at least one letter and one number.\n- Omitting `currentPassword`/`newPassword` leaves the password untouched.\n\nAdmins should prefer `PUT /users/{id}` for editing *other* people.",
+        "description": "Lets any authenticated user edit their own profile. This is the only way to change your own password, and the only way to clear `mustChangePassword`.\n\n- Changing `name` also regenerates `username` (only when the name actually changed, so repeated saves do not inflate the username).\n- To change the password, send **both** `currentPassword` and `newPassword`. A missing or wrong `currentPassword` returns 400, as does a `newPassword` that is not 8-64 characters and does not include uppercase, lowercase, a number, and a special character.\n- Omitting `currentPassword`/`newPassword` leaves the password untouched.\n\nAdmins should prefer `PUT /users/{id}` for editing *other* people.",
         "tags": [
           "Users"
         ],
@@ -4395,7 +4450,7 @@
                     },
                     "message": {
                       "type": "string",
-                      "example": "Password reset. Save the new temporary password now — it will not be shown again."
+                      "example": "Password reset successfully"
                     }
                   }
                 }
@@ -4660,7 +4715,7 @@
       "get": {
         "operationId": "listOutstandingDues",
         "summary": "List outstanding balances by house",
-        "description": "Returns one row per house with unpaid `pending`, `overdue` and `verification_pending` dues. Each row includes the oldest unpaid month, current-month amount, prior-month principal, effective fines, and total payable. Fine values are calculated per due using `effectiveFine` and remain capped per row. Staff must have the existing `dues` or `all` export permission; `section` narrows their result set. Pagination uses the shared metadata helper.",
+        "description": "Returns one row per occupied house with an active resident and a non-zero balance. Each row includes resident names and contact, base monthly fee, previous unpaid principal, current-month amount, effective unpaid fines, and total outstanding (`previous + current + fines`). Fine values are calculated per due using `effectiveFine` and remain capped per row. Staff must have the existing `dues` or `all` export permission; `section` narrows their result set. Pagination uses the shared metadata helper.",
         "tags": [
           "Dues"
         ],
@@ -4787,11 +4842,69 @@
         }
       }
     },
+    "/dues/outstanding/{houseId}/remind": {
+      "post": {
+        "operationId": "remindOutstandingResidents",
+        "summary": "Send an outstanding-dues reminder",
+        "description": "Admin-only action that sends an in-app due reminder to active residents linked to an occupied house with a non-zero outstanding balance. Vacant, inactive, archived, and fully paid houses are rejected.",
+        "tags": [
+          "Dues"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/OutstandingHouseIdPathParam"
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Reminder notifications were delivered.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "Due reminder sent to 1 resident(s)."
+                    },
+                    "remindedCount": {
+                      "type": "integer",
+                      "example": 1
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedResponse"
+          },
+          "403": {
+            "$ref": "#/components/responses/ForbiddenResponse"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFoundResponse"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerErrorResponse"
+          }
+        }
+      }
+    },
     "/dues": {
       "get": {
         "operationId": "listDues",
         "summary": "List dues",
-        "description": "Returns dues with the house populated, plus `paidBy`, `submittedBy` and `verifiedBy` as `name`/`username`.\n\n**Scoping.** Residents are restricted to houses they are linked to, and `houseId` is intersected with that set rather than replacing it — a resident cannot widen their scope by passing another house's ID. `history=true` additionally includes dues belonging to archived houses, which are excluded by default.\n\n**Pagination is opt-in** — omit `page` for the full list. Either way, `summary` always describes the whole filtered set.",
+        "description": "Returns dues for occupied houses with an active linked resident by default, with the house populated, plus `paidBy`, `submittedBy` and `verifiedBy` as `name`/`username`.\n\n**Scoping.** Residents are restricted to houses they are linked to, and `houseId` is intersected with that set rather than replacing it — a resident cannot widen their scope by passing another house's ID. `history=true` additionally includes dues belonging to archived or currently vacant houses, which are excluded by default.\n\n**Pagination is opt-in** — omit `page` for the full list. Either way, `summary` always describes the whole filtered set.",
         "tags": [
           "Dues"
         ],
@@ -4884,7 +4997,7 @@
       "get": {
         "operationId": "getDuesDashboardStats",
         "summary": "Get this month's dashboard statistics",
-        "description": "Aggregates for the **current calendar month only** — this endpoint takes no filters, so it is a straight read of what the Dues page header shows.\n\nIt also returns `allTimeOutstandingAmount` and `housesWithArrears`, computed from all unpaid rows (including `verification_pending`) with live per-row effective fines. These two values are scoped to the resident's linked houses.\n\nResidents receive the same figures scoped to their own linked houses, so a resident's `totalCollected` reflects their own payments rather than the community total. `collectionRate` is returned as a **percentage string** with one decimal place, not a number.",
+        "description": "Aggregates for the **current calendar month only** — this endpoint takes no filters, so it is a straight read of what the Dues page header shows.\n\nIt also returns `allTimeOutstandingAmount` and `housesWithArrears`, computed only for occupied houses with active residents using `previous unpaid monthly dues + current month due + active/unpaid effective fines`. These values are scoped to the resident's linked houses.\n\nResidents receive the same figures scoped to their own linked houses, so a resident's `totalCollected` reflects their own payments rather than the community total. `collectionRate` is returned as a **percentage string** with one decimal place, not a number.",
         "tags": [
           "Dues"
         ],
@@ -4974,7 +5087,7 @@
       "post": {
         "operationId": "generateMonthlyDues",
         "summary": "Generate this month's dues",
-        "description": "Creates a due for every occupied, non-archived house for the current month, due on the 10th at 23:59:59 local time, with the fine pre-computed if that date has already passed.\n\n**Idempotent.** Each `(house, month, year)` triple is upserted, and a house that already has a due this month is skipped, so calling this repeatedly will not duplicate charges. The returned count is how many were actually created.\n\nA cron job runs the same logic automatically at 08:00 on the 1st of each month, so this endpoint is mainly for backfilling or forcing a run. Every affected resident is notified.",
+        "description": "Creates a due for every occupied, non-archived house for the current month, due on the 10th at 23:59:59 local time, with the fine pre-computed if that date has already passed.\n\n**Idempotent.** Each `(house, month, year)` triple is upserted, and a house that already has a due this month is skipped, so calling this repeatedly will not duplicate charges. The returned count is how many were actually created.\n\nA cron job runs the same logic automatically at 00:00 on the 1st of each month, so this endpoint is mainly for backfilling or forcing a run. Every affected resident is notified.",
         "tags": [
           "Dues"
         ],
@@ -5153,7 +5266,7 @@
       "put": {
         "operationId": "submitPaymentProof",
         "summary": "Submit payment proof",
-        "description": "Lets a resident submit evidence that they paid. **This does not mark the due as paid** — it moves the due to `verification_pending` and notifies admins, who must then approve or reject it.\n\n**Payment verification workflow**\n\n```\npending / overdue\n     │  resident: PUT /dues/{id}/submit-payment   (file + declared amount)\n     ▼\nverification_pending\n     ├── admin: PUT /dues/{id}/approve-payment   →  paid   (+ receiptNo)\n     └── admin: PUT /dues/{id}/reject-payment    →  pending | overdue\n```\n\nA due is auto-created on the 10th of each month by a scheduled job, and a separate nightly job flips `pending` dues past their due date to `overdue` while accruing a fine. Residents can only ever move a due **into** `verification_pending`; only an admin can move it out.\n\n**Request format:** `multipart/form-data` with the file in a field named exactly `proof` (JPG, PNG or PDF, 5 MB maximum, type sniffed from the file bytes), plus the text fields below.\n\n**`declaredAmount` must match `amount + fine` within a tolerance of 0.01** — the fine is recomputed live at submission time, so a client that computed it days earlier may be off. A mismatch returns 400 telling you the expected total.\n\n**Rejections and retries:** a rejected proof leaves the due back at `pending`/`overdue` and the resident may submit again. Every attempt is appended to `paymentAttempts` and kept — superseded proofs are never deleted, so financial evidence is preserved.\n\nPossible failures: 400 (no file, bad amount, invalid method, wrong house), 403 (due belongs to another house), 404 (no such due), 409 (already paid, or a proof is already awaiting verification, or a concurrent request won the race). In every failure case any uploaded file is deleted before responding.",
+        "description": "Lets a resident submit evidence that they paid. **This does not mark the due as paid** — it moves the due to `verification_pending` and notifies admins, who must then approve or reject it.\n\n**Payment verification workflow**\n\n```\npending / overdue\n     │  resident: PUT /dues/{id}/submit-payment   (file + declared amount)\n     ▼\nverification_pending\n     ├── admin: PUT /dues/{id}/approve-payment   →  paid   (+ receiptNo)\n     └── admin: PUT /dues/{id}/reject-payment    →  pending | overdue\n```\n\nA due is auto-created at midnight on the 1st of each month for occupied houses with an active resident, with payment due on the 10th. A separate nightly job flips `pending` dues past their due date to `overdue` while accruing a fine. Residents can only ever move a due **into** `verification_pending`; only an admin can move it out.\n\n**Request format:** `multipart/form-data` with the file in a field named exactly `proof` (JPG, PNG or PDF, 5 MB maximum, type sniffed from the file bytes), plus the text fields below.\n\n**`declaredAmount` must match `amount + fine` within a tolerance of 0.01** — the fine is recomputed live at submission time, so a client that computed it days earlier may be off. A mismatch returns 400 telling you the expected total.\n\n**Rejections and retries:** a rejected proof leaves the due back at `pending`/`overdue` and the resident may submit again. Every attempt is appended to `paymentAttempts` and kept — superseded proofs are never deleted, so financial evidence is preserved.\n\nPossible failures: 400 (no file, bad amount, invalid method, wrong house), 403 (due belongs to another house), 404 (no such due), 409 (already paid, or a proof is already awaiting verification, or a concurrent request won the race). In every failure case any uploaded file is deleted before responding.",
         "tags": [
           "Dues"
         ],
@@ -5359,7 +5472,7 @@
       "get": {
         "operationId": "listComplaints",
         "summary": "List complaints",
-        "description": "Returns complaints, newest first, with `submittedBy`, `assignedTo` and `resolvedBy` populated as `name`/`phone` (plus `specialization` for `assignedTo`).\n\nEach complaint includes `createdAt` (submitted), `startedAt` (when work began, if started), and `resolvedAt` (when resolved, if resolved).\n\n**Who sees what:**\n\n- **Residents** see only their own complaints.\n- **Staff** see all complaints; adding `mine=true` narrows the list to those assigned to them.\n- **Admins** see everything.\n\n`search` matches the title or description case-insensitively (regex-escaped, max 100 characters). By default, complaints belonging to archived houses are excluded — pass `history=true` to include them.\n\n**Pagination is opt-in** — omit `page` for the full list.",
+        "description": "Returns complaints, newest first, with `submittedBy`, `assignedTo` and `resolvedBy` populated as `name`/`phone` (plus `specialization` for `assignedTo`).\n\nEach complaint includes `createdAt` (submitted), `startedAt` (when work began, if started), and `resolvedAt` (when resolved, if resolved).\n\nEach complaint includes a computed `slaTargetAt`. Open complaints past that target are marked `SLA Overdue`; escalated complaints carry `escalated: true` and `escalatedAt`. Pass `slaBreached=true` to filter the list to overdue or escalated open complaints.\n\n**Who sees what:**\n\n- **Residents** see only their own complaints.\n- **Staff** see all complaints; adding `mine=true` narrows the list to those assigned to them.\n- **Admins** see everything.\n\n`search` matches the title or description case-insensitively (regex-escaped, max 100 characters). By default, complaints belonging to archived houses are excluded — pass `history=true` to include them.\n\n**Pagination is opt-in** — omit `page` for the full list.",
         "tags": [
           "Complaints"
         ],
@@ -5381,6 +5494,9 @@
           },
           {
             "$ref": "#/components/parameters/MineQuery"
+          },
+          {
+            "$ref": "#/components/parameters/SlaBreachedQuery"
           },
           {
             "$ref": "#/components/parameters/HistoryQuery"
@@ -5647,7 +5763,7 @@
       "get": {
         "operationId": "listNotices",
         "summary": "List notices",
-        "description": "Returns active, unexpired notices, newest first. `search` matches the title or content case-insensitively (regex-escaped, max 100 characters).\n\n**Residents only see notices addressed to their own section**, plus any notice with an empty `targetSections` array (a broadcast). Residents and staff never receive expired notices. Admins may pass `includeExpired=true` to include expired active notices; those rows have `expired: true`. Expired notices are retained and never auto-deleted.\n\n**Pagination is opt-in** — omit `page` to receive the full list, which the frontend section pickers depend on.",
+        "description": "Returns active, unexpired notices, newest first. `search` matches the title or content case-insensitively (regex-escaped, max 100 characters).\n\n**Residents only see notices addressed to their own section**, plus any notice with an empty `targetSections` array (a broadcast). Residents never receive expired notices. Admins and staff may pass `includeExpired=true` to include expired active notices; those rows have `expired: true`. Expired notices are retained and never auto-deleted.\n\n**Pagination is opt-in** — omit `page` to receive the full list, which the frontend section pickers depend on.",
         "tags": [
           "Notices"
         ],
@@ -5726,7 +5842,7 @@
       "post": {
         "operationId": "createNotice",
         "summary": "Create a notice and notify residents",
-        "description": "Publishes a notice and immediately pushes an in-app notification to the affected residents.\n\nAn optional `expiresAt` must be a valid date in the future; omit it or leave it empty for a notice that never expires.\n\n**Targeting:** omit `targetSections` (or send `[]`) to notify every active resident. When sections are supplied, every entry must match an existing house section — an unknown name returns 400 — and only residents linked to a house in those sections are notified.\n\nThe notification step is best-effort: the notice is saved even if delivery fails, in which case `notificationDelivered` is `false` and a `warning` explains why.",
+        "description": "Publishes a notice and immediately pushes an in-app notification to the affected residents.\n\nAn optional `expiresAt` must be a valid date in the future; when omitted or empty it defaults to 7 days after creation.\n\n**Targeting:** omit `targetSections` (or send `[]`) to notify every active resident. When sections are supplied, every entry must match an existing house section — an unknown name returns 400 — and only residents linked to a house in those sections are notified.\n\nThe notification step is best-effort: the notice is saved even if delivery fails, in which case `notificationDelivered` is `false` and a `warning` explains why.",
         "tags": [
           "Notices"
         ],
@@ -5787,6 +5903,63 @@
           },
           "403": {
             "$ref": "#/components/responses/ForbiddenResponse"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerErrorResponse"
+          }
+        }
+      }
+    },
+    "/notices/{id}/expire": {
+      "put": {
+        "operationId": "expireNotice",
+        "summary": "Expire a notice immediately",
+        "description": "Sets `expiresAt` to the current time. Admins and staff may expire notices; the notice then disappears from the default active-notices list.",
+        "tags": [
+          "Notices"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdPathParam"
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The notice was expired.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/Notice"
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "Notice expired successfully"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedResponse"
+          },
+          "403": {
+            "$ref": "#/components/responses/ForbiddenResponse"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFoundResponse"
           },
           "500": {
             "$ref": "#/components/responses/ServerErrorResponse"
@@ -6171,7 +6344,7 @@
       "put": {
         "operationId": "updatePoll",
         "summary": "Update a poll",
-        "description": "Partial update of `title`, `description`, `status` and `endDate`.\n\nOnly **active** polls accept votes, and only while `endDate` is in the future.\nEach user may vote **once** per poll. A second attempt returns 409.\nOptions cannot be edited once `totalVotes > 0`.\nA `closed` poll can never be modified or deleted-and-recreated meaningfully; it accepts no further changes.\n\nSetting `status: \"closed\"` runs the same finalization, outcome calculation, notification, and tie-break flow as automatic expiry. Other edits to a closed poll are rejected (400), and a new `endDate` must always be in the future.",
+        "description": "Partial update of `title`, `description`, `status` and `endDate`.\n\nOnly **active** polls accept votes, and only while `endDate` is in the future.\nEach user may vote **once** per poll. A second attempt returns 409.\nOptions cannot be edited once `totalVotes > 0`.\nFinalized polls (`closed`, `completed` or `tied`) accept no further edits.\n\nSetting `status: \"closed\"` runs the same finalization, outcome calculation, notification, and runoff flow as automatic expiry. A unique winner changes status to `completed`; a tie changes status to `tied` and creates a `[Runoff]` poll containing only tied options. Other edits to a finalized poll are rejected (400), and a new `endDate` must always be in the future.",
         "tags": [
           "Polls"
         ],
@@ -6239,7 +6412,7 @@
       "delete": {
         "operationId": "deletePoll",
         "summary": "Delete a poll",
-        "description": "Permanently removes the poll along with its votes. Unlike users, notices and houses, polls **are** hard-deleted, so this cannot be undone and any vote history is lost. Prefer setting `status: \"closed\"` via `PUT /polls/{id}` when the goal is simply to stop accepting votes.",
+        "description": "Admins and staff may permanently remove a poll and its votes. Unlike users, notices and houses, polls **are** hard-deleted, so this cannot be undone and any vote history is lost. Prefer setting `status: \"closed\"` via `PUT /polls/{id}` when the goal is simply to stop accepting votes.",
         "tags": [
           "Polls"
         ],
@@ -6283,7 +6456,7 @@
       "post": {
         "operationId": "votePoll",
         "summary": "Cast a vote",
-        "description": "Records a vote for the option at `optionIndex`.\n\nOnly **active** polls accept votes, and only while `endDate` is in the future.\nEach user may vote **once** per poll. A second attempt returns 409.\nOptions cannot be edited once `totalVotes > 0`.\nA `closed` poll can never be modified or deleted-and-recreated meaningfully; it accepts no further changes.\n\n**Eligibility:** residents may only vote on polls addressed to their own section (or on broadcasts). A vote is recorded atomically against the poll's current state, so concurrent double submissions cannot both succeed.\n\nThe response returns the whole poll with the vote list masked appropriately for its `type`. Expired polls are finalized before the vote is attempted.",
+        "description": "Records a vote for the option at `optionIndex`.\n\nOnly **active** polls accept votes, and only while `endDate` is in the future.\nEach user may vote **once** per poll. A second attempt returns 409.\nOptions cannot be edited once `totalVotes > 0`.\nFinalized polls (`closed`, `completed` or `tied`) accept no further edits.\n\n**Eligibility:** only residents may vote; admins and staff receive 403. Residents may only vote on polls addressed to their own section (or on broadcasts). A vote is recorded atomically against the poll's current state, so concurrent double submissions cannot both succeed.\n\nThe response returns the whole poll with the vote list masked appropriately for its `type`. Expired polls are finalized before the vote is attempted.",
         "tags": [
           "Polls"
         ],
@@ -6356,7 +6529,7 @@
       "get": {
         "operationId": "getPollResults",
         "summary": "Get poll results",
-        "description": "Returns per-option tallies with a `percentage` share of `totalVotes`, plus the voter list. For `anonymous` polls each voter is replaced with an `{ _id: \"anonymous\", name: \"Anonymous\" }` placeholder; named polls return voter names only, never phone numbers. Admins and staff may always view results. Residents may view results only for polls matching their section, and only after closure; an active poll returns 403. Expired polls are finalized before this response is assembled.\n\nThe poll summary includes `outcome`, `winnerOptionIndexes`, `closedAt`, `round`, and parent/runoff poll ids. Expired polls are finalized before results are assembled.",
+        "description": "Returns per-option tallies with a `percentage` share of `totalVotes`, plus the voter list. For `anonymous` polls each voter is replaced with an `{ _id: \"anonymous\", name: \"Anonymous\" }` placeholder; named polls return voter names only, never phone numbers. Admins and staff may always view live or final results. Residents may view results only for polls matching their section, and only after closure; an active poll returns 403. Expired polls are finalized before this response is assembled.\n\nThe poll summary includes `outcome`, `winnerOptionIndexes`, `closedAt`, `round`, and parent/runoff poll ids. Expired polls are finalized before results are assembled. Runoff polls last 48 hours by default (`POLL_RUNOFF_HOURS` can override this).",
         "tags": [
           "Polls"
         ],
@@ -6513,7 +6686,7 @@
       "get": {
         "operationId": "exportOutstandingExcel",
         "summary": "Export outstanding balances to Excel",
-        "description": "Streams a workbook with a per-house `Summary` sheet and unpaid-month `Breakdown` sheet. An optional `houseId` exports only that house. **Auditing.** Every export is recorded in the audit log before the file is streamed, together with the filters used. Denied attempts are recorded as `export_denied`.\n\n**Permissions.** Admins may export anything. A staff member may export only the dataset matching their `exportSection` (or `all`); otherwise the request is refused with 403 and the refusal is audited.\n\n**Columns depend on your role.** Admins receive the full financial and contact columns; staff receive a reduced, non-sensitive set. There is no separate \"staff export\" endpoint.\n\n**Response is a binary download** — Swagger UI cannot preview it, so use the \"Download file\" button.",
+        "description": "Streams a workbook with a per-house `Summary` sheet containing resident/contact, base monthly fee, current due, carry-forward balance, fines, and total outstanding; the `Breakdown` sheet lists each unpaid month. Vacant houses are excluded. An optional `houseId` exports only that house. **Auditing.** Every export is recorded in the audit log before the file is streamed, together with the filters used. Denied attempts are recorded as `export_denied`.\n\n**Permissions.** Admins may export anything. A staff member may export only the dataset matching their `exportSection` (or `all`); otherwise the request is refused with 403 and the refusal is audited.\n\n**Columns depend on your role.** Admins receive the full financial and contact columns; staff receive a reduced, non-sensitive set. There is no separate \"staff export\" endpoint.\n\n**Response is a binary download** — Swagger UI cannot preview it, so use the \"Download file\" button.",
         "tags": [
           "Exports"
         ],
@@ -6559,7 +6732,7 @@
       "get": {
         "operationId": "exportOutstandingPdf",
         "summary": "Export outstanding balances to PDF",
-        "description": "Streams the per-house outstanding summary and, when `houseId` is supplied, includes that house's month-by-month detail. Admins receive a total-payable subtotal; staff receive the existing reduced column set. **Auditing.** Every export is recorded in the audit log before the file is streamed, together with the filters used. Denied attempts are recorded as `export_denied`.\n\n**Permissions.** Admins may export anything. A staff member may export only the dataset matching their `exportSection` (or `all`); otherwise the request is refused with 403 and the refusal is audited.\n\n**Columns depend on your role.** Admins receive the full financial and contact columns; staff receive a reduced, non-sensitive set. There is no separate \"staff export\" endpoint.\n\n**Response is a binary download** — Swagger UI cannot preview it, so use the \"Download file\" button.",
+        "description": "Streams the occupied-house outstanding summary, including resident/contact, base monthly fee, current due, carry-forward balance, fines, and total outstanding; when `houseId` is supplied, it includes that house's month-by-month detail. Admins receive a total-payable subtotal; staff receive the existing reduced column set. **Auditing.** Every export is recorded in the audit log before the file is streamed, together with the filters used. Denied attempts are recorded as `export_denied`.\n\n**Permissions.** Admins may export anything. A staff member may export only the dataset matching their `exportSection` (or `all`); otherwise the request is refused with 403 and the refusal is audited.\n\n**Columns depend on your role.** Admins receive the full financial and contact columns; staff receive a reduced, non-sensitive set. There is no separate \"staff export\" endpoint.\n\n**Response is a binary download** — Swagger UI cannot preview it, so use the \"Download file\" button.",
         "tags": [
           "Exports"
         ],

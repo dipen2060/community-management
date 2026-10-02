@@ -9,6 +9,8 @@
     "seed": "node -e \"process.env.NODE_ENV='development'; require('./utils/seed')\"",
     "migrate:resident-houses": "node migrations/20260922-migrate-resident-houses.js",
     "migrate:complaint-started-at": "node migrations/20261001-migrate-complaint-started-at.js",
+    "migrate:started-at": "node scripts/backfillStartedAt.js",
+    "migrate:notice-expiry": "node scripts/backfillNoticeExpiry.js",
     "migrate:remove-password-reset-tokens": "node migrations/20261001-remove-password-reset-tokens.js",
     "migrate:normalize-nepal-phones": "node migrations/20261002-normalize-nepal-phones.js",
     "report:input-validation": "node migrations/20261002-report-input-validation-issues.js",

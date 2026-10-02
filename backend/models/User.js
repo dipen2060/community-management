@@ -2,7 +2,7 @@ const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 
 const userSchema = new mongoose.Schema({
-  name:     { type: String, required: true },
+  name:     { type: String, required: true, trim: true, minlength: 2, maxlength: 50, match: /^[A-Za-z][A-Za-z ]*$/ },
   username: { type: String, required: true, unique: true }, // display identifier e.g. ram.bahadur
   email:    { type: String, required: true, unique: true }, // login identifier — must be unique
   password: { type: String, required: true },

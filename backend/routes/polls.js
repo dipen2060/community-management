@@ -27,6 +27,6 @@ router.get('/:id/results', getPollResults);
 // Admin/Staff only routes
 router.post('/', authorize('admin', 'staff'), createPollValidation, createPoll);
 router.put('/:id', authorize('admin', 'staff'), updatePollValidation, updatePoll);
-router.delete('/:id', authorize('admin'), deletePoll);
+router.delete('/:id', authorize('admin', 'staff'), deletePoll);
 
 module.exports = router;

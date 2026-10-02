@@ -16,7 +16,11 @@ jest.mock('../middleware/auth', () => ({
     : res.status(403).json({ success: false, message: 'Access denied' })
 }));
 
-jest.mock('../models/Notice', () => ({ find: jest.fn(), create: jest.fn() }));
+jest.mock('../models/Notice', () => ({
+  find: jest.fn(),
+  findById: jest.fn(),
+  create: jest.fn()
+}));
 jest.mock('../models/House', () => ({ find: jest.fn(), distinct: jest.fn() }));
 jest.mock('../models/User', () => ({ find: jest.fn() }));
 jest.mock('../controllers/notificationController', () => ({
@@ -103,6 +107,30 @@ describe('notice expiry', () => {
     expect(response.body.data.map(notice => notice.expired)).toEqual([true, false]);
   });
 
+  test('staff can include both active and expired notices', async () => {
+    const response = await request(app)
+      .get('/notices?includeExpired=true')
+      .set('Authorization', 'staff');
+
+    expect(response.status).toBe(200);
+    expect(response.body.data.map(notice => notice.expired)).toEqual([true, false]);
+  });
+
+  test('unchecked includeExpired filter explicitly keeps expired notices excluded', async () => {
+    const response = await request(app)
+      .get('/notices?includeExpired=false')
+      .set('Authorization', 'admin');
+
+    expect(response.status).toBe(200);
+    expect(Notice.find).toHaveBeenCalledWith(expect.objectContaining({
+      isActive: true,
+      $and: [
+        { $or: [{ expiresAt: null }, { expiresAt: { $gt: expect.any(Date) } }] }
+      ]
+    }));
+    expect(response.body.data.map(notice => notice.title)).toEqual(['Ongoing notice']);
+  });
+
   test('null expiresAt is never considered expired', async () => {
     const response = await request(app)
       .get('/notices?includeExpired=true')
@@ -125,5 +153,68 @@ describe('notice expiry', () => {
 
     expect(response.status).toBe(400);
     expect(Notice.create).not.toHaveBeenCalled();
+  });
+
+  test('omitted expiry defaults to seven days after creation', async () => {
+    const now = Date.now();
+    Notice.create.mockImplementation(async fields => ({
+      ...fields,
+      _id: 'dddddddddddddddddddddddd',
+      createdAt: new Date(now),
+      toObject() { return { ...this, toObject: undefined }; }
+    }));
+
+    const response = await request(app)
+      .post('/notices')
+      .set('Authorization', 'admin')
+      .send({
+        title: 'Community meeting',
+        content: 'The community meeting will be held in the common hall.'
+      });
+
+    expect(response.status).toBe(201);
+    const createdFields = Notice.create.mock.calls[0][0];
+    expect(createdFields.expiresAt).toBeInstanceOf(Date);
+    expect(createdFields.expiresAt.getTime()).toBeGreaterThanOrEqual(now + 7 * 24 * 60 * 60 * 1000);
+    expect(createdFields.expiresAt.getTime()).toBeLessThanOrEqual(Date.now() + 7 * 24 * 60 * 60 * 1000);
+  });
+
+  test.each(['admin', 'staff'])('%s can manually expire a notice', async role => {
+    const notice = {
+      _id: 'eeeeeeeeeeeeeeeeeeeeeeee',
+      expiresAt: new Date('2026-12-31T00:00:00.000Z'),
+      save: jest.fn().mockResolvedValue(undefined)
+    };
+    Notice.findById.mockResolvedValue(notice);
+
+    const before = Date.now();
+    const response = await request(app)
+      .put(`/notices/${notice._id}/expire`)
+      .set('Authorization', role);
+
+    expect(response.status).toBe(200);
+    expect(response.body.message).toBe('Notice expired successfully');
+    expect(response.body.data.expiresAt).toBeDefined();
+    expect(new Date(response.body.data.expiresAt).getTime()).toBeGreaterThanOrEqual(before);
+    expect(notice.save).toHaveBeenCalledTimes(1);
+  });
+
+  test('residents cannot manually expire a notice', async () => {
+    const response = await request(app)
+      .put('/notices/eeeeeeeeeeeeeeeeeeeeeeee/expire')
+      .set('Authorization', 'resident');
+
+    expect(response.status).toBe(403);
+    expect(Notice.findById).not.toHaveBeenCalled();
+  });
+
+  test('manual expiry returns 404 for an unknown notice', async () => {
+    Notice.findById.mockResolvedValue(null);
+
+    const response = await request(app)
+      .put('/notices/eeeeeeeeeeeeeeeeeeeeeeee/expire')
+      .set('Authorization', 'admin');
+
+    expect(response.status).toBe(404);
   });
 });

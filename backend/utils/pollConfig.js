@@ -1,5 +1,4 @@
-const DEFAULT_POLL_RUNOFF_HOURS = 24;
-const DEFAULT_POLL_MAX_ROUNDS = 2;
+const DEFAULT_POLL_RUNOFF_HOURS = 48;
 
 function getPositiveNumber(value, fallback, integer = false) {
   const parsed = Number(value);
@@ -9,13 +8,11 @@ function getPositiveNumber(value, fallback, integer = false) {
 
 function getPollConfig(env = process.env) {
   return {
-    runoffHours: getPositiveNumber(env.POLL_RUNOFF_HOURS, DEFAULT_POLL_RUNOFF_HOURS),
-    maxRounds: getPositiveNumber(env.POLL_MAX_ROUNDS, DEFAULT_POLL_MAX_ROUNDS, true)
+    runoffHours: getPositiveNumber(env.POLL_RUNOFF_HOURS, DEFAULT_POLL_RUNOFF_HOURS)
   };
 }
 
 module.exports = {
   DEFAULT_POLL_RUNOFF_HOURS,
-  DEFAULT_POLL_MAX_ROUNDS,
   getPollConfig
 };

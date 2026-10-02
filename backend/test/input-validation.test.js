@@ -51,7 +51,7 @@ describe('house input rules', () => {
   test('create and update validators pass normalized house numbers onward', async () => {
     const created = await request(validationApp(createHouseValidation))
       .post('/')
-      .send({ houseNo: ' a-101 ' });
+      .send({ houseNo: ' a-101 ', section: 'Section 1', floor: 0, monthlyDue: 500 });
     const updated = await request(validationApp(updateHouseValidation))
       .post('/')
       .send({ houseNo: ' a-102 ' });
@@ -131,7 +131,7 @@ describe('house input rules', () => {
       json: jest.fn()
     };
     await createHouse({
-      body: { houseNo: 'A-102', section: ' section   1 ' }
+      body: { houseNo: 'A-102', section: ' section   1 ', floor: 0, monthlyDue: 500 }
     }, sectionResponse, jest.fn());
     expect(createdDocument.section).toBe('Section 1');
     expect(sectionResponse.status).toHaveBeenCalledWith(201);
@@ -149,14 +149,23 @@ describe('house input rules', () => {
     expect(isValidSection('-Section')).toBe(false);
     expect(isValidSection('S'.repeat(51))).toBe(false);
   });
+
+  test('requires house number, section, floor, and positive monthly due on create', async () => {
+    for (const missingField of ['houseNo', 'section', 'floor', 'monthlyDue']) {
+      const body = { houseNo: 'A-101', section: 'Section 1', floor: 0, monthlyDue: 500 };
+      delete body[missingField];
+      const response = await request(validationApp(createHouseValidation)).post('/').send(body);
+      expect(response.status).toBe(400);
+    }
+  });
 });
 
 describe('monthly due and floor rules', () => {
-  test.each([0, 500, 500.25, MAX_MONTHLY_DUE])('accepts monthly due %s', amount => {
+  test.each([0.01, 500, 500.25, MAX_MONTHLY_DUE])('accepts monthly due %s', amount => {
     expect(isValidMonthlyDue(amount)).toBe(true);
   });
 
-  test.each(['50000', '1.234', '-1', '10001', 'abc'])('rejects monthly due %s', amount => {
+  test.each([0, '0', '50000', '1.234', '-1', '10001', 'abc'])('rejects monthly due %s', amount => {
     expect(isValidMonthlyDue(amount)).toBe(false);
   });
 
@@ -166,7 +175,7 @@ describe('monthly due and floor rules', () => {
       .send({ houseNo: 'A-101', monthlyDue: 50000 });
     const valid = await request(validationApp(createHouseValidation))
       .post('/')
-      .send({ houseNo: 'A-102', monthlyDue: 500.25 });
+      .send({ houseNo: 'A-102', section: 'Section 1', floor: 0, monthlyDue: 500.25 });
 
     expect(invalid.status).toBe(400);
     expect(valid.status).toBe(200);
@@ -185,7 +194,7 @@ describe('monthly due and floor rules', () => {
       .send({ floor: -1 });
     const valid = await request(validationApp(createHouseValidation))
       .post('/')
-      .send({ houseNo: 'A-102', floor: 30 });
+      .send({ houseNo: 'A-102', section: 'Section 1', floor: 30, monthlyDue: 500 });
 
     expect(fractional.status).toBe(400);
     expect(outOfRange.status).toBe(400);
@@ -196,9 +205,12 @@ describe('monthly due and floor rules', () => {
 });
 
 describe('user identity and password rules', () => {
-  test('normalizes names and accepts Latin names with supported punctuation', () => {
+  test('normalizes names and allows only Latin letters and spaces', () => {
     expect(normalizeWhitespace('  Ram   Bahadur  ')).toBe('Ram Bahadur');
-    expect(isValidUserName("Ram Bahadur O'Neil-Smith.")).toBe(true);
+    expect(isValidUserName('Ram Bahadur')).toBe(true);
+    expect(isValidUserName("Ram O'Neil")).toBe(false);
+    expect(isValidUserName('Ram-Bahadur')).toBe(false);
+    expect(isValidUserName('Ram.Bahadur')).toBe(false);
     expect(isValidUserName(`A${'b'.repeat(49)}`)).toBe(true);
     expect(isValidUserName('राम बहादुर')).toBe(false);
     expect(isValidUserName('Ram 123')).toBe(false);
@@ -245,12 +257,15 @@ describe('user identity and password rules', () => {
   });
 
   test('requires strong passwords only for password changes, not login', async () => {
-    expect(isValidNewPassword('Nepal123')).toBe(true);
-    expect(isValidNewPassword(`Aa1${'x'.repeat(61)}`)).toBe(true);
-    expect(isValidNewPassword('short1')).toBe(false);
-    expect(isValidNewPassword('onlyletters')).toBe(false);
+    expect(isValidNewPassword('Nepal123!')).toBe(true);
+    expect(isValidNewPassword(`Aa1!${'x'.repeat(60)}`)).toBe(true);
+    expect(isValidNewPassword('Nepal123')).toBe(false);
+    expect(isValidNewPassword('Short!1')).toBe(false);
+    expect(isValidNewPassword('onlyletters!')).toBe(false);
     expect(isValidNewPassword('12345678')).toBe(false);
-    expect(isValidNewPassword(`Aa1${'x'.repeat(62)}`)).toBe(false);
+    expect(isValidNewPassword('UPPER123!')).toBe(false);
+    expect(isValidNewPassword('Lowercase!')).toBe(false);
+    expect(isValidNewPassword(`Aa1!${'x'.repeat(61)}`)).toBe(false);
 
     const weakChange = await request(validationApp(updateProfileValidation))
       .post('/')

@@ -43,7 +43,8 @@ test('admin reset returns a random password once and requires changing it', asyn
   expect(user.save).toHaveBeenCalledTimes(1);
   expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
     success: true,
-    temporaryPassword: 'random-one-time-password'
+    temporaryPassword: 'random-one-time-password',
+    message: 'Password reset successfully'
   }));
   const auditDetails = logAudit.mock.calls[0][5];
   expect(JSON.stringify(auditDetails)).not.toContain('random-one-time-password');

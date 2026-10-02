@@ -5,9 +5,9 @@ const House = require('../models/House');
 const { createNotification } = require('./notificationController');
 const { getPagination, applyPagination, buildMeta } = require('../utils/paginate');
 const { logAudit } = require('../utils/auditLogger');
-const { getResidentHouseIds, isResidentLinkedToHouse, getHouseResidentIds } = require('../utils/residentHouses');
+const { getResidentHouseIds, isResidentLinkedToHouse } = require('../utils/residentHouses');
 const { calculateFine, effectiveFine } = require('../utils/fines');
-const { getOutstandingByHouse } = require('../utils/outstanding');
+const { getOccupiedHouses, getOutstandingByHouse } = require('../utils/outstanding');
 const Complaint = require('../models/Complaint');
 
 
@@ -85,15 +85,21 @@ exports.getDues = async (req, res, next) => {
 
     // Residents can only see dues belonging to a house where they are owner/tenant.
     if (req.query.history !== 'true') {
-      const activeHouseIds = await House.find({ status: { $ne: 'archived' } }).distinct('_id');
-      filter.house = { $in: activeHouseIds };
+      const activeHouses = await getOccupiedHouses();
+      filter.house = { $in: activeHouses.map(house => house._id) };
     }
     if (req.user.role === 'resident') {
       const houseIds = await getResidentHouseIds(req.user._id);
-      filter.house = { $in: houseIds };
-      if (req.query.houseId) filter.house = { $in: houseIds.filter(id => String(id) === String(req.query.houseId)) };
+      const eligibleHouseIds = filter.house?.$in
+        ? houseIds.filter(id => filter.house.$in.some(activeId => String(activeId) === String(id)))
+        : houseIds;
+      filter.house = { $in: req.query.houseId
+        ? eligibleHouseIds.filter(id => String(id) === String(req.query.houseId))
+        : eligibleHouseIds };
     } else if (req.query.houseId) {
-      filter.house = req.query.houseId;
+      filter.house = filter.house?.$in
+        ? { $in: filter.house.$in.filter(id => String(id) === String(req.query.houseId)) }
+        : req.query.houseId;
     }
 
     const total = await Due.countDocuments(filter);
@@ -387,7 +393,7 @@ exports.payDue = async (req, res) => {
 async function generateMonthlyDues(now = new Date()) {
     const month = now.getMonth() + 1;
     const year = now.getFullYear();
-    const houses = await House.find({ isOccupied: true, status: { $ne: 'archived' } });
+    const houses = await getOccupiedHouses();
     let created = 0;
     let backfilled = 0;
 
@@ -422,10 +428,9 @@ async function generateMonthlyDues(now = new Date()) {
           if (!result.upsertedCount) continue;
           if (dueMonthNumber === month && dueYear === year) {
             created++;
-            const recipients = await getHouseResidentIds(house);
-            for (const userId of recipients) {
+            for (const resident of house.activeResidents) {
               await createNotification({
-                user: userId,
+                user: resident._id,
                 title: 'New Due Generated',
                 message: `Rs. ${house.monthlyDue} due generated for ${house.houseNo} (${month}/${year}). Please pay before the 10th to avoid fine.`,
                 type: 'due',
@@ -482,6 +487,39 @@ exports.getOutstandingDues = async (req, res, next) => {
   }
 };
 
+exports.remindOutstandingResidents = async (req, res, next) => {
+  try {
+    const [house] = await getOccupiedHouses({ houseId: req.params.houseId });
+    if (!house) {
+      return res.status(404).json({ success: false, message: 'No occupied house with an active resident was found.' });
+    }
+
+    const outstanding = (await getOutstandingByHouse({ houseId: req.params.houseId }))[0];
+    if (!outstanding) {
+      return res.status(404).json({ success: false, message: 'No outstanding balance was found for this house.' });
+    }
+
+    const notifications = await Promise.all(house.activeResidents.map(resident => createNotification({
+      user: resident._id,
+      title: 'Outstanding Dues Reminder',
+      message: `Your current outstanding balance for ${house.houseNo} is Rs. ${outstanding.totalOutstanding}. Please review your dues.`,
+      type: 'due',
+      link: '/dues'
+    })));
+    if (notifications.some(result => !result.success)) {
+      return res.status(500).json({ success: false, message: 'One or more due reminders could not be delivered.' });
+    }
+
+    res.json({
+      success: true,
+      message: `Due reminder sent to ${notifications.length} resident(s).`,
+      remindedCount: notifications.length
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
 exports.getHouseOutstanding = async (req, res, next) => {
   try {
     const { houseId } = req.params;
@@ -527,15 +565,21 @@ exports.getDashboardStats = async (req, res, next) => {
     const now = new Date();
     const month = now.getMonth() + 1;
     const year = now.getFullYear();
-    const baseFilter = { month, year };
+    const eligibleHouses = await getOccupiedHouses();
+    const eligibleHouseIds = eligibleHouses.map(house => house._id);
+    const baseFilter = { month, year, house: { $in: eligibleHouseIds } };
     let houseIds = [];
     let perHouse = null;
 
     if (req.user.role === 'resident') {
-      houseIds = await getResidentHouseIds(req.user._id);
+      const residentHouseIds = await getResidentHouseIds(req.user._id);
+      houseIds = residentHouseIds.filter(id =>
+        eligibleHouseIds.some(activeId => String(activeId) === String(id))
+      );
       if (req.query.houseId) {
         // Only allow scoping to a house this resident is actually linked to
-        const allowed = houseIds.some(id => String(id) === String(req.query.houseId));
+        const allowed = residentHouseIds.some(id => String(id) === String(req.query.houseId)) &&
+          houseIds.some(id => String(id) === String(req.query.houseId));
         if (!allowed) {
           return res.status(403).json({ success: false, message: 'You are not linked to this house.' });
         }
@@ -544,7 +588,7 @@ exports.getDashboardStats = async (req, res, next) => {
         baseFilter.house = { $in: houseIds };
       }
     } else if (req.query.houseId) {
-      baseFilter.house = req.query.houseId;
+      baseFilter.house = { $in: eligibleHouseIds.filter(id => String(id) === String(req.query.houseId)) };
     }
 
     const allTimeOutstanding = await getOutstandingByHouse({

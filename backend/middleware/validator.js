@@ -81,7 +81,7 @@ const createUserValidation = [
     .notEmpty()
     .withMessage('Name is required')
     .custom(isValidUserName)
-    .withMessage('Name must be 2-50 characters and contain only Latin letters, spaces, dots, apostrophes, or hyphens'),
+    .withMessage('Name must be 2-50 characters and contain only Latin letters and spaces'),
   body('email')
     .isString()
     .bail()
@@ -127,7 +127,7 @@ const updateUserValidation = [
     .trim()
     .customSanitizer(normalizeWhitespace)
     .custom(isValidUserName)
-    .withMessage('Name must be 2-50 characters and contain only Latin letters, spaces, dots, apostrophes, or hyphens'),
+    .withMessage('Name must be 2-50 characters and contain only Latin letters and spaces'),
   body('email')
     .optional()
     .isString()
@@ -175,10 +175,11 @@ const houseNoValidation = (required = false) => {
     .withMessage('House number must be 1-20 characters and start with a letter or number');
 };
 
-const houseFieldsValidation = [
-  houseNoValidation(),
-  body('section')
-    .optional()
+const houseFieldsValidation = (required = false) => [
+  houseNoValidation(required),
+  (required
+    ? body('section').exists().withMessage('Section is required').bail()
+    : body('section').optional())
     .isString()
     .bail()
     .trim()
@@ -187,10 +188,11 @@ const houseFieldsValidation = [
     .withMessage('Section cannot be empty')
     .custom(isValidSection)
     .withMessage('Section must be 1-50 characters and contain only letters, numbers, spaces, or hyphens'),
-  body('floor')
-    .optional()
+  (required
+    ? body('floor').exists().withMessage('Floor is required').bail()
+    : body('floor').optional())
     .isInt({ min: 0, max: 30 })
-    .withMessage('Floor must be an integer between 0 and 30')
+    .withMessage('Floor must be a non-negative integer')
     .toInt(),
   body('type')
     .optional()
@@ -214,19 +216,17 @@ const houseFieldsValidation = [
     .trim()
     .isLength({ max: 200 })
     .withMessage('Address must be 200 characters or fewer'),
-  body('monthlyDue')
-    .optional()
+  (required
+    ? body('monthlyDue').exists().withMessage('Monthly due is required').bail()
+    : body('monthlyDue').optional())
     .custom(isValidMonthlyDue)
-    .withMessage(`Monthly due must be a number between 0 and ${MAX_MONTHLY_DUE} with at most 2 decimal places`)
+    .withMessage(`Monthly due must be a positive number no greater than ${MAX_MONTHLY_DUE} with at most 2 decimal places`)
     .toFloat(),
   validate
 ];
 
-const createHouseValidation = [
-  houseNoValidation(true),
-  ...houseFieldsValidation.slice(1)
-];
-const updateHouseValidation = [...houseFieldsValidation];
+const createHouseValidation = houseFieldsValidation(true);
+const updateHouseValidation = houseFieldsValidation();
 
 // Complaint creation validation
 const createComplaintValidation = [
@@ -480,7 +480,7 @@ const updateProfileValidation = [
     .trim()
     .customSanitizer(normalizeWhitespace)
     .custom(isValidUserName)
-    .withMessage('Name must be 2-50 characters and contain only Latin letters, spaces, dots, apostrophes, or hyphens'),
+    .withMessage('Name must be 2-50 characters and contain only Latin letters and spaces'),
   phoneValidation(),
   body('address')
     .optional({ values: 'falsy' })
@@ -490,7 +490,7 @@ const updateProfileValidation = [
   body('newPassword')
     .optional({ values: 'falsy' })
     .custom(isValidNewPassword)
-    .withMessage('New password must be 8-64 characters and include at least one letter and one number'),
+    .withMessage('New password must be 8-64 characters and include uppercase, lowercase, a number, and a special character'),
   body('currentPassword')
     .if(body('newPassword').notEmpty())
     .notEmpty()

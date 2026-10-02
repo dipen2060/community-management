@@ -15,9 +15,10 @@ export function Houses() {
   const [residents, setResidents] = useState([]);
   const [showModal, setShowModal] = useState(false);
   const [editHouse, setEditHouse] = useState(null); // house being edited, null = creating new
-  const [form, setForm] = useState({ houseNo: '', section: 'Section 1', floor: 0, type: 'apartment', monthlyDue: 500, owner: '', tenant: '' });
+  const [form, setForm] = useState({ houseNo: '', section: 'Section 1', floor: 0, type: 'apartment', monthlyDue: '', owner: '', tenant: '' });
   const [touchedFields, setTouchedFields] = useState({});
   const [submitAttempted, setSubmitAttempted] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const [page, setPage] = useState(1);
   const [pages, setPages] = useState(1);
   const [total, setTotal] = useState(0);
@@ -39,7 +40,7 @@ export function Houses() {
 
   const openCreate = () => {
     setEditHouse(null);
-    setForm({ houseNo: '', section: 'Section 1', floor: 0, type: 'apartment', monthlyDue: 500, owner: '', tenant: '' });
+    setForm({ houseNo: '', section: 'Section 1', floor: 0, type: 'apartment', monthlyDue: '', owner: '', tenant: '' });
     setTouchedFields({});
     setSubmitAttempted(false);
     setShowModal(true);
@@ -69,6 +70,7 @@ export function Houses() {
       floor: form.floor === '' ? undefined : Number(form.floor),
       monthlyDue: Number(form.monthlyDue)
     };
+    setSubmitting(true);
     try {
       if (editHouse) {
         // '' clears the link (unassign), a real id (re)assigns it — updateHouse
@@ -79,12 +81,14 @@ export function Houses() {
       }
       setShowModal(false);
       setEditHouse(null);
-      setForm({ houseNo: '', section: 'Section 1', floor: 0, type: 'apartment', monthlyDue: 500, owner: '', tenant: '' });
+      setForm({ houseNo: '', section: 'Section 1', floor: 0, type: 'apartment', monthlyDue: '', owner: '', tenant: '' });
       setTouchedFields({});
       setSubmitAttempted(false);
       fetchHouses(page);
     } catch (err) {
       alert(err.response?.data?.message || `Could not ${editHouse ? 'update' : 'add'} house`);
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -99,6 +103,9 @@ export function Houses() {
         <table>
           <thead><tr><th>House No</th><th>Section</th><th>Floor</th><th>Type</th><th>Owner</th><th>Tenant</th><th>Monthly Due</th>{isAdmin && <th>Action</th>}</tr></thead>
           <tbody>
+            {!houses.length && (
+              <tr><td colSpan={isAdmin ? 8 : 7} className="table-empty">No houses have been added yet.</td></tr>
+            )}
             {houses.map(h => (
               <tr key={h._id}>
                 <td><strong>{h.houseNo}</strong></td>
@@ -135,33 +142,33 @@ export function Houses() {
                   onBlur={() => setTouchedFields({ ...touchedFields, houseNo: true })}
                   required
                 />
-                {(touchedFields.houseNo || submitAttempted) && validateHouseForm(form, houses, editHouse?._id).houseNo && (
+                {(touchedFields.houseNo || submitAttempted || form.houseNo) && validateHouseForm(form, houses, editHouse?._id).houseNo && (
                   <p role="alert" className="mt-1 text-sm text-red-600">{validateHouseForm(form, houses, editHouse?._id).houseNo}</p>
                 )}
               </div>
               <div className="form-group"><label>Section</label>
-                <select value={form.section} onChange={e => setForm({ ...form, section: normalizeSection(e.target.value) })} onBlur={() => setTouchedFields({ ...touchedFields, section: true })}>
+                <select required value={form.section} onChange={e => setForm({ ...form, section: normalizeSection(e.target.value) })} onBlur={() => setTouchedFields({ ...touchedFields, section: true })}>
                   <option value="Section 1">Section 1</option>
                   <option value="Section 2">Section 2</option>
                   <option value="Section 3">Section 3</option>
                   <option value="Section 4">Section 4</option>
                 </select>
-                {(touchedFields.section || submitAttempted) && validateHouseForm(form, houses, editHouse?._id).section && (
+                {(touchedFields.section || submitAttempted || form.section) && validateHouseForm(form, houses, editHouse?._id).section && (
                   <p role="alert" className="mt-1 text-sm text-red-600">{validateHouseForm(form, houses, editHouse?._id).section}</p>
                 )}
               </div>
               <div className="form-group">
                 <label>Floor</label>
-                <input type="number" min={0} max={30} step={1} value={form.floor} onChange={e => setForm({ ...form, floor: e.target.value })} onBlur={() => setTouchedFields({ ...touchedFields, floor: true })} />
-                {(touchedFields.floor || submitAttempted) && validateHouseForm(form, houses, editHouse?._id).floor && (
+                <input type="number" min={0} max={30} step={1} required value={form.floor} onChange={e => setForm({ ...form, floor: e.target.value })} onBlur={() => setTouchedFields({ ...touchedFields, floor: true })} />
+                {(touchedFields.floor || submitAttempted || form.floor !== '') && validateHouseForm(form, houses, editHouse?._id).floor && (
                   <p role="alert" className="mt-1 text-sm text-red-600">{validateHouseForm(form, houses, editHouse?._id).floor}</p>
                 )}
               </div>
               <div className="form-group"><label>Type</label><select value={form.type} onChange={e => setForm({ ...form, type: e.target.value })}><option value="apartment">Apartment</option><option value="house">House</option><option value="shop">Shop</option></select></div>
               <div className="form-group">
                 <label>Monthly Due (Rs.)</label>
-                <input type="number" min={0} max={MAX_MONTHLY_DUE} step="0.01" value={form.monthlyDue} onChange={e => setForm({ ...form, monthlyDue: e.target.value })} onBlur={() => setTouchedFields({ ...touchedFields, monthlyDue: true })} />
-                {(touchedFields.monthlyDue || submitAttempted) && validateHouseForm(form, houses, editHouse?._id).monthlyDue && (
+                <input type="number" min="0.01" max={MAX_MONTHLY_DUE} step="0.01" required value={form.monthlyDue} onChange={e => setForm({ ...form, monthlyDue: e.target.value })} onBlur={() => setTouchedFields({ ...touchedFields, monthlyDue: true })} />
+                {(touchedFields.monthlyDue || submitAttempted || form.monthlyDue !== '') && validateHouseForm(form, houses, editHouse?._id).monthlyDue && (
                   <p role="alert" className="mt-1 text-sm text-red-600">{validateHouseForm(form, houses, editHouse?._id).monthlyDue}</p>
                 )}
               </div>
@@ -181,7 +188,9 @@ export function Houses() {
               </div>
               <div className="modal-actions">
                 <button type="button" className="btn btn-cancel" onClick={() => { setShowModal(false); setEditHouse(null); }}>Cancel</button>
-                <button type="submit" className="btn btn-primary">{editHouse ? 'Save Changes' : 'Add House'}</button>
+                <button type="submit" className="btn btn-primary" disabled={submitting}>
+                  {submitting ? 'Saving...' : editHouse ? 'Save Changes' : 'Add House'}
+                </button>
               </div>
             </form>
           </div>

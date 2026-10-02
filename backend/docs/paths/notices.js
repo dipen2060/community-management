@@ -23,7 +23,7 @@ module.exports = {
         'Returns active, unexpired notices, newest first. `search` matches the title or content case-insensitively (regex-escaped, ' +
         'max 100 characters).\n\n' +
         '**Residents only see notices addressed to their own section**, plus any notice with an empty `targetSections` ' +
-        'array (a broadcast). Residents and staff never receive expired notices. Admins may pass `includeExpired=true` ' +
+        'array (a broadcast). Residents never receive expired notices. Admins and staff may pass `includeExpired=true` ' +
         'to include expired active notices; those rows have `expired: true`. Expired notices are retained and never auto-deleted.\n\n' +
         '**Pagination is opt-in** — omit `page` to receive the full list, which the frontend section pickers depend on.',
       params: [param('SearchQuery'), param('NoticeTypeQuery'), param('IncludeExpiredQuery'), param('PageParam'), param('LimitParam')],
@@ -39,7 +39,7 @@ module.exports = {
       summary: 'Create a notice and notify residents',
       description:
         'Publishes a notice and immediately pushes an in-app notification to the affected residents.\n\n' +
-        'An optional `expiresAt` must be a valid date in the future; omit it or leave it empty for a notice that never expires.\n\n' +
+        'An optional `expiresAt` must be a valid date in the future; when omitted or empty it defaults to 7 days after creation.\n\n' +
         '**Targeting:** omit `targetSections` (or send `[]`) to notify every active resident. When sections are supplied, ' +
         'every entry must match an existing house section — an unknown name returns 400 — and only residents linked to a ' +
         'house in those sections are notified.\n\n' +
@@ -65,6 +65,34 @@ module.exports = {
           }
         },
         ...errors({ validation: true, badRequest: true, forbidden: true })
+      }
+    })
+  },
+
+  '/notices/{id}/expire': {
+    put: op({
+      operationId: 'expireNotice',
+      tags: ['Notices'],
+      summary: 'Expire a notice immediately',
+      description: 'Sets `expiresAt` to the current time. Admins and staff may expire notices; the notice then disappears from the default active-notices list.',
+      params: [param('IdPathParam')],
+      responses: {
+        200: {
+          description: 'The notice was expired.',
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                properties: {
+                  success: { type: 'boolean', example: true },
+                  data: schema('Notice'),
+                  message: { type: 'string', example: 'Notice expired successfully' }
+                }
+              }
+            }
+          }
+        },
+        ...errors({ forbidden: true, notFound: true })
       }
     })
   },

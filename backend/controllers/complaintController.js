@@ -8,6 +8,7 @@ const { detectPriority, maxSeverity } = require('../utils/priorityClassifier');
 const { findBestStaffForCategory } = require('../utils/autoAssign');
 const { logAudit } = require('../utils/auditLogger');
 const { getSlaHours } = require('../utils/slaConfig');
+const { getSLATargetAt, isSLABreached } = require('../utils/slaHelper');
 const { getResidentHouseIds, isResidentLinkedToHouse } = require('../utils/residentHouses');
 const fs = require('fs');
 const path = require('path');
@@ -74,9 +75,40 @@ exports.getComplaints = async (req, res, next) => {
     if (req.query.status) filter.status = req.query.status;
     if (req.query.category) filter.category = req.query.category;
     if (req.query.section) filter.section = req.query.section;
+    if (req.query.slaBreached === 'true') {
+      const now = new Date();
+      const slaHours = getSlaHours();
+      const openStatuses = ['pending', 'inprogress'];
+      const breachedByPriority = Object.entries(slaHours).map(([priority, hours]) => ({
+        status: { $in: openStatuses },
+        priority,
+        $expr: {
+          $lt: [
+            {
+              $add: [
+                { $ifNull: ['$startedAt', '$createdAt'] },
+                hours * 60 * 60 * 1000
+              ]
+            },
+            now
+          ]
+        }
+      }));
+      const andFilters = filter.$and || [];
+      andFilters.push({
+        $or: [
+          { status: { $in: openStatuses }, escalated: true },
+          ...breachedByPriority
+        ]
+      });
+      filter.$and = andFilters;
+    }
     if (req.query.history !== 'true') {
       const activeHouseIds = await House.find({ status: { $ne: 'archived' } }).distinct('_id');
-      filter.$and = [{ $or: [{ house: { $in: activeHouseIds } }, { house: null }] }];
+      filter.$and = [
+        ...(filter.$and || []),
+        { $or: [{ house: { $in: activeHouseIds } }, { house: null }] }
+      ];
     }
 
     // Search functionality - search in title and description
@@ -101,7 +133,13 @@ exports.getComplaints = async (req, res, next) => {
       .populate('resolvedBy', 'name phone')
       .sort({ createdAt: -1 });
     query = applyPagination(query, page, limit);
-    const complaints = await query;
+    const complaints = (await query).map(complaint => {
+      const complaintData = typeof complaint.toObject === 'function' ? complaint.toObject() : complaint;
+      return {
+        ...complaintData,
+        slaTargetAt: getSLATargetAt(complaintData)
+      };
+    });
 
     res.json({ success: true, ...buildMeta(total, page, limit, complaints.length), data: complaints });
   } catch (err) { next(err); }
@@ -306,7 +344,7 @@ exports.updateComplaint = async (req, res, next) => {
     if (assignedTo) complaint.assignedTo = assignedTo;
     if (resolution) complaint.resolution = resolution;
 
-    if (status === 'inprogress' && status !== oldStatus) {
+    if ((status === 'inprogress' || Boolean(assignedTo)) && !complaint.startedAt) {
       complaint.startedAt = new Date();
     }
 
@@ -364,23 +402,24 @@ exports.updateComplaint = async (req, res, next) => {
 // Each priority level gets a resolution-time budget; anything still open past
 // its budget is bumped one severity level and admins are alerted, so nothing
 // silently sits forgotten in the queue. Called from a cron job in server.js.
-const SLA_HOURS = getSlaHours();
 const ESCALATE_TO = { low: 'medium', medium: 'high', high: 'urgent', urgent: 'urgent' };
 
 exports.escalateOverdueComplaints = async () => {
   const openComplaints = await Complaint.find({
     status: { $in: ['pending', 'inprogress'] },
-    escalated: false
+    escalated: { $ne: true }
   });
 
-  const now = Date.now();
+  const now = new Date();
   let escalatedCount = 0;
   const admins = await User.find({ role: 'admin', isActive: true }).select('_id');
 
   for (const complaint of openComplaints) {
-    const slaHours = SLA_HOURS[complaint.priority] ?? SLA_HOURS.medium;
-    const ageHours = (now - new Date(complaint.createdAt).getTime()) / (1000 * 60 * 60);
-    if (ageHours < slaHours) continue;
+    if (!isSLABreached(complaint, now)) continue;
+    const slaHoursMap = getSlaHours();
+    const slaHours = slaHoursMap[complaint.priority] ?? slaHoursMap.medium;
+    const targetAt = getSLATargetAt(complaint);
+    const ageHours = (now.getTime() - targetAt.getTime() + slaHours * 60 * 60 * 1000) / (1000 * 60 * 60);
 
     const oldPriority = complaint.priority;
     complaint.priority = ESCALATE_TO[complaint.priority] || 'urgent';

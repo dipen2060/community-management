@@ -5,7 +5,7 @@ const DEFAULT_SLA_HOURS = Object.freeze({
   low: 72
 });
 
-const DEFAULT_SLA_CHECK_CRON = '*/30 * * * *';
+const DEFAULT_SLA_CHECK_CRON = '*/15 * * * *';
 
 function getSlaHours(env = process.env) {
   return Object.fromEntries(Object.entries(DEFAULT_SLA_HOURS).map(([priority, fallback]) => {
@@ -16,8 +16,9 @@ function getSlaHours(env = process.env) {
 }
 
 function getSlaCheckCron(env = process.env, validate) {
-  const configured = typeof env.SLA_CHECK_CRON === 'string' && env.SLA_CHECK_CRON.trim()
-    ? env.SLA_CHECK_CRON.trim()
+  const interval = env.SLA_CHECK_CRON_INTERVAL || env.SLA_CHECK_CRON;
+  const configured = typeof interval === 'string' && interval.trim()
+    ? interval.trim()
     : DEFAULT_SLA_CHECK_CRON;
   return validate(configured) ? configured : DEFAULT_SLA_CHECK_CRON;
 }

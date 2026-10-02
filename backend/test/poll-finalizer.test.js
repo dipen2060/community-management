@@ -120,7 +120,7 @@ describe('poll finalization', () => {
     const result = await finalizeExpiredPolls();
 
     expect(result).toEqual({ checked: 1, finalized: 1 });
-    expect(poll.status).toBe('closed');
+    expect(poll.status).toBe('completed');
     expect(poll.closedReason).toBe('expired');
     expect(poll.outcome).toBe('winner');
   });
@@ -155,12 +155,14 @@ describe('poll finalization', () => {
     const runoff = pollState.get(String(poll.runoffPoll));
     expect(Poll.create).toHaveBeenCalledTimes(1);
     expect(poll.outcome).toBe('tie');
+    expect(poll.status).toBe('tied');
     expect(poll.winnerOptionIndexes).toEqual([0, 1]);
     expect(runoff.options.map(option => option.text)).toEqual(['Option A', 'Option B']);
     expect(runoff.options.every(option => option.votes.length === 0)).toBe(true);
     expect(runoff.round).toBe(2);
     expect(runoff.parentPoll).toBe(originalId);
-    expect(runoff.title).toBe('Re-vote (Round 2): Community choice');
+    expect(runoff.title).toBe('[Runoff] Community choice');
+    expect(runoff.endDate.getTime() - poll.closedAt.getTime()).toBe(48 * 60 * 60 * 1000);
   });
 
   test('repeated concurrent finalization creates one runoff and notifies only once', async () => {
@@ -173,19 +175,17 @@ describe('poll finalization', () => {
     expect(createNotificationForMany).toHaveBeenCalledTimes(1);
   });
 
-  test('final tie at maximum rounds does not create a runoff', async () => {
+  test('a tie on a later round also creates a runoff', async () => {
     const poll = activePoll({ round: 2 });
     pollState.set(originalId, poll);
 
     await finalizePoll(originalId, 'expired');
 
     expect(poll.outcome).toBe('tie');
-    expect(poll.runoffPoll).toBeUndefined();
-    expect(Poll.create).not.toHaveBeenCalled();
-    expect(createNotificationForMany).toHaveBeenCalledWith(
-      ['admin-id'],
-      expect.objectContaining({ message: expect.stringContaining('Final tie after 2 rounds') })
-    );
+    expect(poll.status).toBe('tied');
+    expect(poll.runoffPoll).toBeDefined();
+    expect(Poll.create).toHaveBeenCalledTimes(1);
+    expect(pollState.get(String(poll.runoffPoll)).round).toBe(3);
   });
 
   test('a poll with no votes is finalized as no_votes and notifies its creator and admins', async () => {
@@ -198,6 +198,7 @@ describe('poll finalization', () => {
     await finalizePoll(originalId, 'manual');
 
     expect(poll.outcome).toBe('no_votes');
+    expect(poll.status).toBe('closed');
     expect(createNotificationForMany).toHaveBeenCalledWith(
       expect.arrayContaining(['admin-id', poll.createdBy]),
       expect.objectContaining({ title: 'Poll closed with no votes' })

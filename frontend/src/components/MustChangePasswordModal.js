@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
+import { validateNewPassword } from '../utils/validation';
 
 // Rendered from Layout.js whenever user.mustChangePassword is true (set on
 // every admin-created account). Blocks the rest of the app with an overlay
@@ -13,6 +14,7 @@ export default function MustChangePasswordModal() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const passwordError = newPassword ? validateNewPassword(newPassword) : '';
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -21,8 +23,8 @@ export default function MustChangePasswordModal() {
       setError('New passwords do not match');
       return;
     }
-    if (newPassword.length < 6) {
-      setError('New password must be at least 6 characters');
+    if (passwordError) {
+      setError(passwordError);
       return;
     }
     setLoading(true);
@@ -60,11 +62,16 @@ export default function MustChangePasswordModal() {
             <label>New Password</label>
             <input
               type="password"
+              maxLength={64}
               value={newPassword}
               onChange={e => setNewPassword(e.target.value)}
-              placeholder="At least 6 characters"
+              placeholder="Enter a strong password"
               required
             />
+            <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: 4 }}>
+              Use 8-64 characters with an uppercase letter, lowercase letter, number, and special symbol.
+            </p>
+            {passwordError && <p role="alert" className="mt-1 text-sm text-red-600">{passwordError}</p>}
           </div>
           <div className="form-group">
             <label>Confirm New Password</label>

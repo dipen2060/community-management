@@ -93,15 +93,15 @@ exports.createHouse = async (req, res, next) => {
     if (await House.exists({ houseNo: new RegExp(`^${escapeRegExp(no)}$`, 'i') })) {
       return res.status(409).json({ success: false, message: 'House number already exists' });
     }
-    const amount = Number(monthlyDue ?? 500);
-    if (!isValidMonthlyDue(amount)) {
-      return res.status(400).json({ success: false, message: `Monthly due must be between 0 and ${MAX_MONTHLY_DUE} with at most 2 decimal places` });
+    const amount = Number(monthlyDue);
+    if (monthlyDue === undefined || monthlyDue === null || !isValidMonthlyDue(monthlyDue)) {
+      return res.status(400).json({ success: false, message: `Monthly due must be a positive number no greater than ${MAX_MONTHLY_DUE} with at most 2 decimal places` });
     }
-    if (floor !== undefined && (!Number.isInteger(Number(floor)) || Number(floor) < 0 || Number(floor) > 30)) {
-      return res.status(400).json({ success: false, message: 'Floor must be an integer between 0 and 30' });
+    if (floor === undefined || !Number.isInteger(Number(floor)) || Number(floor) < 0 || Number(floor) > 30) {
+      return res.status(400).json({ success: false, message: 'Floor must be a non-negative integer' });
     }
     const normalizedSection = await findSectionSpelling(section);
-    if (normalizedSection !== undefined && !isValidSection(normalizedSection)) {
+    if (!isValidSection(normalizedSection)) {
       return res.status(400).json({ success: false, message: 'Invalid section' });
     }
     await validateAssignment({ owner: owner || null, tenant: tenant || null });

@@ -12,7 +12,8 @@ const {
   getPaymentProof,
   getDashboardStats,
   getOutstandingDues,
-  getHouseOutstanding
+  getHouseOutstanding,
+  remindOutstandingResidents
 } = require('../controllers/dueController');
 const { protect, authorize } = require('../middleware/auth');
 const { exportPermission } = require('../middleware/exportPermissions');
@@ -26,6 +27,7 @@ router.use(protect);
 router.get('/', getDues);
 router.get('/stats', getDashboardStats);
 router.get('/outstanding', authorize('admin', 'staff'), exportPermission('dues'), outstandingQueryValidation, getOutstandingDues);
+router.post('/outstanding/:houseId/remind', authorize('admin'), outstandingHouseIdValidation, remindOutstandingResidents);
 router.get(
   '/outstanding/:houseId',
   authorize('admin', 'staff', 'resident'),

@@ -27,6 +27,7 @@ const exportSectionLabels = {
 
 export default function Staff() {
   const [users, setUsers]       = useState([]);
+  const [usersLoading, setUsersLoading] = useState(true);
   const [houses, setHouses]     = useState([]);
   const [tab, setTab]           = useState('staff'); // 'staff' | 'resident' | 'admin'
   const [showModal, setShowModal] = useState(false);
@@ -36,13 +37,19 @@ export default function Staff() {
   const [phoneTouched, setPhoneTouched] = useState(false);
   const [touchedFields, setTouchedFields] = useState({});
   const [submitAttempted, setSubmitAttempted] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const { user } = useAuth();
   const isAdmin = user?.role === 'admin';
 
-  const fetchUsers = () => axios.get('/api/users').then(r => setUsers(r.data.data || []));
+  const fetchUsers = (url = '/api/users') => {
+    setUsersLoading(true);
+    return axios.get(url)
+      .then(r => setUsers(r.data.data || []))
+      .finally(() => setUsersLoading(false));
+  };
   const fetchHouses = () => axios.get('/api/houses?limit=500').then(r => setHouses(r.data.data || [])).catch(() => {});
   useEffect(() => {
-    if (isAdmin) fetchUsers(); else axios.get('/api/users?role=staff').then(r => setUsers(r.data.data || []));
+    fetchUsers(isAdmin ? '/api/users' : '/api/users?role=staff');
     // Also doubles as the source for the House/Role pickers below, so a
     // resident can be assigned as owner/tenant right from this page.
     if (isAdmin) fetchHouses();
@@ -101,6 +108,7 @@ export default function Staff() {
       relationshipType: isResident && form.houseId ? form.relationshipType : undefined
     };
 
+    setSubmitting(true);
     try {
       if (editUser) {
         await axios.put(`/api/users/${editUser._id}`, payload);
@@ -120,6 +128,8 @@ export default function Staff() {
       if (isAdmin) fetchHouses();
     } catch (err) {
       alert(err.response?.data?.message || 'Action failed');
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -168,7 +178,11 @@ export default function Staff() {
           <table>
             <thead><tr><th>Name</th><th>Specialization</th><th>Phone</th></tr></thead>
             <tbody>
-              {users.map(s => (
+              {usersLoading ? (
+                <tr><td colSpan="3" style={{ textAlign: 'center', padding: 30, color: '#9ca3af' }}>Loading staff...</td></tr>
+              ) : users.length === 0 ? (
+                <tr><td colSpan="3" style={{ textAlign: 'center', padding: 30, color: '#9ca3af' }}>No staff members are available.</td></tr>
+              ) : users.map(s => (
                 <tr key={s._id}>
                   <td>{s.name}</td>
                   <td>{specializationLabels[s.specialization] || s.specialization}</td>
@@ -210,7 +224,7 @@ export default function Staff() {
             </tr>
           </thead>
           <tbody>
-            {filtered.map(s => (
+            {!usersLoading && filtered.map(s => (
               <tr key={s._id}>
                 <td><strong>{s.name}</strong></td>
                 <td style={{ fontSize: '0.82rem' }}>{s.email}</td>
@@ -244,8 +258,12 @@ export default function Staff() {
                 </td>
               </tr>
             ))}
-            {filtered.length === 0 && (
-              <tr><td colSpan="6" style={{ textAlign: 'center', padding: 30, color: '#9ca3af' }}>No {tab}s yet</td></tr>
+            {usersLoading ? (
+              <tr><td colSpan={tab === 'staff' ? 8 : tab === 'resident' ? 7 : 6} style={{ textAlign: 'center', padding: 30, color: '#9ca3af' }}>Loading users...</td></tr>
+            ) : filtered.length === 0 && (
+              <tr><td colSpan={tab === 'staff' ? 8 : tab === 'resident' ? 7 : 6} style={{ textAlign: 'center', padding: 30, color: '#9ca3af' }}>
+                No {tab === 'staff' ? 'staff members' : `${tab}s`} found.
+              </td></tr>
             )}
           </tbody>
         </table>
@@ -265,10 +283,10 @@ export default function Staff() {
                   value={form.name}
                   onChange={e => setForm({ ...form, name: e.target.value })}
                   onBlur={() => setTouchedFields({ ...touchedFields, name: true })}
-                  placeholder="e.g. Bishnu Thapa"
+                  placeholder="Enter full name"
                   required
                 />
-                {(touchedFields.name || submitAttempted) && formErrors.name && <p role="alert" className="mt-1 text-sm text-red-600">{formErrors.name}</p>}
+                {(touchedFields.name || submitAttempted || form.name) && formErrors.name && <p role="alert" className="mt-1 text-sm text-red-600">{formErrors.name}</p>}
               </div>
               <div className="form-group">
                 <label>Email {!editUser && '(used for login)'}</label>
@@ -278,12 +296,12 @@ export default function Staff() {
                   value={form.email}
                   onChange={e => setForm({ ...form, email: e.target.value })}
                   onBlur={() => setTouchedFields({ ...touchedFields, email: true })}
-                  placeholder="e.g. bishnu@tole.com"
+                  placeholder="Enter email address"
                   required={!editUser}
                   disabled={!!editUser}
                   style={{ background: editUser ? '#f9fafb' : undefined }}
                 />
-                {(touchedFields.email || submitAttempted) && formErrors.email && <p role="alert" className="mt-1 text-sm text-red-600">{formErrors.email}</p>}
+                {(touchedFields.email || submitAttempted || form.email) && formErrors.email && <p role="alert" className="mt-1 text-sm text-red-600">{formErrors.email}</p>}
                 {editUser && <p style={{ fontSize: '0.72rem', color: '#9ca3af', marginTop: 3 }}>Email cannot be changed after creation</p>}
               </div>
               <div className="form-group">
@@ -297,7 +315,7 @@ export default function Staff() {
                   onBlur={() => { setPhoneTouched(true); setTouchedFields({ ...touchedFields, phone: true }); }}
                   placeholder="98XXXXXXXX"
                 />
-                {formErrors.phone && (phoneTouched || submitAttempted || form.phone.length === 10) && (
+                {formErrors.phone && (phoneTouched || submitAttempted || form.phone) && (
                   <p role="alert" className="mt-1 text-sm text-red-600">{formErrors.phone}</p>
                 )}
               </div>
@@ -345,7 +363,9 @@ export default function Staff() {
               )}
               <div className="modal-actions">
                 <button type="button" className="btn btn-cancel" onClick={() => setShowModal(false)}>Cancel</button>
-                <button type="submit" className="btn btn-primary">{editUser ? 'Save Changes' : 'Create'}</button>
+                <button type="submit" className="btn btn-primary" disabled={submitting}>
+                  {submitting ? 'Saving...' : editUser ? 'Save Changes' : 'Create'}
+                </button>
               </div>
             </form>
           </div>

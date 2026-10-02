@@ -42,10 +42,10 @@ const seed = async () => {
     return { password, mustChangePassword: true };
   };
   const admin       = await User.create({ name: 'Admin Sharma',       username: 'admin.sharma',       email: 'admin@tole.com',        ...temporaryPassword('admin@tole.com'),    role: 'admin', exportSection: 'all' });
-  const staff       = await User.create({ name: 'General Staff',      username: 'general.staff',      email: 'staff@tole.com',        ...temporaryPassword('staff@tole.com'),  role: 'staff', specialization: 'general', exportSection: 'complaints' });
-  const electrician = await User.create({ name: 'Bishnu Electrician', username: 'bishnu.electrician', email: 'electrician@tole.com',  ...temporaryPassword('electrician@tole.com'),    role: 'staff', specialization: 'electric', phone: '9811111111', exportSection: 'complaints' });
-  const plumber     = await User.create({ name: 'Krishna Plumber',    username: 'krishna.plumber',    email: 'plumber@tole.com',      ...temporaryPassword('plumber@tole.com'),  role: 'staff', specialization: 'water',    phone: '9822222222', exportSection: 'dues' });
-  const guard       = await User.create({ name: 'Suresh Guard',       username: 'suresh.guard',       email: 'guard@tole.com',        ...temporaryPassword('guard@tole.com'),    role: 'staff', specialization: 'security', phone: '9841234567', exportSection: null });
+  const staff       = await User.create({ name: 'Mina Adhikari',      username: 'general.staff',      email: 'staff@tole.com',        ...temporaryPassword('staff@tole.com'),  role: 'staff', specialization: 'general', exportSection: 'complaints' });
+  const electrician = await User.create({ name: 'Bishnu Thapa',       username: 'bishnu.electrician', email: 'electrician@tole.com',  ...temporaryPassword('electrician@tole.com'),    role: 'staff', specialization: 'electric', phone: '9811111111', exportSection: 'complaints' });
+  const plumber     = await User.create({ name: 'Krishna Karki',      username: 'krishna.plumber',    email: 'plumber@tole.com',      ...temporaryPassword('plumber@tole.com'),  role: 'staff', specialization: 'water',    phone: '9822222222', exportSection: 'dues' });
+  const guard       = await User.create({ name: 'Suresh Gurung',      username: 'suresh.guard',       email: 'guard@tole.com',        ...temporaryPassword('guard@tole.com'),    role: 'staff', specialization: 'security', phone: '9841234567', exportSection: null });
   const r1          = await User.create({ name: 'Ram Bahadur',        username: 'ram.bahadur',        email: 'ram@tole.com',          ...temporaryPassword('ram@tole.com'),      role: 'resident' });
   const r2          = await User.create({ name: 'Sita Devi',          username: 'sita.devi',          email: 'sita@tole.com',         ...temporaryPassword('sita@tole.com'),     role: 'resident' });
   const r3          = await User.create({ name: 'Hari Prasad',        username: 'hari.prasad',        email: 'hari@tole.com',         ...temporaryPassword('hari@tole.com'),     role: 'resident' });
@@ -86,7 +86,7 @@ const seed = async () => {
   // Create sample notifications
   await Notification.create({ user: r2._id, title: 'New Due Generated 💰', message: `Rs. 500 due generated for A-102. Please pay before the 10th to avoid fine.`, type: 'due', link: '/dues' });
   await Notification.create({ user: r3._id, title: 'Payment Overdue ⚠️',   message: `Your due for B-201 is overdue. Fine: Rs. 50. Please pay as soon as possible.`, type: 'overdue', link: '/dues' });
-  await Notification.create({ user: r1._id, title: 'Complaint Resolved ✅', message: `Your complaint "Paani aaudaina" has been resolved by Krishna Plumber! Solution: Main pump motor fail bhayeko thiyo, naya motor lagayera fix gariyo.`, type: 'complaint', link: '/complaints', isRead: true });
+  await Notification.create({ user: r1._id, title: 'Complaint Resolved ✅', message: `Your complaint "Paani aaudaina" has been resolved by Krishna Karki! Solution: Main pump motor fail bhayeko thiyo, naya motor lagayera fix gariyo.`, type: 'complaint', link: '/complaints', isRead: true });
   await Notification.create({ user: r1._id, title: '📢 New Notice (Section 1): Water Supply Off Tomorrow', message: 'Bihana 6-10 baje paani band huncha maintenance ko karan.', type: 'notice', link: '/notices' });
   await Notification.create({ user: r2._id, title: '📢 New Notice (Section 1): Water Supply Off Tomorrow', message: 'Bihana 6-10 baje paani band huncha maintenance ko karan.', type: 'notice', link: '/notices' });
   await Notification.create({ user: electrician._id, title: 'New Complaint Assigned to You 🔧', message: '"Batti gaako" (electric, Section 1, medium priority) auto-assigned to you based on your specialization.', type: 'complaint', link: '/complaints' });

@@ -18,12 +18,19 @@ export default function Login() {
       await login(email, password);
       navigate('/');
     } catch (err) {
-      if (!err.response) {
-        setError('Cannot reach the server. Please check your connection.');
-      } else if (err.response.status === 400 && Array.isArray(err.response.data?.errors)) {
-        setError(err.response.data.errors[0]?.message || err.response.data.message || 'Please check your input.');
+      const status = err.response?.status;
+      const responseError = err.response?.data?.message || err.response?.data?.error;
+
+      if (status === 429) {
+        setError(responseError || 'Too many login attempts. Please try again later.');
+      } else if (status === 403) {
+        setError('Your account is deactivated. Please contact the admin.');
+      } else if (status === 401) {
+        setError('Invalid email or password.');
+      } else if (status === 400 && Array.isArray(err.response.data?.errors)) {
+        setError(err.response.data.errors[0]?.message || responseError || 'Please check your input.');
       } else {
-        setError(err.response.data?.message || 'Unable to log in. Please try again.');
+        setError(responseError || 'An unexpected error occurred. Please try again.');
       }
     } finally { setLoading(false); }
   };
@@ -44,7 +51,7 @@ export default function Login() {
             <input type="password" value={password} onChange={e => setPassword(e.target.value)} required />
           </div>
           <div style={{ marginBottom: 12, fontSize: '0.8rem', color: '#6b7280' }}>
-            Forgot your password? Please contact the tole admin to reset it.
+            Password resets are handled by your neighborhood admin.
           </div>
           <button type="submit" className="btn btn-primary" disabled={loading}>
             {loading ? 'Logging in...' : 'Login'}

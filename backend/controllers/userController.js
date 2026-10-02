@@ -276,7 +276,7 @@ exports.resetPassword = async (req, res) => {
       'user',
       user._id,
       {
-        reason: 'default_password_reset'
+        reason: 'admin_password_reset'
       }
     );
 
@@ -289,7 +289,7 @@ exports.resetPassword = async (req, res) => {
         email: user.email
       },
       temporaryPassword: newPassword,
-      message: 'Password reset. Save the new temporary password now — it will not be shown again.'
+      message: 'Password reset successfully'
     });
   } catch (err) {
     res.status(500).json({
@@ -399,7 +399,7 @@ exports.updateMyProfile = async (req, res) => {
         return res.status(400).json({ success: false, message: 'Current password is incorrect' });
       }
       if (!isValidNewPassword(newPassword)) {
-        return res.status(400).json({ success: false, message: 'New password must be 8-64 characters and include at least one letter and one number' });
+        return res.status(400).json({ success: false, message: 'New password must be 8-64 characters and include uppercase, lowercase, a number, and a special character' });
       }
       user.password = newPassword; // pre-save hook (below) hashes it — MUST use .save(), not findByIdAndUpdate,
       user.mustChangePassword = false;

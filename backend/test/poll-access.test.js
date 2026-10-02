@@ -14,7 +14,9 @@ jest.mock('../middleware/auth', () => ({
     : res.status(403).json({ success: false, message: 'Access denied' })
 }));
 jest.mock('../models/Poll', () => ({
+  find: jest.fn(),
   findById: jest.fn(),
+  findByIdAndDelete: jest.fn(),
   findByIdAndUpdate: jest.fn()
 }));
 jest.mock('../models/House', () => ({
@@ -37,6 +39,7 @@ const { updatePoll } = require('../controllers/pollController');
 function queryFor(value) {
   const query = {
     populate: jest.fn().mockReturnThis(),
+    sort: jest.fn().mockReturnThis(),
     then: (resolve, reject) => Promise.resolve(value).then(resolve, reject)
   };
   return query;
@@ -62,6 +65,74 @@ beforeEach(() => {
 afterEach(() => jest.clearAllMocks());
 
 describe('poll result access and manual closure', () => {
+  test('GET polls finalizes expired polls before building the response', async () => {
+    const listedPoll = {
+      status: 'active',
+      options: [{ votes: [] }],
+      toObject: () => ({ status: listedPoll.status, options: [{ votes: [] }] })
+    };
+    Poll.find.mockReturnValue(queryFor([listedPoll]));
+    finalizeExpiredPolls.mockImplementationOnce(async () => {
+      listedPoll.status = 'completed';
+      return { checked: 1, finalized: 1 };
+    });
+
+    const response = await request(app)
+      .get('/polls')
+      .set('Authorization', 'admin');
+
+    expect(finalizeExpiredPolls).toHaveBeenCalled();
+    expect(response.status).toBe(200);
+    expect(response.body.data[0].status).toBe('completed');
+  });
+
+  test.each(['admin', 'staff'])('%s cannot submit poll votes', async role => {
+    const response = await request(app)
+      .post('/polls/aaaaaaaaaaaaaaaaaaaaaaaa/vote')
+      .set('Authorization', role)
+      .send({ optionIndex: 0 });
+
+    expect(response.status).toBe(403);
+    expect(Poll.findById).not.toHaveBeenCalled();
+  });
+
+  test('staff can edit a poll before voting starts', async () => {
+    const activePoll = { _id: 'aaaaaaaaaaaaaaaaaaaaaaaa', status: 'active', totalVotes: 0 };
+    const updatedPoll = { ...activePoll, title: 'Updated community choice' };
+    Poll.findById.mockResolvedValue(activePoll);
+    Poll.findByIdAndUpdate.mockReturnValue(queryFor(updatedPoll));
+
+    const response = await request(app)
+      .put('/polls/aaaaaaaaaaaaaaaaaaaaaaaa')
+      .set('Authorization', 'staff')
+      .send({ title: 'Updated community choice', options: ['Choice A', 'Choice B'] });
+
+    expect(response.status).toBe(200);
+    expect(Poll.findByIdAndUpdate).toHaveBeenCalledWith(
+      activePoll._id,
+      expect.objectContaining({
+        title: 'Updated community choice',
+        options: [
+          { text: 'Choice A', votes: [] },
+          { text: 'Choice B', votes: [] }
+        ]
+      }),
+      { new: true, runValidators: true }
+    );
+  });
+
+  test('staff can delete a poll', async () => {
+    Poll.findById.mockResolvedValue({ _id: 'aaaaaaaaaaaaaaaaaaaaaaaa' });
+    Poll.findByIdAndDelete.mockResolvedValue({});
+
+    const response = await request(app)
+      .delete('/polls/aaaaaaaaaaaaaaaaaaaaaaaa')
+      .set('Authorization', 'staff');
+
+    expect(response.status).toBe(200);
+    expect(Poll.findByIdAndDelete).toHaveBeenCalledWith('aaaaaaaaaaaaaaaaaaaaaaaa');
+  });
+
   test('resident outside the target section receives 403 for results', async () => {
     Poll.findById.mockReturnValue(queryFor({
       targetSections: ['Section 1'],
@@ -92,7 +163,7 @@ describe('poll result access and manual closure', () => {
 
   test('manual close uses the same poll finalizer with manual reason', async () => {
     const activePoll = { _id: 'aaaaaaaaaaaaaaaaaaaaaaaa', status: 'active', totalVotes: 1 };
-    const closedPoll = { ...activePoll, status: 'closed', outcome: 'winner' };
+    const closedPoll = { ...activePoll, status: 'completed', outcome: 'winner' };
     Poll.findById
       .mockResolvedValueOnce(activePoll)
       .mockReturnValueOnce({ populate: jest.fn().mockResolvedValue(closedPoll) });

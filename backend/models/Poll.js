@@ -1,16 +1,23 @@
 const mongoose = require('mongoose');
 
 const pollOptionSchema = new mongoose.Schema({
-  text: { type: String, required: true },
+  text: { type: String, required: true, trim: true, minlength: 1, maxlength: 100 },
   votes: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }] // Array of user IDs who voted for this option
 });
 
 const pollSchema = new mongoose.Schema({
-  title: { type: String, required: true },
+  title: { type: String, required: true, trim: true, minlength: 5, maxlength: 100 },
   description: { type: String },
-  options: [pollOptionSchema],
+  options: {
+    type: [pollOptionSchema],
+    required: true,
+    validate: {
+      validator: options => Array.isArray(options) && options.length >= 2 && options.length <= 10,
+      message: 'Poll must have 2-10 options'
+    }
+  },
   type: { type: String, enum: ['anonymous', 'named'], default: 'anonymous' }, // anonymous = hide who voted, named = show voters
-  status: { type: String, enum: ['active', 'closed'], default: 'active' },
+  status: { type: String, enum: ['active', 'closed', 'completed', 'tied'], default: 'active' },
   targetSections: { type: [String], default: [] }, // Empty = all sections can vote
   createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
   endDate: { type: Date }, // Optional end date for poll

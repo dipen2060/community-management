@@ -22,7 +22,7 @@ const POLL_TRANSITIONS = [
   'Only **active** polls accept votes, and only while `endDate` is in the future.',
   'Each user may vote **once** per poll. A second attempt returns 409.',
   'Options cannot be edited once `totalVotes > 0`.',
-  'A `closed` poll can never be modified or deleted-and-recreated meaningfully; it accepts no further changes.'
+  'Finalized polls (`closed`, `completed` or `tied`) accept no further edits.'
 ].join('\n');
 
 module.exports = {
@@ -105,8 +105,9 @@ module.exports = {
       summary: 'Update a poll',
       description:
         `Partial update of \`title\`, \`description\`, \`status\` and \`endDate\`.\n\n${POLL_TRANSITIONS}\n\n` +
-        'Setting `status: "closed"` runs the same finalization, outcome calculation, notification, and tie-break flow as automatic expiry. ' +
-        'Other edits to a closed poll are rejected (400), and a new `endDate` must always be in the future.',
+        'Setting `status: "closed"` runs the same finalization, outcome calculation, notification, and runoff flow as automatic expiry. ' +
+        'A unique winner changes status to `completed`; a tie changes status to `tied` and creates a `[Runoff]` poll containing only tied options. ' +
+        'Other edits to a finalized poll are rejected (400), and a new `endDate` must always be in the future.',
       params: [param('IdPathParam')],
       requestBody: body('UpdatePollRequest', false),
       responses: {
@@ -134,7 +135,7 @@ module.exports = {
       tags: ['Polls'],
       summary: 'Delete a poll',
       description:
-        'Permanently removes the poll along with its votes. Unlike users, notices and houses, polls **are** hard-deleted, ' +
+        'Admins and staff may permanently remove a poll and its votes. Unlike users, notices and houses, polls **are** hard-deleted, ' +
         'so this cannot be undone and any vote history is lost. Prefer setting `status: "closed"` via `PUT /polls/{id}` ' +
         'when the goal is simply to stop accepting votes.',
       params: [param('IdPathParam')],
@@ -152,7 +153,7 @@ module.exports = {
       summary: 'Cast a vote',
       description:
         `Records a vote for the option at \`optionIndex\`.\n\n${POLL_TRANSITIONS}\n\n` +
-        '**Eligibility:** residents may only vote on polls addressed to their own section (or on broadcasts). A vote is ' +
+        '**Eligibility:** only residents may vote; admins and staff receive 403. Residents may only vote on polls addressed to their own section (or on broadcasts). A vote is ' +
         'recorded atomically against the poll\'s current state, so concurrent double submissions cannot both succeed.\n\n' +
         'The response returns the whole poll with the vote list masked appropriately for its `type`. Expired polls are finalized before the vote is attempted.',
       params: [param('IdPathParam')],
@@ -186,9 +187,9 @@ module.exports = {
       description:
         'Returns per-option tallies with a `percentage` share of `totalVotes`, plus the voter list. For `anonymous` polls ' +
         'each voter is replaced with an `{ _id: "anonymous", name: "Anonymous" }` placeholder; named polls return voter names only, never phone numbers. ' +
-        'Admins and staff may always view results. Residents may view results only for polls matching their section, and only after closure; an active poll returns 403. ' +
+        'Admins and staff may always view live or final results. Residents may view results only for polls matching their section, and only after closure; an active poll returns 403. ' +
         'Expired polls are finalized before this response is assembled.\n\n' +
-        'The poll summary includes `outcome`, `winnerOptionIndexes`, `closedAt`, `round`, and parent/runoff poll ids. Expired polls are finalized before results are assembled.',
+        'The poll summary includes `outcome`, `winnerOptionIndexes`, `closedAt`, `round`, and parent/runoff poll ids. Expired polls are finalized before results are assembled. Runoff polls last 48 hours by default (`POLL_RUNOFF_HOURS` can override this).',
       params: [param('IdPathParam')],
       responses: {
         200: {

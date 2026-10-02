@@ -2,7 +2,12 @@ import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from 'recharts';
-import { validatePollForm } from '../utils/validation';
+import {
+  validatePollDescription,
+  validatePollForm,
+  validatePollOptions,
+  validatePollTitle
+} from '../utils/validation';
 
 const CHART_COLORS = ['#3b82f6', '#a855f7', '#22c55e', '#f59e0b', '#ef4444', '#06b6d4', '#ec4899', '#84cc16'];
 
@@ -12,7 +17,12 @@ const Polls = () => {
   const [selectedPoll, setSelectedPoll] = useState(null);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [showResults, setShowResults] = useState(false);
+  const [editingPoll, setEditingPoll] = useState(null);
+  const [editForm, setEditForm] = useState({ title: '', description: '', options: [], endDate: '' });
+  const [editErrors, setEditErrors] = useState({});
   const [loading, setLoading] = useState(true);
+  const [creating, setCreating] = useState(false);
+  const [updating, setUpdating] = useState(false);
   const [pollSubmitAttempted, setPollSubmitAttempted] = useState(false);
   const [pollTouchedFields, setPollTouchedFields] = useState({});
   const [availableSections, setAvailableSections] = useState(['Section 1', 'Section 2', 'Section 3', 'Section 4']);
@@ -56,12 +66,59 @@ const Polls = () => {
     }
   };
 
+  const startEditingPoll = (poll) => {
+    const endDate = poll.endDate ? new Date(poll.endDate) : null;
+    if (endDate) endDate.setMinutes(endDate.getMinutes() - endDate.getTimezoneOffset());
+    setEditingPoll(poll);
+    setEditForm({
+      title: poll.title,
+      description: poll.description || '',
+      options: poll.options.map(option => option.text),
+      endDate: endDate ? endDate.toISOString().slice(0, 16) : ''
+    });
+    setEditErrors({});
+  };
+
+  const handleUpdatePoll = async (e) => {
+    e.preventDefault();
+    const errors = {
+      title: validatePollTitle(editForm.title),
+      description: validatePollDescription(editForm.description),
+      options: editingPoll.totalVotes === 0 ? validatePollOptions(editForm.options) : '',
+      endDate: editForm.endDate && new Date(editForm.endDate) <= new Date()
+        ? 'End date must be in the future'
+        : ''
+    };
+    setEditErrors(errors);
+    if (Object.values(errors).some(Boolean)) return;
+
+    const update = {
+      title: editForm.title.trim(),
+      description: editForm.description.trim()
+    };
+    if (editForm.endDate) update.endDate = new Date(editForm.endDate).toISOString();
+    if (editingPoll.totalVotes === 0) update.options = editForm.options.map(option => option.trim());
+
+    setUpdating(true);
+    try {
+      await axios.put(`/api/polls/${editingPoll._id}`, update);
+      setEditingPoll(null);
+      fetchPolls();
+      alert('Poll updated successfully!');
+    } catch (err) {
+      alert(err.response?.data?.message || 'Failed to update poll');
+    } finally {
+      setUpdating(false);
+    }
+  };
+
   const handleCreatePoll = async (e) => {
     e.preventDefault();
     setPollSubmitAttempted(true);
     const errors = validatePollForm(newPoll);
     if (Object.values(errors).some(Boolean)) return;
 
+    setCreating(true);
     try {
       await axios.post('/api/polls', {
         ...newPoll,
@@ -86,6 +143,8 @@ const Polls = () => {
       alert('Poll created successfully!');
     } catch (err) {
       alert(err.response?.data?.message || 'Failed to create poll');
+    } finally {
+      setCreating(false);
     }
   };
 
@@ -216,7 +275,7 @@ const Polls = () => {
                 placeholder="What would you like to ask the community?"
                 required
               />
-              {(pollTouchedFields.title || pollSubmitAttempted) && pollFormErrors.title && <p role="alert" className="mt-2 text-sm text-red-600">{pollFormErrors.title}</p>}
+              {(pollTouchedFields.title || pollSubmitAttempted || newPoll.title) && pollFormErrors.title && <p role="alert" className="mt-2 text-sm text-red-600">{pollFormErrors.title}</p>}
             </div>
 
             <div>
@@ -230,7 +289,7 @@ const Polls = () => {
                 rows="3"
                 placeholder="Add more context to your poll (optional)"
               />
-              {(pollTouchedFields.description || pollSubmitAttempted) && pollFormErrors.description && <p role="alert" className="mt-2 text-sm text-red-600">{pollFormErrors.description}</p>}
+              {(pollTouchedFields.description || pollSubmitAttempted || newPoll.description) && pollFormErrors.description && <p role="alert" className="mt-2 text-sm text-red-600">{pollFormErrors.description}</p>}
             </div>
 
             <div>
@@ -265,7 +324,7 @@ const Polls = () => {
                   </div>
                 ))}
               </div>
-              {(pollTouchedFields.options || pollSubmitAttempted) && pollFormErrors.options && <p role="alert" className="mt-2 text-sm text-red-600">{pollFormErrors.options}</p>}
+              {(pollTouchedFields.options || pollSubmitAttempted || newPoll.options.some(option => option)) && pollFormErrors.options && <p role="alert" className="mt-2 text-sm text-red-600">{pollFormErrors.options}</p>}
               <button
                 type="button"
                 onClick={addOption}
@@ -300,7 +359,7 @@ const Polls = () => {
                   className="w-full border-2 border-gray-200 rounded-xl p-4 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none"
                   required
                 />
-                {(pollTouchedFields.endDate || pollSubmitAttempted) && pollFormErrors.endDate && <p role="alert" className="mt-2 text-sm text-red-600">{pollFormErrors.endDate}</p>}
+                {(pollTouchedFields.endDate || pollSubmitAttempted || newPoll.endDate) && pollFormErrors.endDate && <p role="alert" className="mt-2 text-sm text-red-600">{pollFormErrors.endDate}</p>}
               </div>
             </div>
 
@@ -325,9 +384,10 @@ const Polls = () => {
             <div className="flex gap-4 pt-4">
               <button
                 type="submit"
+                disabled={creating}
                 className="flex-1 bg-gradient-to-r from-blue-600 to-purple-600 text-white px-6 py-4 rounded-xl hover:from-blue-700 hover:to-purple-700 transition-all shadow-lg hover:shadow-xl font-semibold"
               >
-                Create Poll
+                {creating ? 'Creating...' : 'Create Poll'}
               </button>
               <button
                 type="button"
@@ -335,6 +395,88 @@ const Polls = () => {
                 className="px-6 py-4 bg-gray-100 text-gray-700 rounded-xl hover:bg-gray-200 transition-colors font-semibold"
               >
                 Cancel
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {editingPoll && (
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/60 p-4">
+          <form onSubmit={handleUpdatePoll} noValidate className="max-h-[90vh] w-full max-w-2xl space-y-4 overflow-y-auto rounded-2xl bg-white p-6 shadow-2xl">
+            <h2 className="text-2xl font-bold text-gray-800">Edit Poll</h2>
+            <div>
+              <label className="mb-2 block text-sm font-semibold text-gray-700">Poll Title *</label>
+              <input
+                value={editForm.title}
+                maxLength={100}
+                onChange={e => setEditForm({ ...editForm, title: e.target.value })}
+                className="w-full rounded-xl border-2 border-gray-200 p-3"
+              />
+              {editErrors.title && <p role="alert" className="mt-1 text-sm text-red-600">{editErrors.title}</p>}
+            </div>
+            <div>
+              <label className="mb-2 block text-sm font-semibold text-gray-700">Description</label>
+              <textarea
+                value={editForm.description}
+                maxLength={500}
+                onChange={e => setEditForm({ ...editForm, description: e.target.value })}
+                className="w-full rounded-xl border-2 border-gray-200 p-3"
+              />
+              {editErrors.description && <p role="alert" className="mt-1 text-sm text-red-600">{editErrors.description}</p>}
+            </div>
+            <div>
+              <label className="mb-2 block text-sm font-semibold text-gray-700">End Date</label>
+              <input
+                type="datetime-local"
+                value={editForm.endDate}
+                onChange={e => setEditForm({ ...editForm, endDate: e.target.value })}
+                className="w-full rounded-xl border-2 border-gray-200 p-3"
+              />
+              {editErrors.endDate && <p role="alert" className="mt-1 text-sm text-red-600">{editErrors.endDate}</p>}
+            </div>
+            {editingPoll.totalVotes === 0 && (
+              <div>
+                <label className="mb-2 block text-sm font-semibold text-gray-700">Options (2-10)</label>
+                <div className="space-y-2">
+                  {editForm.options.map((option, index) => (
+                    <div key={index} className="flex gap-2">
+                      <input
+                        value={option}
+                        maxLength={100}
+                        onChange={e => {
+                          const options = [...editForm.options];
+                          options[index] = e.target.value;
+                          setEditForm({ ...editForm, options });
+                        }}
+                        className="w-full rounded-xl border-2 border-gray-200 p-3"
+                      />
+                      {editForm.options.length > 2 && (
+                        <button type="button" onClick={() => setEditForm({
+                          ...editForm,
+                          options: editForm.options.filter((_, optionIndex) => optionIndex !== index)
+                        })} className="rounded-lg bg-red-50 px-3 text-red-600">
+                          Remove
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+                {editErrors.options && <p role="alert" className="mt-1 text-sm text-red-600">{editErrors.options}</p>}
+                <button
+                  type="button"
+                  disabled={editForm.options.length >= 10}
+                  onClick={() => setEditForm({ ...editForm, options: [...editForm.options, ''] })}
+                  className="mt-2 text-sm font-semibold text-blue-600 disabled:text-gray-400"
+                >
+                  Add option
+                </button>
+              </div>
+            )}
+            <div className="flex justify-end gap-3">
+              <button type="button" onClick={() => setEditingPoll(null)} className="rounded-lg bg-gray-100 px-4 py-2 text-gray-700">Cancel</button>
+              <button type="submit" className="rounded-lg bg-blue-600 px-4 py-2 font-semibold text-white" disabled={updating}>
+                {updating ? 'Saving...' : 'Save Changes'}
               </button>
             </div>
           </form>
@@ -370,14 +512,17 @@ const Polls = () => {
                       ? 'bg-green-100 text-green-700' 
                       : 'bg-red-100 text-red-700'
                   }`}>
-                    {selectedPoll.poll.status === 'active' ? '● Active' : '● Closed'}
+                    {selectedPoll.poll.status === 'active'
+                      ? '● Active'
+                      : selectedPoll.poll.status === 'completed' ? '● Completed'
+                        : selectedPoll.poll.status === 'tied' ? '● Tied' : '● Closed'}
                   </span>
                 </div>
                 <p className="mt-3 text-sm font-semibold text-gray-700">
                   Outcome: {selectedPoll.poll.outcome === 'winner'
                     ? `Winner — ${selectedPoll.results[selectedPoll.poll.winnerOptionIndexes?.[0]]?.text || 'Option'}`
                     : selectedPoll.poll.outcome === 'tie'
-                      ? selectedPoll.poll.runoffPoll ? 'Tie — re-vote started' : 'Final tie — admin decision needed'
+                      ? selectedPoll.poll.runoffPoll ? 'Tie — runoff started' : 'Tie'
                       : selectedPoll.poll.outcome === 'no_votes' ? 'No votes' : 'Voting open'}
                 </p>
               </div>
@@ -458,8 +603,9 @@ const Polls = () => {
       ) : (
         <div className="grid gap-6">
           {polls.map((poll) => {
-            const pollClosed = poll.status === 'closed' || (poll.endDate && new Date(poll.endDate).getTime() <= Date.now());
+            const pollClosed = poll.status !== 'active' || (poll.endDate && new Date(poll.endDate).getTime() <= Date.now());
             const isResident = user?.role === 'resident';
+            const isManager = user?.role === 'admin' || user?.role === 'staff';
             const canVote = isResident && !pollClosed && !poll.hasVoted;
             const winner = poll.outcome === 'winner' ? poll.options[poll.winnerOptionIndexes?.[0]] : null;
             const winnerPercentage = winner && poll.totalVotes > 0
@@ -479,7 +625,10 @@ const Polls = () => {
                           ? 'bg-green-100 text-green-700' 
                           : 'bg-red-100 text-red-700'
                       }`}>
-                        {!pollClosed ? '● Active' : '● Closed'}
+                        {!pollClosed
+                          ? '● Active'
+                          : poll.status === 'completed' ? '● Completed'
+                            : poll.status === 'tied' ? '● Tied' : '● Closed'}
                       </span>
                       {poll.round > 1 && <span className="rounded-full bg-purple-100 px-3 py-1 text-xs font-semibold text-purple-700">Re-vote · Round {poll.round}</span>}
                     </div>
@@ -499,12 +648,20 @@ const Polls = () => {
                   {(user?.role === 'admin' || user?.role === 'staff') && (
                     <div className="flex flex-wrap gap-2 sm:ml-4">
                       {poll.status === 'active' && (
-                        <button
-                          onClick={() => handleClosePoll(poll._id)}
-                          className="px-3 py-2 bg-yellow-100 text-yellow-700 rounded-lg hover:bg-yellow-200 transition-colors text-sm font-medium"
-                        >
-                          Close
-                        </button>
+                        <>
+                          <button
+                            onClick={() => startEditingPoll(poll)}
+                            className="px-3 py-2 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors text-sm font-medium"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            onClick={() => handleClosePoll(poll._id)}
+                            className="px-3 py-2 bg-yellow-100 text-yellow-700 rounded-lg hover:bg-yellow-200 transition-colors text-sm font-medium"
+                          >
+                            Close
+                          </button>
+                        </>
                       )}
                       <button
                         onClick={() => handleDeletePoll(poll._id)}
@@ -520,6 +677,11 @@ const Polls = () => {
 
               {/* Voting Options */}
               <div className="p-6">
+                {isManager && (
+                  <div className="mb-5 rounded-xl border border-blue-200 bg-blue-50 p-4 font-semibold text-blue-800">
+                    Admin/Staff View - Results Only
+                  </div>
+                )}
                 {pollClosed && poll.outcome === 'winner' && winner && (
                   <div className="mb-5 rounded-xl border border-green-200 bg-green-50 p-4 font-semibold text-green-800">
                     Winner: {winner.text} — {winner.votes.length} votes ({winnerPercentage}%)
@@ -527,7 +689,7 @@ const Polls = () => {
                 )}
                 {pollClosed && poll.outcome === 'tie' && (
                   <div className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-yellow-200 bg-yellow-50 p-4 font-semibold text-yellow-800">
-                    <span>{poll.runoffPoll ? 'Tie — re-vote started' : 'Final tie — waiting for admin decision'}</span>
+                    <span>{poll.runoffPoll ? 'This poll ended in a tie and moved to a runoff.' : 'This poll ended in a tie.'}</span>
                     {poll.runoffPoll && (
                       <button type="button" onClick={() => scrollToRunoff(poll.runoffPoll)} className="rounded-lg bg-yellow-100 px-3 py-2 text-sm hover:bg-yellow-200">
                         Go to re-vote
@@ -544,25 +706,12 @@ const Polls = () => {
                       ? ((option.votes.length / poll.totalVotes) * 100).toFixed(1) 
                       : 0;
                     
-                    return (
-                      <button
-                        key={index}
-                        onClick={isResident ? () => handleVote(poll._id, index) : undefined}
-                        disabled={!isResident || pollClosed || poll.hasVoted}
-                        className={`w-full text-left p-4 rounded-xl border-2 relative overflow-hidden ${
-                          canVote
-                            ? 'transition-all group bg-white border-gray-200 hover:border-blue-400 hover:bg-blue-50'
-                            : 'bg-gray-50 border-gray-200 cursor-not-allowed'
-                        }`}
-                      >
-                        {/* Progress bar background */}
-                        {poll.totalVotes > 0 && (
-                          <div 
-                            className="absolute inset-0 bg-gradient-to-r from-blue-100 to-purple-100 transition-all duration-500"
-                            style={{ width: `${votePercentage}%`, opacity: 0.3 }}
-                          />
-                        )}
-                        
+                    const contents = (
+                      <>
+                        <div
+                          className="absolute inset-y-0 left-0 bg-gradient-to-r from-blue-100 to-purple-100 transition-all duration-500"
+                          style={{ width: `${votePercentage}%`, opacity: 0.3 }}
+                        />
                         <div className="relative flex justify-between items-center">
                           <div className="flex items-center gap-3">
                             <span className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm ${
@@ -576,17 +725,34 @@ const Polls = () => {
                           </div>
                           <div className="flex items-center gap-3">
                             <span className="text-sm text-gray-500">{option.votes.length} votes</span>
-                            {poll.totalVotes > 0 && (
-                              <span className="font-bold text-blue-600">{votePercentage}%</span>
-                            )}
+                            <span className="font-bold text-blue-600">{votePercentage}%</span>
                           </div>
                         </div>
+                      </>
+                    );
+
+                    return isManager || pollClosed ? (
+                      <div key={index} className="w-full text-left p-4 rounded-xl border-2 border-gray-200 bg-gray-50 relative overflow-hidden">
+                        {contents}
+                      </div>
+                    ) : (
+                      <button
+                        key={index}
+                        onClick={() => handleVote(poll._id, index)}
+                        disabled={!canVote}
+                        className={`w-full text-left p-4 rounded-xl border-2 relative overflow-hidden ${
+                          canVote
+                            ? 'transition-all group bg-white border-gray-200 hover:border-blue-400 hover:bg-blue-50'
+                            : 'bg-gray-50 border-gray-200 cursor-not-allowed'
+                        }`}
+                      >
+                        {contents}
                       </button>
                     );
                   })}
                 </div>
 
-                {poll.hasVoted && (
+                {isResident && poll.hasVoted && (
                   <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-xl flex items-center gap-3">
                     <span className="text-2xl">✅</span>
                     <span className="text-green-700 font-medium">You have voted in this poll</span>

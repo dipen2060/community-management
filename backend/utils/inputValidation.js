@@ -23,7 +23,7 @@ const isValidUserName = (value) =>
   typeof value === 'string' &&
   value.length >= 2 &&
   value.length <= 50 &&
-  /^[A-Za-z][A-Za-z .'-]*$/.test(value);
+  /^[A-Za-z][A-Za-z ]*$/.test(value);
 
 const isValidMonthlyDue = (value) => {
   if (typeof value !== 'number' && typeof value !== 'string') {
@@ -34,7 +34,7 @@ const isValidMonthlyDue = (value) => {
   const amount = Number(text);
   return /^\d+(?:\.\d{1,2})?$/.test(text) &&
     Number.isFinite(amount) &&
-    amount >= 0 &&
+    amount > 0 &&
     amount <= MAX_MONTHLY_DUE;
 };
 
@@ -62,8 +62,10 @@ const isValidNewPassword = (password) =>
   typeof password === 'string' &&
   password.length >= 8 &&
   password.length <= 64 &&
-  /[A-Za-z]/.test(password) &&
-  /\d/.test(password);
+  /[A-Z]/.test(password) &&
+  /[a-z]/.test(password) &&
+  /\d/.test(password) &&
+  /[^A-Za-z0-9\s]/.test(password);
 
 const isWithinOneYear = (date, now = new Date()) => {
   const latestAllowed = new Date(now);

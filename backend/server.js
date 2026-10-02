@@ -9,6 +9,7 @@ const rateLimit = require('express-rate-limit');
 const mongoose = require('mongoose');
 const { rateLimitResponse } = require('./middleware/rateLimitResponse');
 const cron = require('node-cron');
+const { isDocsEnabled } = require('./docs/config');
 
 const connectDB = require('./config/db');
 const Due = require('./models/Due');
@@ -27,6 +28,11 @@ const {
 const app = express();
 const PORT = process.env.PORT || 5000;
 let server;
+
+if (typeof isDocsEnabled === 'function' && isDocsEnabled()) {
+    const { createDocsRouter } = require('./docs/swagger');
+    app.use('/api-docs', createDocsRouter());
+}
 
 const uploadDirectories = [
     'uploads',
@@ -214,10 +220,11 @@ app.use(require('./middleware/errorHandler'));
 const startScheduledJobs = () => {
     /*
      * Generate monthly dues
-     * Runs at 8:00 AM on the first day of every month.
+     * Runs at midnight on the first day of every month.
      */
-    cron.schedule('0 8 1 * *', async () => {
+    cron.schedule('0 0 1 * *', async () => {
         if (mongoose.connection.readyState !== 1) {
+            console.warn('[Cron] Database not ready. Skipping execution.');
             return;
         }
 
@@ -239,6 +246,7 @@ const startScheduledJobs = () => {
      */
     cron.schedule('0 0 * * *', async () => {
         if (mongoose.connection.readyState !== 1) {
+            console.warn('[Cron] Database not ready. Skipping execution.');
             return;
         }
 
@@ -296,17 +304,18 @@ const startScheduledJobs = () => {
 
     /*
      * Complaint SLA auto-escalation
-     * Runs every 6 hours — checks for complaints that have sat open past their
-     * priority's resolution budget and bumps them up a severity level.
+     * Runs on the configured interval and checks open complaints against
+     * priority-specific resolution targets.
      */
-    const configuredSlaCheckCron = process.env.SLA_CHECK_CRON;
+    const configuredSlaCheckCron = process.env.SLA_CHECK_CRON_INTERVAL || process.env.SLA_CHECK_CRON;
     const slaCheckCron = getSlaCheckCron(process.env, cron.validate);
     if (configuredSlaCheckCron && slaCheckCron === DEFAULT_SLA_CHECK_CRON && configuredSlaCheckCron.trim() !== DEFAULT_SLA_CHECK_CRON) {
-        console.warn(`Invalid SLA_CHECK_CRON "${configuredSlaCheckCron}". Using default "${DEFAULT_SLA_CHECK_CRON}".`);
+        console.warn(`Invalid SLA_CHECK_CRON_INTERVAL "${configuredSlaCheckCron}". Using default "${DEFAULT_SLA_CHECK_CRON}".`);
     }
 
     cron.schedule(slaCheckCron, async () => {
         if (mongoose.connection.readyState !== 1) {
+            console.warn('[Cron] Database not ready. Skipping execution.');
             return;
         }
 
@@ -325,6 +334,7 @@ const startScheduledJobs = () => {
 
     cron.schedule('* * * * *', async () => {
         if (mongoose.connection.readyState !== 1) {
+            console.warn('[Cron] Database not ready. Skipping execution.');
             return;
         }
 
