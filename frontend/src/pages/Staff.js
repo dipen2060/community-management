@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
+import ResponsiveDataTable from '../components/ResponsiveDataTable';
+import ResponsiveForm from '../components/ResponsiveForm';
 import {
   normalizeEmail,
   normalizeUserName,
@@ -175,7 +177,7 @@ export default function Staff() {
           Aafno profile edit garna chahanu huncha vane admin lai contact garnu hos.
         </p>
         <div className="card">
-          <table>
+          <ResponsiveDataTable>
             <thead><tr><th>Name</th><th>Specialization</th><th>Phone</th></tr></thead>
             <tbody>
               {usersLoading ? (
@@ -190,7 +192,7 @@ export default function Staff() {
                 </tr>
               ))}
             </tbody>
-          </table>
+          </ResponsiveDataTable>
         </div>
       </div>
     );
@@ -209,12 +211,12 @@ export default function Staff() {
         ))}
       </div>
 
-      <button className="btn btn-primary" style={{ marginBottom: 20 }} onClick={() => openCreate(tab)}>
+      <button className="btn btn-primary w-full md:w-auto" style={{ marginBottom: 20 }} onClick={() => openCreate(tab)}>
         + Add {tab === 'staff' ? 'Staff Member' : tab === 'admin' ? 'Admin' : 'Resident'}
       </button>
 
       <div className="card">
-        <table>
+        <ResponsiveDataTable>
           <thead>
             <tr>
               <th>Name</th><th>Email (Login)</th><th>Username</th>
@@ -266,7 +268,7 @@ export default function Staff() {
               </td></tr>
             )}
           </tbody>
-        </table>
+        </ResponsiveDataTable>
       </div>
 
       {/* Create/Edit Modal */}
@@ -274,7 +276,7 @@ export default function Staff() {
         <div className="modal-overlay" onClick={() => setShowModal(false)}>
           <div className="modal" onClick={e => e.stopPropagation()}>
             <h3>{editUser ? `Edit ${editUser.name}` : `Add New ${form.role === 'staff' ? 'Staff' : form.role === 'admin' ? 'Admin' : 'Resident'}`}</h3>
-            <form onSubmit={handleSubmit} noValidate>
+            <ResponsiveForm onSubmit={handleSubmit} noValidate>
               <div className="form-group">
                 <label>Full Name</label>
                 <input
@@ -361,13 +363,13 @@ export default function Staff() {
                   )}
                 </>
               )}
-              <div className="modal-actions">
+              <div className="modal-actions col-span-full">
                 <button type="button" className="btn btn-cancel" onClick={() => setShowModal(false)}>Cancel</button>
                 <button type="submit" className="btn btn-primary" disabled={submitting}>
                   {submitting ? 'Saving...' : editUser ? 'Save Changes' : 'Create'}
                 </button>
               </div>
-            </form>
+            </ResponsiveForm>
           </div>
         </div>
       )}

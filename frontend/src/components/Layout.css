@@ -31,7 +31,7 @@ body { font-family: 'Segoe UI', sans-serif; background: var(--bg-page); color: v
 .layout { display: flex; min-height: 100vh; }
 
 .sidebar {
-  width: 240px; min-height: 100vh;
+  width: 15rem; min-height: 100vh;
   background: linear-gradient(180deg, #1a1a2e 0%, #16213e 100%);
   color: white; display: flex; flex-direction: column;
   position: fixed; top: 0; left: 0; bottom: 0;
@@ -62,7 +62,7 @@ nav { flex: 1; padding: 16px 0; }
 }
 .logout-btn:hover { background: #e94560; border-color: #e94560; color: white; }
 
-.main-content { margin-left: 240px; flex: 1; padding: 28px; }
+.main-content { margin-left: 15rem; flex: 1; min-width: 0; padding: 28px; }
 
 /* Cards */
 .page-title { font-size: 1.6rem; font-weight: 700; margin-bottom: 24px; color: var(--text-main); }
@@ -118,7 +118,7 @@ tr:hover td { background: var(--row-hover); }
   position: fixed; inset: 0; background: rgba(0,0,0,0.5);
   display: flex; align-items: center; justify-content: center; z-index: 1000;
 }
-.modal { background: var(--modal-bg); color: var(--text-main); border-radius: 16px; padding: 28px; width: 480px; max-width: 95vw; }
+.modal { background: var(--modal-bg); color: var(--text-main); border-radius: 16px; padding: 28px; width: min(100%, 30rem); max-width: 95vw; }
 .modal h3 { font-size: 1.1rem; font-weight: 600; margin-bottom: 20px; }
 .modal-actions { display: flex; gap: 12px; justify-content: flex-end; margin-top: 20px; }
 .btn-cancel { background: #f3f4f6; color: #374151; }
@@ -126,7 +126,7 @@ tr:hover td { background: var(--row-hover); }
 
 /* Login */
 .login-page { min-height: 100vh; display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #1a1a2e 0%, #16213e 60%, #0f3460 100%); }
-.login-card { background: white; padding: 40px; border-radius: 20px; width: 400px; box-shadow: 0 20px 60px rgba(0,0,0,0.3); }
+.login-card { background: white; padding: 40px; border-radius: 20px; width: min(100%, 25rem); box-shadow: 0 20px 60px rgba(0,0,0,0.3); }
 .login-card h1 { text-align: center; font-size: 1.8rem; color: #1a1a2e; margin-bottom: 6px; }
 .login-card p  { text-align: center; color: #6b7280; font-size: 0.875rem; margin-bottom: 28px; }
 .login-card .btn { width: 100%; padding: 12px; font-size: 1rem; margin-top: 8px; }
@@ -150,12 +150,14 @@ tr:hover td { background: var(--row-hover); }
 
 /* Topbar */
 .topbar { display: flex; justify-content: flex-end; align-items: center; margin-bottom: 16px; }
+.mobile-menu-toggle { display: none; }
+.sidebar-backdrop { display: none; }
 
 /* Notification Bell */
 .notif-wrapper { position: relative; }
 .notif-bell {
   position: relative; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 50%;
-  width: 40px; height: 40px; font-size: 1.1rem; cursor: pointer;
+  width: 2.75rem; height: 2.75rem; font-size: 1.1rem; cursor: pointer;
   display: flex; align-items: center; justify-content: center;
   box-shadow: 0 1px 3px rgba(0,0,0,0.06); transition: all 0.15s;
 }
@@ -166,7 +168,7 @@ tr:hover td { background: var(--row-hover); }
   display: flex; align-items: center; justify-content: center; padding: 0 4px;
 }
 .notif-dropdown {
-  position: absolute; top: 48px; right: 0; width: 360px; max-height: 420px;
+  position: absolute; top: 48px; right: 0; width: min(22.5rem, calc(100vw - 2rem)); max-height: 420px;
   background: var(--bg-card); border-radius: 12px; box-shadow: 0 8px 30px rgba(0,0,0,0.12);
   border: 1px solid var(--border-color); z-index: 100; display: flex; flex-direction: column;
 }
@@ -194,7 +196,7 @@ tr:hover td { background: var(--row-hover); }
 /* Theme toggle */
 .theme-toggle {
   background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 50%;
-  width: 40px; height: 40px; font-size: 1.1rem; cursor: pointer;
+  width: 2.75rem; height: 2.75rem; font-size: 1.1rem; cursor: pointer;
   display: flex; align-items: center; justify-content: center;
   box-shadow: 0 1px 3px rgba(0,0,0,0.06); transition: all 0.15s; margin-right: 10px;
 }
@@ -231,8 +233,8 @@ tr:hover td { background: var(--row-hover); }
 .modal-subtitle { color: #6b7280; font-size: .78rem; }
 .modal-close { border: none; background: #f3f4f6; color: #4b5563; width: 30px; height: 30px; border-radius: 7px; cursor: pointer; font-size: 1.2rem; }
 .modal-close:disabled { cursor: default; opacity: .5; }
-.dues-modal { width: 560px; max-height: 92vh; overflow-y: auto; }
-.dues-review-modal { width: 760px; max-width: 96vw; max-height: 92vh; overflow-y: auto; }
+.dues-modal { width: min(100%, 35rem); max-height: 92vh; overflow-y: auto; }
+.dues-review-modal { width: min(100%, 47.5rem); max-width: 96vw; max-height: 92vh; overflow-y: auto; }
 .payment-detail-box { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 14px; margin-bottom: 18px; }
 .payment-detail-box span, .review-grid span { display: block; color: #6b7280; font-size: .72rem; text-transform: uppercase; letter-spacing: .35px; }
 .payment-detail-box strong { display: block; margin: 4px 0; font-size: 1.25rem; }
@@ -292,3 +294,48 @@ tr:hover td { background: var(--row-hover); }
 [data-theme="dark"] .cluster-late     { background: rgba(234,179,8,0.12); border-color: #ca8a04; }
 [data-theme="dark"] .cluster-defaulter{ background: rgba(239,68,68,0.12); border-color: #dc2626; }
 [data-theme="dark"] .resident-pill { background: var(--bg-card); border-color: var(--border-color); color: var(--text-main); }
+
+@media (max-width: 767px) {
+  .layout { min-width: 0; }
+  .sidebar {
+    width: min(18rem, calc(100vw - 3rem));
+    z-index: 1001;
+    visibility: hidden;
+    transform: translateX(-100%);
+    transition: transform 0.2s ease, visibility 0.2s;
+  }
+  .sidebar.sidebar-open { visibility: visible; transform: translateX(0); }
+  .sidebar-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    width: 100%;
+    border: 0;
+    background: rgba(15, 23, 42, 0.55);
+  }
+  .main-content {
+    width: 100%;
+    min-width: 0;
+    margin-left: 0;
+    padding: 16px;
+  }
+  .topbar { justify-content: space-between; }
+  .mobile-menu-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 44px;
+    min-height: 44px;
+    padding: 0.75rem;
+    border: 1px solid var(--border-color);
+    border-radius: 0.5rem;
+    color: var(--text-main);
+    background: var(--bg-card);
+  }
+  .page-title { font-size: 1.35rem; margin-bottom: 18px; }
+  .card { min-width: 0; padding: 16px; }
+  .modal { padding: 20px; }
+  .modal-actions { flex-direction: column-reverse; }
+  .modal-actions .btn { width: 100%; min-height: 44px; }
+}

@@ -14,7 +14,7 @@ export function SkeletonBlock({ width = '100%', height = 16, radius = 6, style =
 // Mimics the stat-card row seen at the top of Dashboard/Dues/etc.
 export function SkeletonStatsGrid({ count = 4 }) {
   return (
-    <div className="stats-grid">
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
       {Array.from({ length: count }).map((_, i) => (
         <div className="stat-card" key={i}>
           <SkeletonBlock width="60%" height={12} />
@@ -29,19 +29,21 @@ export function SkeletonStatsGrid({ count = 4 }) {
 export function SkeletonTable({ rows = 5, columns = 4 }) {
   return (
     <div className="card">
-      <table>
-        <tbody>
-          {Array.from({ length: rows }).map((_, r) => (
-            <tr key={r}>
-              {Array.from({ length: columns }).map((_, c) => (
-                <td key={c}>
-                  <SkeletonBlock width={c === 0 ? '80%' : '55%'} />
-                </td>
-              ))}
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      <div className="overflow-x-auto">
+        <table className="min-w-[600px]">
+          <tbody>
+            {Array.from({ length: rows }).map((_, r) => (
+              <tr key={r}>
+                {Array.from({ length: columns }).map((_, c) => (
+                  <td key={c}>
+                    <SkeletonBlock width={c === 0 ? '80%' : '55%'} />
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

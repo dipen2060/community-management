@@ -378,7 +378,7 @@ export default function Dues() {
                 </div>
               </div>
               <div className="table-scroll" style={{ marginTop: 12 }}>
-                <table>
+                <table className="min-w-[600px]">
                   <thead><tr><th>Month/Year</th><th>Amount</th><th>Fine</th><th>Total</th><th>Status</th></tr></thead>
                   <tbody>
                     {house.breakdown.map(due => (
@@ -430,7 +430,7 @@ export default function Dues() {
           </div>
           <div className="card dues-table-card">
             <div className="table-scroll">
-              <table className="dues-table">
+              <table className="dues-table min-w-[600px]">
                 <thead><tr><th>House No</th><th>Owner / Resident</th><th>Contact</th><th>Base Fee</th><th>Carry Forward</th><th>Fines</th><th>Total Due</th><th>Status</th><th>Actions</th></tr></thead>
                 <tbody>
                   {outstandingLoading ? (
@@ -484,7 +484,7 @@ export default function Dues() {
       {(!isManagement || activeTab === 'dues') && (
       <div className="card dues-table-card">
         <div className="table-scroll">
-          <table className="dues-table">
+          <table className="dues-table min-w-[600px]">
             <thead>
               <tr>
                 <th>House</th>
@@ -575,7 +575,7 @@ export default function Dues() {
 
       {outstandingModal && (
         <div className="modal-overlay" onClick={() => setOutstandingModal(null)}>
-          <div className="modal dues-modal !max-h-[calc(100vh_-_2rem)] !w-[calc(100%_-_2rem)] !overflow-y-auto sm:!w-[900px]" onClick={event => event.stopPropagation()}>
+          <div className="modal dues-modal !max-h-[calc(100vh_-_2rem)] !w-[calc(100%_-_2rem)] !overflow-y-auto sm:!w-full sm:!max-w-[56rem]" onClick={event => event.stopPropagation()}>
             <div className="modal-top-row">
               <div>
                 <h3>Outstanding Breakdown · {outstandingModal.houseNo}</h3>
@@ -588,7 +588,7 @@ export default function Dues() {
               <button type="button" className="btn btn-sm" style={{ background: '#ef4444', color: 'white' }} onClick={() => downloadOutstanding('pdf', String(outstandingModal.houseId))}>Download PDF</button>
             </div>
             <div className="table-scroll">
-              <table>
+              <table className="min-w-[600px]">
                 <thead><tr><th>Month/Year</th><th>Amount</th><th>Fine</th><th>Total</th><th>Status</th><th>Due Date</th><th>Days Overdue</th></tr></thead>
                 <tbody>
                   {outstandingModal.breakdown.map(due => (
@@ -615,7 +615,7 @@ export default function Dues() {
 
       {paymentDue && (
         <div className="modal-overlay" onClick={() => !submitting && setPaymentDue(null)}>
-          <div className="modal dues-modal !max-h-[calc(100vh_-_2rem)] !w-[calc(100%_-_2rem)] !overflow-y-auto sm:!w-[560px]" onClick={e => e.stopPropagation()}>
+          <div className="modal dues-modal !max-h-[calc(100vh_-_2rem)] !w-[calc(100%_-_2rem)] !overflow-y-auto sm:!w-full sm:!max-w-[35rem]" onClick={e => e.stopPropagation()}>
             <div className="modal-top-row">
               <div>
                 <h3>Submit Payment Proof</h3>
@@ -684,7 +684,7 @@ export default function Dues() {
 
       {reviewDue && (
         <div className="modal-overlay" onClick={() => !reviewing && setReviewDue(null)}>
-          <div className="modal dues-review-modal !max-h-[calc(100vh_-_2rem)] !w-[calc(100%_-_2rem)] !overflow-y-auto sm:!w-[760px]" onClick={e => e.stopPropagation()}>
+          <div className="modal dues-review-modal !max-h-[calc(100vh_-_2rem)] !w-[calc(100%_-_2rem)] !overflow-y-auto sm:!w-full sm:!max-w-[47.5rem]" onClick={e => e.stopPropagation()}>
             <div className="modal-top-row">
               <div>
                 <h3>Payment Proof Review</h3>

@@ -3,6 +3,8 @@ import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
 import Pagination from '../components/Pagination';
 import { SkeletonTable } from '../components/Skeleton';
+import ResponsiveDataTable from '../components/ResponsiveDataTable';
+import ResponsiveForm from '../components/ResponsiveForm';
 import {
   MAX_MONTHLY_DUE,
   normalizeHouseNo,
@@ -95,12 +97,12 @@ export function Houses() {
   return (
     <div>
       <h1 className="page-title">🏠 Houses</h1>
-      {isAdmin && <button className="btn btn-primary" style={{ marginBottom: 20 }} onClick={openCreate}>+ Add House</button>}
+      {isAdmin && <button className="btn btn-primary w-full md:w-auto" style={{ marginBottom: 20 }} onClick={openCreate}>+ Add House</button>}
       {loading ? (
         <SkeletonTable rows={6} columns={7} />
       ) : (
       <div className="card">
-        <table>
+        <ResponsiveDataTable>
           <thead><tr><th>House No</th><th>Section</th><th>Floor</th><th>Type</th><th>Owner</th><th>Tenant</th><th>Monthly Due</th>{isAdmin && <th>Action</th>}</tr></thead>
           <tbody>
             {!houses.length && (
@@ -123,7 +125,7 @@ export function Houses() {
               </tr>
             ))}
           </tbody>
-        </table>
+        </ResponsiveDataTable>
       </div>
       )}
       {!loading && <Pagination page={page} pages={pages} total={total} onChange={setPage} />}
@@ -131,7 +133,7 @@ export function Houses() {
         <div className="modal-overlay" onClick={() => { setShowModal(false); setEditHouse(null); }}>
           <div className="modal" onClick={e => e.stopPropagation()}>
             <h3>{editHouse ? `Edit House ${editHouse.houseNo}` : 'Add House'}</h3>
-            <form onSubmit={handleSubmit} noValidate>
+            <ResponsiveForm onSubmit={handleSubmit} noValidate>
               <div className="form-group">
                 <label>House No</label>
                 <input
@@ -186,13 +188,13 @@ export function Houses() {
                   {residents.map(r => <option key={r._id} value={r._id}>{r.name} ({r.username})</option>)}
                 </select>
               </div>
-              <div className="modal-actions">
+              <div className="modal-actions col-span-full">
                 <button type="button" className="btn btn-cancel" onClick={() => { setShowModal(false); setEditHouse(null); }}>Cancel</button>
                 <button type="submit" className="btn btn-primary" disabled={submitting}>
                   {submitting ? 'Saving...' : editHouse ? 'Save Changes' : 'Add House'}
                 </button>
               </div>
-            </form>
+            </ResponsiveForm>
           </div>
         </div>
       )}

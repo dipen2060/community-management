@@ -3,6 +3,8 @@ import axios from 'axios';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
 import { useAuth } from '../context/AuthContext';
 import { SkeletonStatsGrid, SkeletonCard, SkeletonTable } from '../components/Skeleton';
+import DashboardStats from '../components/DashboardStats';
+import ResponsiveDataTable from '../components/ResponsiveDataTable';
 import { formatDateTime } from '../utils/dateTime';
 
 export default function Dashboard() {
@@ -68,7 +70,7 @@ export default function Dashboard() {
       {!selectedHouseId && stats?.perHouse?.length > 1 && (
         <div className="card" style={{ marginBottom: 20 }}>
           <div className="card-header"><h3>🏠 Breakdown by House</h3></div>
-          <table>
+          <ResponsiveDataTable>
             <thead><tr><th>House</th><th>Total Dues</th><th>Paid</th><th>Pending</th></tr></thead>
             <tbody>
               {stats.perHouse.map(h => (
@@ -80,55 +82,34 @@ export default function Dashboard() {
                 </tr>
               ))}
             </tbody>
-          </table>
+          </ResponsiveDataTable>
         </div>
       )}
 
 
-      <div className="stats-grid">
+      <div>
         {loading ? (
           <SkeletonStatsGrid count={7} />
         ) : (
-          <>
-        <div className="stat-card blue">
-          <h3>Total Dues</h3>
-          <div className="value">{stats?.totalDues ?? '—'}</div>
-        </div>
-        <div className="stat-card green">
-          <h3>Paid</h3>
-          <div className="value">{stats?.paidDues ?? '—'}</div>
-        </div>
-        <div className="stat-card orange">
-          <h3>Pending</h3>
-          <div className="value">{stats?.pendingDues ?? '—'}</div>
-        </div>
-        <div className="stat-card red">
-          <h3>Collection Rate</h3>
-          <div className="value">{stats?.collectionRate ?? '—'}%</div>
-        </div>
-        <div className="stat-card green">
-          <h3>Total Collected</h3>
-          <div className="value">Rs. {stats?.totalCollected ?? '—'}</div>
-        </div>
-        <div className="stat-card orange">
-          <h3>All-time Outstanding</h3>
-          <div className="value">Rs. {Number(stats?.allTimeOutstandingAmount || 0).toLocaleString('en-IN')}</div>
-        </div>
-        <div className="stat-card red">
-          <h3>Houses with Arrears</h3>
-          <div className="value">{stats?.housesWithArrears ?? '—'}</div>
-        </div>
-        </>
+          <DashboardStats items={[
+            { label: 'Total Dues', value: stats?.totalDues ?? '—', color: 'blue' },
+            { label: 'Paid', value: stats?.paidDues ?? '—', color: 'green' },
+            { label: 'Pending', value: stats?.pendingDues ?? '—', color: 'orange' },
+            { label: 'Collection Rate', value: `${stats?.collectionRate ?? '—'}%`, color: 'red' },
+            { label: 'Total Collected', value: `Rs. ${stats?.totalCollected ?? '—'}`, color: 'green' },
+            { label: 'All-time Outstanding', value: `Rs. ${Number(stats?.allTimeOutstandingAmount || 0).toLocaleString('en-IN')}`, color: 'orange' },
+            { label: 'Houses with Arrears', value: stats?.housesWithArrears ?? '—', color: 'red' }
+          ]} />
         )}
       </div>
 
       {loading ? (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '20px' }}>
+        <div className="mb-5 grid grid-cols-1 gap-5 lg:grid-cols-2">
           <SkeletonCard lines={4} />
           <SkeletonCard lines={4} />
         </div>
       ) : (
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '20px' }}>
+      <div className="mb-5 grid grid-cols-1 gap-5 lg:grid-cols-2">
         <div className="card">
           <div className="card-header"><h3>Due Status</h3></div>
           {pieData.length > 0 && (
@@ -159,7 +140,7 @@ export default function Dashboard() {
       ) : (
       <div className="card">
         <div className="card-header"><h3>🔧 Recent Complaints</h3></div>
-        <table>
+        <ResponsiveDataTable>
           <thead><tr><th>Title</th><th>Category</th><th>Priority</th><th>Status</th></tr></thead>
           <tbody>
             {complaints.map(c => (
@@ -171,7 +152,7 @@ export default function Dashboard() {
               </tr>
             ))}
           </tbody>
-        </table>
+        </ResponsiveDataTable>
       </div>
       )}
     </div>

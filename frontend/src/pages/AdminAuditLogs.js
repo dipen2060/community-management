@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import axios from 'axios';
 import Pagination from '../components/Pagination';
+import ResponsiveDataTable from '../components/ResponsiveDataTable';
 
 export default function AdminAuditLogs() {
   const [logs, setLogs] = useState([]);
@@ -50,8 +51,7 @@ export default function AdminAuditLogs() {
       </div>
 
       <div className="card">
-        <div className="w-full overflow-x-auto">
-          <table className="min-w-[720px]">
+        <ResponsiveDataTable className="min-w-[720px]">
             <thead>
               <tr><th>Date</th><th>Actor</th><th>Role</th><th>Action</th><th>Target</th><th>Details</th></tr>
             </thead>
@@ -68,8 +68,7 @@ export default function AdminAuditLogs() {
               ))}
               {!logs.length && <tr><td colSpan="6">No audit logs found.</td></tr>}
             </tbody>
-          </table>
-        </div>
+        </ResponsiveDataTable>
         <Pagination page={page} pages={pages} total={total} onChange={setPage} />
       </div>
     </div>

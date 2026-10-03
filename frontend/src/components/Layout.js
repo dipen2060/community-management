@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
+import { Menu, X } from 'lucide-react';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
 import MustChangePasswordModal from './MustChangePasswordModal';
@@ -11,6 +12,7 @@ export default function Layout() {
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [showNotifs, setShowNotifs] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'light');
   const notifRef = useRef(null);
 
@@ -110,14 +112,24 @@ export default function Layout() {
   return (
     <div className="layout">
       {user?.mustChangePassword && <MustChangePasswordModal />}
+      {sidebarOpen && (
+        <button
+          type="button"
+          className="sidebar-backdrop"
+          aria-label="Close navigation menu"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
       {/* Sidebar */}
-      <aside className="sidebar">
+      <aside className={`sidebar${sidebarOpen ? ' sidebar-open' : ''}`} id="primary-sidebar">
         <div className="sidebar-header">
           <h2>🏘️ Tole</h2>
           <p>Community Management</p>
         </div>
 
-        <nav>
+        <nav onClick={event => {
+          if (event.target.closest('a')) setSidebarOpen(false);
+        }}>
           <NavLink
             to="/"
             end
@@ -202,6 +214,16 @@ export default function Layout() {
       <main className="main-content">
         {/* Topbar with Notification Bell */}
         <div className="topbar">
+          <button
+            type="button"
+            className="mobile-menu-toggle"
+            onClick={() => setSidebarOpen(open => !open)}
+            aria-label={sidebarOpen ? 'Close navigation menu' : 'Open navigation menu'}
+            aria-expanded={sidebarOpen}
+            aria-controls="primary-sidebar"
+          >
+            {sidebarOpen ? <X size={22} /> : <Menu size={22} />}
+          </button>
           <button
             type="button"
             className="theme-toggle"

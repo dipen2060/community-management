@@ -3,6 +3,8 @@ import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
 import Pagination from '../components/Pagination';
 import { SkeletonTable } from '../components/Skeleton';
+import ResponsiveDataTable from '../components/ResponsiveDataTable';
+import ResponsiveForm from '../components/ResponsiveForm';
 import { formatDateTime } from '../utils/dateTime';
 
 export default function Complaints() {
@@ -161,7 +163,7 @@ export default function Complaints() {
     <div>
       <h1 className="page-title">🔧 Complaints</h1>
       <div style={{ marginBottom: 20, display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-        <button className="btn btn-primary" onClick={() => { setShowModal(true); setAutoInfo(null); }}>+ New Complaint</button>
+        <button className="btn btn-primary w-full md:w-auto" onClick={() => { setShowModal(true); setAutoInfo(null); }}>+ New Complaint</button>
         {isAdminOrStaff && (
           <>
             <select value={sectionFilter} onChange={e => { setSectionFilter(e.target.value); setPage(1); }} style={{ padding: '8px 12px', border: '1px solid #d1d5db', borderRadius: '8px', fontSize: '0.875rem' }}>
@@ -216,7 +218,7 @@ export default function Complaints() {
         <SkeletonTable rows={6} columns={8} />
       ) : (
       <div className="card">
-        <table>
+        <ResponsiveDataTable>
           <thead>
             <tr><th>Title</th><th>Section</th><th>Category</th><th>Priority</th><th>Submitted By</th><th>Assigned To</th><th>Status</th><th>Action</th></tr>
           </thead>
@@ -310,7 +312,7 @@ export default function Complaints() {
               </tr>
             ))}
           </tbody>
-        </table>
+        </ResponsiveDataTable>
       </div>
       )}
       <Pagination page={page} pages={pages} total={total} onChange={setPage} /> 
@@ -319,7 +321,7 @@ export default function Complaints() {
         <div className="modal-overlay" onClick={() => setShowModal(false)}>
           <div className="modal" onClick={e => e.stopPropagation()}>
             <h3>New Complaint</h3>
-            <form onSubmit={handleSubmit}>
+            <ResponsiveForm onSubmit={handleSubmit}>
               <div className="form-group">
                 <label>Title</label>
                 <input value={form.title} onChange={e => setForm({...form, title: e.target.value})} placeholder="e.g. Paani aaudaina" required />
@@ -337,13 +339,13 @@ export default function Complaints() {
                   <option value="urgent">Urgent</option>
                 </select>
               </div>
-              <div className="modal-actions">
+              <div className="modal-actions col-span-full">
                 <button type="button" className="btn btn-cancel" onClick={() => setShowModal(false)}>Cancel</button>
                 <button type="submit" className="btn btn-primary" disabled={submitting}>
                   {submitting ? 'Submitting...' : 'Submit Complaint'}
                 </button>
               </div>
-            </form>
+            </ResponsiveForm>
           </div>
         </div>
       )}
