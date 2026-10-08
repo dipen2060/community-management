@@ -16,18 +16,8 @@ const { createNotification } = require('./controllers/notificationController');
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-/*
- * --------------------------------------------------
- * Database
- * --------------------------------------------------
- */
 connectDB();
 
-/*
- * --------------------------------------------------
- * Required directories
- * --------------------------------------------------
- */
 const uploadDirectories = [
     'uploads',
     'uploads/payment-proofs'
@@ -39,21 +29,13 @@ uploadDirectories.forEach((directory) => {
     });
 });
 
-/*
- * --------------------------------------------------
- * Application settings
- * --------------------------------------------------
- */
+
 app.set(
     'trust proxy',
     process.env.TRUST_PROXY === 'true' ? 1 : false
 );
 
-/*
- * --------------------------------------------------
- * Security
- * --------------------------------------------------
- */
+
 app.use(
     helmet({
         crossOriginResourcePolicy: {
@@ -125,11 +107,7 @@ app.use(
     })
 );
 
-/*
- * --------------------------------------------------
- * Rate limiting
- * --------------------------------------------------
- */
+
 const generalLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
     max: 100,
@@ -138,7 +116,7 @@ const generalLimiter = rateLimit({
 
 const authLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
-    max: 5,
+    max: 50,
     message: 'Too many login attempts. Please try again later.'
 });
 
@@ -175,11 +153,9 @@ app.use(
     express.static(path.join(__dirname, 'uploads'))
 );
 
-/*
- * --------------------------------------------------
- * Routes
- * --------------------------------------------------
- */
+// Routes
+
+
 app.use(
     '/api/auth',
     authLimiter,
@@ -226,11 +202,7 @@ app.use(
     require('./routes/polls')
 );
 
-/*
- * --------------------------------------------------
- * Health check
- * --------------------------------------------------
- */
+
 app.get('/', (req, res) => {
     res.json({
         success: true,
@@ -238,11 +210,7 @@ app.get('/', (req, res) => {
     });
 });
 
-/*
- * --------------------------------------------------
- * Error handler
- * --------------------------------------------------
- */
+// Error handling middleware
 app.use(require('./middleware/errorHandler'));
 
 /*
@@ -415,11 +383,6 @@ cron.schedule('0 0 * * *', async () => {
     }
 });
 
-/*
- * --------------------------------------------------
- * Start server
- * --------------------------------------------------
- */
 const server = app.listen(PORT, () => {
     console.log(
         `Server running on http://localhost:${PORT}`

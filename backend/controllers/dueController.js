@@ -328,7 +328,7 @@ exports.generateMonthlyDues = async (req, res) => {
       for (const userId of recipients) {
         await createNotification({
           user: userId,
-          title: 'New Due Generated 💰',
+          title: 'New Due Generated',
           message: `Rs. ${house.monthlyDue} due generated for ${house.houseNo} (${month}/${year}). Please pay before the 10th to avoid fine.`,
           type: 'due',
           link: '/dues'
